@@ -1,0 +1,33 @@
+# Build
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+
+# VSCode
+.vscode/
+
+# Rider
+.idea/
+
+# Visual Studio
+.vs/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+
+# NuGet
+*.nupkg
+
+# EF Core local db
+*.db
+
