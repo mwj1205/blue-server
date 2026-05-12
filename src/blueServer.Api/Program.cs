@@ -1,3 +1,4 @@
+using blueServer.Api.Services;
 using blueServer.Domain.Entities;
 using blueServer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,9 @@ builder.Services.AddOpenApi();
 builder.Services.AddDbContext<GameDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
+// ASP.NET Core에게 PlayerService가 필요할 때마다 생성해달라고 등록하는 것.
+builder.Services.AddScoped<PlayerService>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -17,19 +21,22 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.MapGet("/", () => "blueServer API is running!");
-
-// JSON -> C# 객체로 변환해서 받음
-app.MapPost("/players", async (GameDbContext db, Player player) =>
+app.MapGet("/", () =>
 {
-    db.Players.Add(player);
-    await db.SaveChangesAsync(); // 실제 DB에 저장
-    return Results.Created($"/players/{player.Id}", player);
+    return "blueServer API is running!";
 });
 
-app.MapGet("/players/{id:long}", async (GameDbContext db, long id) =>
+// JSON -> C# 객체로 변환해서 받음
+app.MapPost("/players", async (PlayerService playerService, Player player) =>
 {
-    var player = await db.Players.FindAsync(id);
+    var createdPlayer = await playerService.CreatePlayerAsync(player);
+
+    return Results.Ok(createdPlayer);
+});
+
+app.MapGet("/players/{id:long}", async (PlayerService playerService, long id) =>
+{
+    var player = await playerService.GetPlayerByIdAsync(id);
     if (player is null)
   {
     return Results.NotFound();
