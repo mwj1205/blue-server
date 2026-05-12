@@ -15,7 +15,7 @@ namespace blueServer.Infrastructure.Migrations
                 name: "Players",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Nickname = table.Column<string>(type: "text", nullable: false),
                     Gold = table.Column<int>(type: "integer", nullable: false),

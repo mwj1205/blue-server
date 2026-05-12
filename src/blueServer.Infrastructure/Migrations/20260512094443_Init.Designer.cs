@@ -11,7 +11,7 @@ using blueServer.Infrastructure;
 namespace blueServer.Infrastructure.Migrations
 {
     [DbContext(typeof(GameDbContext))]
-    [Migration("20260512091602_Init")]
+    [Migration("20260512094443_Init")]
     partial class Init
     {
         /// <inheritdoc />
@@ -26,11 +26,11 @@ namespace blueServer.Infrastructure.Migrations
 
             modelBuilder.Entity("blueServer.Domain.Entities.Player", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("bigint");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
                     b.Property<int>("Gem")
                         .HasColumnType("integer");
