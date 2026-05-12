@@ -1,0 +1,10 @@
+# POST http://localhost:5201/players
+# Content-Type: application/json
+
+# {
+#     "nickname": "Orona",
+#     "gold": 1000,
+#     "gem": 600
+# }
+
+GET http://localhost:5201/players/1

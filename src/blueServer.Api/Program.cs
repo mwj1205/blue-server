@@ -1,3 +1,4 @@
+using blueServer.Domain.Entities;
 using blueServer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,25 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.MapGet("/", () => "Hello World!");
+app.MapGet("/", () => "blueServer API is running!");
+
+// JSON -> C# 객체로 변환해서 받음
+app.MapPost("/players", async (GameDbContext db, Player player) =>
+{
+    db.Players.Add(player);
+    await db.SaveChangesAsync(); // 실제 DB에 저장
+    return Results.Created($"/players/{player.Id}", player);
+});
+
+app.MapGet("/players/{id:long}", async (GameDbContext db, long id) =>
+{
+    var player = await db.Players.FindAsync(id);
+    if (player is null)
+  {
+    return Results.NotFound();
+  }
+
+  return Results.Ok(player);
+});
 
 app.Run();
