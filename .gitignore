@@ -31,3 +31,5 @@ Thumbs.db
 # EF Core local db
 *.db
 
+#dev
+appsettings.Development.json
