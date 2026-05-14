@@ -2,6 +2,7 @@ using blueServer.Api.Services;
 using blueServer.Domain.Entities;
 using blueServer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using blueServer.Api.DTOs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,9 +28,9 @@ app.MapGet("/", () =>
 });
 
 // JSON -> C# 객체로 변환해서 받음
-app.MapPost("/players", async (PlayerService playerService, Player player) =>
+app.MapPost("/players", async (PlayerService playerService, CreatePlayerRequest request) =>
 {
-    var createdPlayer = await playerService.CreatePlayerAsync(player);
+    var createdPlayer = await playerService.CreatePlayerAsync(request);
 
     return Results.Ok(createdPlayer);
 });

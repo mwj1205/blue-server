@@ -1,6 +1,7 @@
 using blueServer.Domain.Entities;
 using blueServer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using blueServer.Api.DTOs;
 
 namespace blueServer.Api.Services;
 
@@ -13,10 +14,10 @@ public class PlayerService
         _db = db;
     }
 
-    public async Task<Player> CreatePlayerAsync(Player player)
+    public async Task<PlayerResponse> CreatePlayerAsync(CreatePlayerRequest request)
     {
         // 닉네임 중복 체크
-        var exists = await _db.Players.AnyAsync(X => X.Nickname == player.Nickname); 
+        var exists = await _db.Players.AnyAsync(X => X.Nickname == request.Nickname); 
 
         if (exists)
         {
@@ -24,18 +25,41 @@ public class PlayerService
         }
 
         // 초기 재화
-        player.Gold = 1000;
-        player.Gem = 500;
+        var player = new Player
+        {
+            Nickname = request.Nickname,
+            Gold = 1000,
+            Gem = 500
+        };
 
         _db.Players.Add(player);
 
         await _db.SaveChangesAsync();
 
-        return player;
+        return new PlayerResponse
+        {
+            Id = player.Id,
+            Nickname = player.Nickname,
+            Gold = player.Gold,
+            Gem = player.Gem
+        };
     }
 
-    public async Task<Player?> GetPlayerByIdAsync(long id)
+    public async Task<PlayerResponse?> GetPlayerByIdAsync(long id)
     {
-        return await _db.Players.FindAsync(id);
+        var player = await _db.Players.FindAsync(id);
+
+        if (player is null)
+        {
+            return null;
+        }
+
+        return new PlayerResponse
+        {
+            Id = player.Id,
+            Nickname = player.Nickname,
+            Gold = player.Gold,
+            Gem = player.Gem
+        };
     }
 }
