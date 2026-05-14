@@ -27,23 +27,18 @@ app.MapGet("/", () =>
     return "blueServer API is running!";
 });
 
-// JSON -> C# 객체로 변환해서 받음
+// POST: 이제 Entity 대신 CreatePlayerRequest DTO를 받음
 app.MapPost("/players", async (PlayerService playerService, CreatePlayerRequest request) =>
 {
     var createdPlayer = await playerService.CreatePlayerAsync(request);
-
     return Results.Ok(createdPlayer);
 });
 
+// GET: 서비스에서 이미 Response DTO를 반환하므로 그대로 사용합니다.
 app.MapGet("/players/{id:long}", async (PlayerService playerService, long id) =>
 {
     var player = await playerService.GetPlayerByIdAsync(id);
-    if (player is null)
-  {
-    return Results.NotFound();
-  }
-
-  return Results.Ok(player);
+    return player is null ? Results.NotFound() : Results.Ok(player);
 });
 
 app.Run();
