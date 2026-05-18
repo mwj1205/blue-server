@@ -1,8 +1,42 @@
-POST http://localhost:5201/players
+@host = http://localhost:5201
+
+### 회원가입
+POST {{host}}/register
 Content-Type: application/json
 
 {
-    "nickname": "Iory"
+    "nickname": "Crona",
+    "password": "1234"
 }
 
-# GET http://localhost:5201/players/6
+###
+
+### 로그인
+POST {{host}}/login
+Content-Type: application/json
+
+{
+    "nickname": "Crona",
+    "password": "1234"
+}
+
+###
+
+### 플레이어 생성
+POST {{host}}/players
+Content-Type: application/json
+
+{
+    "nickname": "Sensei"
+}
+
+###
+
+### 내 정보 조회 (JWT 필요)
+GET {{host}}/me
+Authorization: Bearer {JWT 토큰}
+
+###
+
+### 플레이어 조회
+GET {{host}}/players/0

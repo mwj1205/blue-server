@@ -1,8 +1,8 @@
+using blueServer.Api.DTOs;
+using blueServer.Api.Exceptions;
 using blueServer.Domain.Entities;
 using blueServer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
-using blueServer.Api.DTOs;
-using blueServer.Api.Exceptions;
 
 namespace blueServer.Api.Services;
 
@@ -15,17 +15,18 @@ public class PlayerService
         _db = db;
     }
 
-    public async Task<PlayerResponse> CreatePlayerAsync(CreatePlayerRequest request)
+    public async Task<PlayerResponse> CreatePlayerAsync(
+        CreatePlayerRequest request)
     {
-        // 닉네임 중복 체크
-        var exists = await _db.Players.AnyAsync(X => X.Nickname == request.Nickname); 
+        var exists = await _db.Players
+            .AnyAsync(x => x.Nickname == request.Nickname);
 
         if (exists)
         {
-            throw new GameException("Nickname already exists");
+            throw new GameException(
+                "Nickname already exists");
         }
 
-        // 초기 재화
         var player = new Player
         {
             Nickname = request.Nickname,
@@ -46,7 +47,8 @@ public class PlayerService
         };
     }
 
-    public async Task<PlayerResponse?> GetPlayerByIdAsync(long id)
+    public async Task<PlayerResponse?> GetPlayerAsync(
+        long id)
     {
         var player = await _db.Players.FindAsync(id);
 
