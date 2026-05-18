@@ -3,10 +3,16 @@ using blueServer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using blueServer.Api.DTOs;
 using blueServer.Api.Middlewares;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+
+builder.Services.AddFluentValidationAutoValidation();
+
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 // AddDbContext: 필요할 때 GameDbContext 생성해달라고 등록하는 것.
 builder.Services.AddDbContext<GameDbContext>(options =>
@@ -30,9 +36,25 @@ app.MapGet("/", () =>
 });
 
 // POST: 이제 Entity 대신 CreatePlayerRequest DTO를 받음
-app.MapPost("/players", async (PlayerService playerService, CreatePlayerRequest request) =>
+app.MapPost("/players", async (
+    PlayerService playerService,
+    IValidator<CreatePlayerRequest> validator,
+    CreatePlayerRequest request) =>
 {
+    var validationResult = await validator.ValidateAsync(request);
+
+    if (!validationResult.IsValid)
+    {
+        return Results.BadRequest(
+            validationResult.Errors.Select(x => new
+            {
+                field = x.PropertyName,
+                message = x.ErrorMessage
+            }));
+    }
+
     var createdPlayer = await playerService.CreatePlayerAsync(request);
+
     return Results.Ok(createdPlayer);
 });
 
