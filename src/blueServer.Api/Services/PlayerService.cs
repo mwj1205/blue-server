@@ -2,6 +2,7 @@ using blueServer.Domain.Entities;
 using blueServer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using blueServer.Api.DTOs;
+using blueServer.Api.Exceptions;
 
 namespace blueServer.Api.Services;
 
@@ -21,7 +22,7 @@ public class PlayerService
 
         if (exists)
         {
-            throw new Exception("Nickname already exists.");
+            throw new GameException("Nickname already exists");
         }
 
         // 초기 재화

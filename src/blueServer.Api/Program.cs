@@ -1,8 +1,8 @@
 using blueServer.Api.Services;
-using blueServer.Domain.Entities;
 using blueServer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using blueServer.Api.DTOs;
+using blueServer.Api.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +16,8 @@ builder.Services.AddDbContext<GameDbContext>(options =>
 builder.Services.AddScoped<PlayerService>();
 
 var app = builder.Build();
+
+app.UseMiddleware<ExceptionMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
