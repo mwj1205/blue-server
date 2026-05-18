@@ -6,4 +6,5 @@ public class Player
     public string Nickname { get; set; } = "";
     public int Gold { get; set; }
     public int Gem { get; set; }
+    public string Password { get; set; } = "";
 }
