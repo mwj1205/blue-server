@@ -1,0 +1,29 @@
+# 최상위 EditorConfig 파일임을 선언
+root = true
+
+# 모든 파일에 대한 기본 설정 (줄바꿈, 인코딩 등)
+[*]
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+charset = utf-8
+
+# C# 파일 (.cs) 전용 규칙
+[*.cs]
+# 중괄호({ }) 배치 규칙 - C# 표준인 다음 줄에 배치 (Allman 스타일)
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+
+# space 및 정렬 규칙
+csharp_space_after_keywords_in_control_flow_statements = true
+csharp_space_between_method_call_parameter_list_parentheses = false
+
+# 'this.' 사용 여부 (필수가 아니면 생략하도록 설정)
+dotnet_style_qualification_for_field = false:suggestion
+dotnet_style_qualification_for_property = false:suggestion
+
+# 변수 선언 시 타입을 명시할지, var를 쓸지 결정 (var 권장)
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
