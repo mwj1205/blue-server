@@ -17,6 +17,8 @@ builder.Services.AddValidation();
 
 builder.Services.AddScoped<PlayerService>();
 
+builder.Services.AddScoped<PasswordService>();
+
 var app = builder.Build();
 
 app.UseMiddleware<ExceptionMiddleware>();

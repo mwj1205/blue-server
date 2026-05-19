@@ -5,8 +5,8 @@ POST {{host}}/register
 Content-Type: application/json
 
 {
-    "nickname": "Crona",
-    "password": "1234"
+    "nickname": "Iory",
+    "password": "q1w2e3r4"
 }
 
 ###
@@ -16,8 +16,8 @@ POST {{host}}/login
 Content-Type: application/json
 
 {
-    "nickname": "Crona",
-    "password": "1234"
+    "nickname": "Iory",
+    "password": "q1w2e3r4"
 }
 
 ###
@@ -27,14 +27,14 @@ POST {{host}}/players
 Content-Type: application/json
 
 {
-    "nickname": "Sensei"
+    "nickname": ""
 }
 
 ###
 
 ### 내 정보 조회 (JWT 필요)
 GET {{host}}/me
-Authorization: Bearer {JWT 토큰}
+Authorization: Bearer eyJhbGciOiJIUzI1NIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjEzIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZSI6IkFyb25hIiwiZXhwIjoxNzc5NzgyMTE5LCJpc3MiOiJibHVlU2VydmVyIiwiYXVkIjoiYmx1ZVNlcnZlciJ9.O1GdWu6jePJOOKbK9TSJU5XgPn3KtbAggkH7-0GApJM
 
 ###
 

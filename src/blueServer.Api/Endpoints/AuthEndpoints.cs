@@ -15,6 +15,7 @@ public static class AuthEndpoints
     {
         app.MapPost("/register", async (
             GameDbContext db,
+            PasswordService passwordService,
             RegisterRequest request) =>
         {
             var exists = await db.Players
@@ -34,7 +35,8 @@ public static class AuthEndpoints
             var player = new Player
             {
                 Nickname = request.Nickname,
-                Password = request.Password,
+                // 해시값으로 저장
+                Password = passwordService.HashPassword(request.Password),
 
                 Gold = 1000,
                 Gem = 500
@@ -50,14 +52,15 @@ public static class AuthEndpoints
         app.MapPost("/login", async (
             GameDbContext db,
             JwtService jwtService,
+            PasswordService passwordService,
             LoginRequest request) =>
         {
             var player = await db.Players
                 .FirstOrDefaultAsync(x =>
-                    x.Nickname == request.Nickname &&
-                    x.Password == request.Password);
+                    x.Nickname == request.Nickname);
 
-            if (player is null)
+            if (player is null ||
+                !passwordService.VerifyPassword(request.Password, player.Password))
             {
                 return Results.BadRequest(
                     new
