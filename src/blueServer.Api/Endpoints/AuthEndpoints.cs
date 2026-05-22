@@ -52,6 +52,7 @@ public static class AuthEndpoints
         app.MapPost("/login", async (
             GameDbContext db,
             JwtService jwtService,
+            RefreshTokenService refreshTokenService,
             PasswordService passwordService,
             LoginRequest request) =>
         {
@@ -65,17 +66,65 @@ public static class AuthEndpoints
                 return Results.BadRequest(
                     new
                     {
-                        message =
-                            "Invalid nickname or password"
+                        message = "Invalid nickname or password"
                     });
             }
 
-            var token =
+            var accessToken = jwtService.GenerateToken(player);
+
+            var refreshToken = jwtService.GenerateRefreshToken();
+
+            // redis에 refresh token 저장
+            await refreshTokenService
+                .SaveRefreshTokenAsync(
+                    player.Id,
+                    refreshToken);
+
+            return Results.Ok(new
+            {
+                accessToken,
+                refreshToken
+            });
+        });
+
+        app.MapPost("/refresh", async (
+            JwtService jwtService,
+            RefreshTokenService refreshTokenService,
+            GameDbContext db,
+            RefreshRequest request) =>
+        {
+            // 저장된 refrest token을 가져옴
+            var savedRefreshToken =
+                await refreshTokenService
+                    .GetRefreshTokenAsync(
+                        request.PlayerId);
+
+            if (savedRefreshToken is null ||
+                savedRefreshToken != request.RefreshToken)
+            {
+                return Results.BadRequest(new
+                {
+                    message = "Invalid refresh token"
+                });
+            }
+
+            var player = await db.Players
+                .FindAsync(request.PlayerId);
+
+            if (player is null)
+            {
+                return Results.BadRequest(new
+                {
+                    message = "Player not found"
+                });
+            }
+
+            var newAccessToken =
                 jwtService.GenerateToken(player);
 
             return Results.Ok(new
             {
-                token
+                accessToken = newAccessToken
             });
         });
 

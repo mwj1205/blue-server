@@ -32,9 +32,18 @@ Content-Type: application/json
 
 ###
 
+### Refrest 토큰 생성
+POST {{host}}/refresh
+Content-Type: application/json
+
+{
+    "PlayerId": 14,
+    "RefreshToken": "nUn5TN8v1W4eEsuILdSQwFacvZSoPKUgEtfozAIxb7Te3gk1ExE2frKmLzPDYwCl6ZT97Nka0S9uJFi0CL5b6g=="
+}
+
 ### 내 정보 조회 (JWT 필요)
 GET {{host}}/me
-Authorization: Bearer eyJhbGciOiJIUzI1NIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjEzIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZSI6IkFyb25hIiwiZXhwIjoxNzc5NzgyMTE5LCJpc3MiOiJibHVlU2VydmVyIiwiYXVkIjoiYmx1ZVNlcnZlciJ9.O1GdWu6jePJOOKbK9TSJU5XgPn3KtbAggkH7-0GApJM
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjE0IiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZSI6IklvcnkiLCJleHAiOjE3Nzk5NTkxNTYsImlzcyI6ImJsdWVTZXJ2ZXIiLCJhdWQiOiJibHVlU2VydmVyIn0.P_OfI--30OWejh6xIl21IPjdnSE-y4OGupFxNW1xH8k
 
 ###
 
