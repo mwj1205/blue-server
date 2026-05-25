@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/blueServer.Api/blueServer.Api.csproj" />
     <Project Path="src/blueServer.Domain/blueServer.Domain.csproj" />
+    <Project Path="src/blueServer.Game/blueServer.Game.csproj" />
     <Project Path="src/blueServer.Infrastructure/blueServer.Infrastructure.csproj" />
   </Folder>
 </Solution>
