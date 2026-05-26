@@ -1,5 +1,7 @@
 using System.Net.Sockets;
 using System.Text;
+using blueServer.Game.Handlers;
+using blueServer.Game.Packets;
 
 namespace blueServer.Game;
 
@@ -30,16 +32,9 @@ public class Session
                 break;
             }
 
-            var message = Encoding.UTF8.GetString(
-                buffer,
-                0,
-                length);
+            var packet = PacketReader.Read(buffer, length);
 
-            Console.WriteLine($"Received: {message}");
-
-            var response = Encoding.UTF8.GetBytes($"Echo: {message}");
-
-            await stream.WriteAsync(response);
+            PacketHandler.Handle(packet);
         }
     }
 }
