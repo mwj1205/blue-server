@@ -22,6 +22,11 @@ public class PacketWriter
         _stream.Write(bytes);
     }
 
+    public void WriteBytes(byte[] data)
+    {
+        _stream.Write(data);
+    }
+
     public byte[] ToArray()
     {
         return _stream.ToArray();

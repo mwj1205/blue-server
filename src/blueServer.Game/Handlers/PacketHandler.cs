@@ -21,9 +21,9 @@ public static class PacketHandler
                     var message = reader.ReadString();
                     Console.WriteLine($"[Chat] {message}");
 
-                    var response = System.Text.Encoding.UTF8.GetBytes($"Broadcast: {message}");
+                    var packet = new ChatMessagePacket { Message = $"Broadcast: {message}" };
 
-                    await SessionManager.BroadcastAsync(response);
+                    await SessionManager.BroadcastAsync(packet.Serialize());
 
                     break;
                 }
