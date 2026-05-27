@@ -2,6 +2,7 @@ using System.Net.Sockets;
 using System.Text;
 using blueServer.Game.Handlers;
 using blueServer.Game.Packets;
+using Microsoft.VisualBasic;
 
 namespace blueServer.Game;
 
@@ -35,10 +36,12 @@ public class Session
                     break;
                 }
 
-                var packet = PacketReader.Read(buffer, length);
+                var data = buffer[..length];
+
+                var reader = new PacketReader(data);
 
                 // 패킷을 알맞은 비즈니스 핸들러로 라우팅
-                PacketHandler.Handle(packet);
+                PacketHandler.Handle(reader);
             }
         }
         catch (Exception ex)

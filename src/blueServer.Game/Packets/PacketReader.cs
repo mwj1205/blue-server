@@ -1,22 +1,46 @@
 using System.Buffers.Binary;
+using System.Reflection.Emit;
+using System.Text;
 
 namespace blueServer.Game.Packets;
 
-public static class PacketReader
+public class PacketReader
 {
-    public static Packet Read(byte[] buffer, int length)
+    private readonly byte[] _buffer;
+    private int _position;
+
+    public ushort Size { get; }
+    public Opcode Opcode { get; }
+
+    public PacketReader(byte[] buffer)
     {
-        var size = BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(0, 2));
+        _buffer = buffer;
 
-        var opcode = BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(2, 2));
+        Size = BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(0, 2));
+        Opcode = (Opcode)BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(2, 2));
+        _position = 4;
+    }
 
-        var payload = buffer.AsSpan(4, length - 4).ToArray();
+    public ushort ReadUShort()
+    {
+        var value = BinaryPrimitives.ReadUInt16LittleEndian(_buffer.AsSpan(_position, 2));
 
-        return new Packet
-        {
-            Size = size,
-            Opcode = (Opcode)opcode,
-            Payload = payload
-        };
+        _position += 2;
+
+        return value;
+    }
+
+    public string ReadString()
+    {
+        var length = ReadUShort();
+
+        var text = Encoding.UTF8.GetString(
+                _buffer,
+                _position,
+                length);
+
+        _position += length;
+
+        return text;
     }
 }
