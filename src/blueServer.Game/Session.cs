@@ -9,18 +9,21 @@ namespace blueServer.Game;
 public class Session
 {
     private readonly TcpClient _client;
-
+    public Guid SessionId { get; }
     public Session(TcpClient client)
     {
         _client = client;
+
+        SessionId = Guid.NewGuid();
     }
 
     public async Task StartAsync()
     {
+        SessionManager.Add(this);
+
         Console.WriteLine("Client Connected");
 
         var stream = _client.GetStream();
-
         var buffer = new byte[1024];
 
         try
@@ -33,6 +36,8 @@ public class Session
                 if (length == 0)
                 {
                     Console.WriteLine("Client Disconnected");
+
+                    SessionManager.Remove(this);
                     break;
                 }
 
@@ -41,12 +46,19 @@ public class Session
                 var reader = new PacketReader(data);
 
                 // 패킷을 알맞은 비즈니스 핸들러로 라우팅
-                PacketHandler.Handle(reader);
+                await PacketHandler.Handle(reader);
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Session Error: {ex.Message}");
         }
+    }
+
+    public async Task SendAsync(byte[] data)
+    {
+        var stream = _client.GetStream();
+
+        await stream.WriteAsync(data);
     }
 }
