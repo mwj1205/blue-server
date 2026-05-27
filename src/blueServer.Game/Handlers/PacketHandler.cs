@@ -11,6 +11,7 @@ public static class PacketHandler
         {
             case Opcode.Login:
                 {
+                    // 페이로드 영역의 바이트를 다시 문자열로 디코딩
                     var text = Encoding.UTF8.GetString(packet.Payload);
                     Console.WriteLine($"[Login] {text}");
                     break;
