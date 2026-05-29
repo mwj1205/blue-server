@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Reflection.Emit;
 using System.Text;
 
 namespace blueServer.Game.Packets;
@@ -24,9 +23,7 @@ public class PacketReader
     public ushort ReadUShort()
     {
         var value = BinaryPrimitives.ReadUInt16LittleEndian(_buffer.AsSpan(_position, 2));
-
         _position += 2;
-
         return value;
     }
 
@@ -40,7 +37,6 @@ public class PacketReader
                 length);
 
         _position += length;
-
         return text;
     }
 }
