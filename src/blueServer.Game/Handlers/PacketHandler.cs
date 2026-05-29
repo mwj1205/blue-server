@@ -4,13 +4,12 @@ namespace blueServer.Game.Handlers;
 
 public static class PacketHandler
 {
-    public static async Task Handle(PacketReader reader)
+    public static async Task HandleAsync(PacketReader reader)
     {
         switch (reader.Opcode)
         {
             case Opcode.Login:
                 {
-
                     var nickname = reader.ReadString();
                     Console.WriteLine($"[Login] {nickname}");
                     break;
@@ -22,9 +21,7 @@ public static class PacketHandler
                     Console.WriteLine($"[Chat] {message}");
 
                     var packet = new ChatMessagePacket { Message = $"Broadcast: {message}" };
-
                     await SessionManager.BroadcastAsync(packet.Serialize());
-
                     break;
                 }
 
