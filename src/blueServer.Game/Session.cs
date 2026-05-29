@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using System.Collections.Concurrent;
 using blueServer.Game.Handlers;
 using blueServer.Game.Packets;
 using blueServer.Domain.Entities;
@@ -10,6 +11,10 @@ public class Session
     private readonly TcpClient _client;
 
     private readonly ReceiveBuffer _receiveBuffer = new(4096);
+
+    // 전송 대기중인 패킷 저장할 큐
+    private readonly ConcurrentQueue<byte[]> _sendQueue = new();
+    private bool _sending;
 
     // 세션을 구별할 고유 ID
     public Guid SessionId { get; }
@@ -29,18 +34,47 @@ public class Session
     }
 
     // 클라이언트로 바이너리 데이터를 전송하는 메서드
-    public async Task SendAsync(byte[] data)
+    public Task SendAsync(byte[] data)
     {
-        if (!_client.Connected) return;
+        // 바로 전송이 아니라 데이터를 전송 큐에 삽입
+        _sendQueue.Enqueue(data);
+
+        if (_sending)
+        {
+            return Task.CompletedTask;
+        }
+
+        _ = Task.Run(SendLoopAsync);
+
+        return Task.CompletedTask;
+    }
+
+    private async Task SendLoopAsync()
+    {
+        _sending = true;
 
         try
         {
             var stream = _client.GetStream();
-            await stream.WriteAsync(data);
+
+            while (_sendQueue.TryDequeue(out var packet))
+            {
+                await stream.WriteAsync(packet);
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Session] 전송 에러: {ex.Message}");
+            Console.WriteLine($"Send Error: {ex}");
+        }
+        finally
+        {
+            _sending = false;
+
+            // 송신 종료 직전에 새 패킷이 들어온 경우
+            if (!_sendQueue.IsEmpty)
+            {
+                _ = Task.Run(SendLoopAsync);
+            }
         }
     }
 
