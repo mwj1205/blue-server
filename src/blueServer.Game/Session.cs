@@ -9,9 +9,10 @@ public class Session
 {
     private readonly TcpClient _client;
 
+    private readonly ReceiveBuffer _receiveBuffer = new(4096);
+
     // 세션을 구별할 고유 ID
     public Guid SessionId { get; }
-
     public Player? Player { get; private set; }
 
     public Session(TcpClient client)
@@ -62,12 +63,34 @@ public class Session
 
                 if (length == 0) break; // 연결 끊으면 루프 탈출
 
-                // 받은 데이터 크기만큼 바이트 배열을 잘라서 패킷파서에 전달
-                var data = buffer[..length];
-                var reader = new PacketReader(data);
+                _receiveBuffer.Write(buffer, length);
 
-                // 패킷을 알맞은 비즈니스 핸들러로 라우팅
-                await PacketHandler.HandleAsync(this, reader);
+                while (true)
+                {
+                    // 패킷 크기 읽으려면 최소 2byte 필요
+                    if (_receiveBuffer.Length < 2) break;
+
+                    var packetSize = BitConverter.ToUInt16(_receiveBuffer.Buffer, 0);
+
+                    // 아직 패킷이 덜 도착함
+                    if (_receiveBuffer.Length < packetSize) break;
+
+                    var packetData = new byte[packetSize];
+
+                    Array.Copy(
+                        _receiveBuffer.Buffer,
+                        0,
+                        packetData,
+                        0,
+                        packetSize
+                    );
+
+                    var reader = new PacketReader(packetData);
+                    await PacketHandler.HandleAsync(this, reader);
+
+                    _receiveBuffer.Remove(packetSize);
+                }
+
             }
         }
         catch (Exception ex)
