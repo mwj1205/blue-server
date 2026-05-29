@@ -22,6 +22,8 @@ public class ReceiveBuffer
             length
         );
 
+        _writePos += length;
+
         return _writePos;
     }
 
