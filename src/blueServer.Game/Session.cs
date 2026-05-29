@@ -120,7 +120,7 @@ public class Session
                     );
 
                     var reader = new PacketReader(packetData);
-                    await PacketHandler.HandleAsync(this, reader);
+                    await PacketDispatcher.DispatchAsync(this, reader);
 
                     _receiveBuffer.Remove(packetSize);
                 }
