@@ -4,7 +4,10 @@ namespace blueServer.Game.Handlers;
 
 public static class PacketHandler
 {
-    public static async Task HandleAsync(PacketReader reader)
+    public static async Task HandleAsync(
+        Session session,
+        PacketReader reader
+        )
     {
         switch (reader.Opcode)
         {
@@ -12,15 +15,29 @@ public static class PacketHandler
                 {
                     var nickname = reader.ReadString();
                     Console.WriteLine($"[Login] {nickname}");
+
+                    var player = new blueServer.Domain.Entities.Player
+                    {
+                        Id = 1,
+                        Nickname = nickname
+                    };
+
+                    session.Login(player);
                     break;
                 }
 
             case Opcode.Chat:
                 {
-                    var message = reader.ReadString();
-                    Console.WriteLine($"[Chat] {message}");
+                    if (session.Player is null)
+                    {
+                        Console.WriteLine("Unauthorized Chat");
+                        return;
+                    }
 
-                    var packet = new ChatMessagePacket { Message = $"Broadcast: {message}" };
+                    var message = reader.ReadString();
+                    Console.WriteLine($"[{session.Player.Nickname}] {message}");
+
+                    var packet = new ChatMessagePacket { Message = $"[{session.Player.Nickname}]: {message}" };
                     await SessionManager.BroadcastAsync(packet.Serialize());
                     break;
                 }

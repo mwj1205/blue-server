@@ -1,6 +1,7 @@
 using System.Net.Sockets;
 using blueServer.Game.Handlers;
 using blueServer.Game.Packets;
+using blueServer.Domain.Entities;
 
 namespace blueServer.Game;
 
@@ -10,10 +11,20 @@ public class Session
 
     // 세션을 구별할 고유 ID
     public Guid SessionId { get; }
+
+    public Player? Player { get; private set; }
+
     public Session(TcpClient client)
     {
         _client = client;
         SessionId = Guid.NewGuid();  // 세션이 생성될 때 고유 ID 할당
+    }
+
+    public void Login(Player player)
+    {
+        Player = player;
+
+        Console.WriteLine($"Player Login: {player.Nickname}");
     }
 
     // 클라이언트로 바이너리 데이터를 전송하는 메서드
@@ -56,7 +67,7 @@ public class Session
                 var reader = new PacketReader(data);
 
                 // 패킷을 알맞은 비즈니스 핸들러로 라우팅
-                await PacketHandler.HandleAsync(reader);
+                await PacketHandler.HandleAsync(this, reader);
             }
         }
         catch (Exception ex)
