@@ -13,7 +13,6 @@ public class ChatHandler : IPacketHandler
             Console.WriteLine("Unauthorized Chat");
             return;
         }
-
         var message = reader.ReadString();
         Console.WriteLine($"[{session.Player.Nickname}] {message}");
 
