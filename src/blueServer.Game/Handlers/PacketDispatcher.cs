@@ -13,6 +13,7 @@ public static class PacketDispatcher
     {
         Register(new LoginHandler());
         Register(new ChatHandler());
+        Register(new PingHandler());
     }
 
     // 핸들러 등록

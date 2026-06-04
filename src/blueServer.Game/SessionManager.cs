@@ -25,6 +25,11 @@ public static class SessionManager
         Console.WriteLine($"Current Sessions: {_sessions.Count}");
     }
 
+    public static IEnumerable<Session> GetAll()
+    {
+        return _sessions.Values;
+    }
+
     // 현재 접속해 있는 모든 유저에게 바이너리 패킷 전송
     // TODO: 더 효율적인 방식으로 broadcast
     public static async Task BroadcastAsync(byte[] data)

@@ -8,6 +8,7 @@ var listener = new TcpListener(
 );
 
 listener.Start();
+_ = Task.Run(SessionMonitor.StartAsync);
 
 Console.WriteLine("Game Server Started on Port 7777...");
 

@@ -6,5 +6,8 @@ public enum Opcode : ushort
 
     Chat = 2,
 
+    Ping = 3,
+    Pong = 4,
+
     ChatMessage = 1000  // S -> C
 }

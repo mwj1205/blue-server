@@ -19,6 +19,7 @@ public class Session
     // 세션을 구별할 고유 ID
     public Guid SessionId { get; }
     public Player? Player { get; private set; }
+    public DateTime LastReceiveTime { get; private set; } = DateTime.UtcNow;
 
     public Session(TcpClient client)
     {
@@ -95,6 +96,7 @@ public class Session
             {
                 // 클라이언트로부터 데이터 수신 대기
                 var length = await stream.ReadAsync(buffer);
+                LastReceiveTime = DateTime.UtcNow;
 
                 // Console.WriteLine($"ReadAsync Length: {length}");
                 // Console.WriteLine(BitConverter.ToString(buffer, 0, length));
@@ -150,6 +152,18 @@ public class Session
             SessionManager.Remove(this);
             Console.WriteLine($"Client Disconnected: {SessionId}");
             _client.Close();
+        }
+    }
+
+    public void Disconnect()
+    {
+        try
+        {
+            _client.Close();
+        }
+        catch
+        {
+
         }
     }
 }
