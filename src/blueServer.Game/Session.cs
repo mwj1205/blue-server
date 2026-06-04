@@ -39,11 +39,13 @@ public class Session
         // 바로 전송이 아니라 데이터를 전송 큐에 삽입
         _sendQueue.Enqueue(data);
 
+        // 이미 송신 루프가 돌고 있다면 중복 가동하지 않고 즉시 리턴
         if (_sending)
         {
             return Task.CompletedTask;
         }
 
+        // 루프가 쉬고 있다면 스레드 풀에서 전송 전용 루프(SendLoopAsync)를 깨움
         _ = Task.Run(SendLoopAsync);
 
         return Task.CompletedTask;
@@ -83,7 +85,6 @@ public class Session
     {
         // 접속 성공 시 세션 매니저에 등록
         SessionManager.Add(this);
-        Console.WriteLine("Client Connected");
 
         var stream = _client.GetStream();
         var buffer = new byte[1024];
@@ -95,22 +96,32 @@ public class Session
                 // 클라이언트로부터 데이터 수신 대기
                 var length = await stream.ReadAsync(buffer);
 
+                // Console.WriteLine($"ReadAsync Length: {length}");
+                // Console.WriteLine(BitConverter.ToString(buffer, 0, length));
+
                 if (length == 0) break; // 연결 끊으면 루프 탈출
 
+                // 수신한 바이트 데이터를 세션 전용 수신 버퍼에 누적 저장
                 _receiveBuffer.Write(buffer, length);
+                // Console.WriteLine($"Buffer Length After Write: {_receiveBuffer.Length}");
 
+                // 버퍼에 완전한 패킷이 들어올 때까지 루프 가동
                 while (true)
                 {
                     // 패킷 크기 읽으려면 최소 2byte 필요
                     if (_receiveBuffer.Length < 2) break;
 
+                    // 버퍼의 맨 앞 2바이트 읽어서 패킷의 전체 크기(packetSize) 획득
                     var packetSize = BitConverter.ToUInt16(_receiveBuffer.Buffer, 0);
+                    // Console.WriteLine($"PacketSize: {packetSize}");
+                    // Console.WriteLine($"CurrentBufferLength: {_receiveBuffer.Length}");
+                    // Console.WriteLine(BitConverter.ToString(_receiveBuffer.Buffer, 0, _receiveBuffer.Length));
 
                     // 아직 패킷이 덜 도착함
                     if (_receiveBuffer.Length < packetSize) break;
 
+                    // 순수 패킷 버퍼 생성 및 복사
                     var packetData = new byte[packetSize];
-
                     Array.Copy(
                         _receiveBuffer.Buffer,
                         0,
@@ -119,9 +130,11 @@ public class Session
                         packetSize
                     );
 
+                    // 패킷 데이터를 디스패처로 전달
                     var reader = new PacketReader(packetData);
                     await PacketDispatcher.DispatchAsync(this, reader);
 
+                    // 처리가 완료된 크기만큼 수신 버퍼에서 제거 및 정렬 처리
                     _receiveBuffer.Remove(packetSize);
                 }
 
