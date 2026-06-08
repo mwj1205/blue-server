@@ -3,13 +3,15 @@ using System.Collections.Concurrent;
 using blueServer.Game.Handlers;
 using blueServer.Game.Packets;
 using blueServer.Domain.Entities;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace blueServer.Game;
 
 public class Session
 {
     private readonly TcpClient _client;
-
+    private readonly PacketDispatcher _dispatcher;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ReceiveBuffer _receiveBuffer = new(4096);
 
     // 전송 대기중인 패킷 저장할 큐
@@ -21,9 +23,12 @@ public class Session
     public Player? Player { get; private set; }
     public DateTime LastReceiveTime { get; private set; } = DateTime.UtcNow;
 
-    public Session(TcpClient client)
+    public Session(TcpClient client, PacketDispatcher dispatcher, IServiceScopeFactory scopeFactory)
     {
         _client = client;
+        _dispatcher = dispatcher;
+        _scopeFactory = scopeFactory;
+
         SessionId = Guid.NewGuid();  // 세션이 생성될 때 고유 ID 할당
     }
 
@@ -134,7 +139,7 @@ public class Session
 
                     // 패킷 데이터를 디스패처로 전달
                     var reader = new PacketReader(packetData);
-                    await PacketDispatcher.DispatchAsync(this, reader);
+                    await _dispatcher.DispatchAsync(this, reader);
 
                     // 처리가 완료된 크기만큼 수신 버퍼에서 제거 및 정렬 처리
                     _receiveBuffer.Remove(packetSize);

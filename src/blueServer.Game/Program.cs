@@ -1,28 +1,25 @@
-using System.Net;
-using System.Net.Sockets;
 using blueServer.Game;
+using blueServer.Game.Handlers;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using blueServer.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+using blueServer.Game.Repositories;
 
-var listener = new TcpListener(
-    IPAddress.Any,   // 모든 IP 허용
-    7777             // 7777포트
-);
+var builder = Host.CreateApplicationBuilder(args);
 
-listener.Start();
-_ = Task.Run(SessionMonitor.StartAsync);
+builder.Services.AddDbContext<GameDbContext>(options =>
+    options.UseNpgsql(Environment.GetEnvironmentVariable("DB_CONNECTION")));
+builder.Services.AddScoped<PlayerRepository>();
 
-Console.WriteLine("Game Server Started on Port 7777...");
+builder.Services.AddSingleton<LoginHandler>();
+builder.Services.AddSingleton<ChatHandler>();
+builder.Services.AddSingleton<PingHandler>();
 
-while (true)
-{
-    // 클라이언트 소켓 접속 수락 (비동기 블로킹)
-    var client = await listener.AcceptTcpClientAsync();
+builder.Services.AddSingleton<PacketDispatcher>();
+builder.Services.AddSingleton<SessionFactory>();
 
-    // 개별 유저 전용 세션 인스턴스 생성
-    var session = new Session(client);
+builder.Services.AddHostedService<TcpListenerService>();
 
-    // 메인 루프가 멈추지 않도록 스레드 풀에 처리를 위임하고 다음 유저 접속 대기
-    _ = Task.Run(async () =>
-    {
-        await session.StartAsync();
-    });
-}
+var host = builder.Build();
+await host.RunAsync();
