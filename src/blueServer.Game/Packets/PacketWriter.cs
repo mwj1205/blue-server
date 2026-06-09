@@ -6,6 +6,11 @@ public class PacketWriter
 {
     private readonly MemoryStream _stream = new();
 
+    public void WriteBool(bool value)
+    {
+        _stream.WriteByte(value ? (byte)1 : (byte)0);
+    }
+
     public void WriteUShort(ushort value)
     {
         var bytes = BitConverter.GetBytes(value);

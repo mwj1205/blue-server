@@ -20,6 +20,11 @@ public class PacketReader
         _position = 4;
     }
 
+    public bool ReadBool()
+    {
+        return _buffer[_position++] == 1;
+    }
+
     public ushort ReadUShort()
     {
         var value = BinaryPrimitives.ReadUInt16LittleEndian(_buffer.AsSpan(_position, 2));
