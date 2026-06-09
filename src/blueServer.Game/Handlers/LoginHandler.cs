@@ -7,10 +7,12 @@ public class LoginHandler : IPacketHandler
 {
     public Opcode Opcode => Opcode.Login;
 
-    public Task HandleAsync(Session session, PacketReader reader)
+    public async Task HandleAsync(Session session, PacketReader reader)
     {
         var nickname = reader.ReadString();
+        var password = reader.ReadString();
         Console.WriteLine($"[Login] {nickname}");
+        Console.WriteLine($"[Login] {password}");
 
         var player = new Player
         {
@@ -20,6 +22,12 @@ public class LoginHandler : IPacketHandler
 
         session.Login(player);
 
-        return Task.CompletedTask;
+        var result = new LoginResultPacket
+        {
+            Success = true,
+            Message = "Login Success"
+        };
+
+        await session.SendAsync(result.Serialize());
     }
 }
