@@ -11,7 +11,6 @@ public class Session
 {
     private readonly TcpClient _client;
     private readonly PacketDispatcher _dispatcher;
-    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ReceiveBuffer _receiveBuffer = new(4096);
 
     // 전송 대기중인 패킷 저장할 큐
@@ -23,11 +22,10 @@ public class Session
     public Player? Player { get; private set; }
     public DateTime LastReceiveTime { get; private set; } = DateTime.UtcNow;
 
-    public Session(TcpClient client, PacketDispatcher dispatcher, IServiceScopeFactory scopeFactory)
+    public Session(TcpClient client, PacketDispatcher dispatcher)
     {
         _client = client;
         _dispatcher = dispatcher;
-        _scopeFactory = scopeFactory;
 
         SessionId = Guid.NewGuid();  // 세션이 생성될 때 고유 ID 할당
     }

@@ -5,12 +5,16 @@ using Microsoft.Extensions.Hosting;
 using blueServer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using blueServer.Game.Repositories;
+using Microsoft.Extensions.Configuration;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Services.AddDbContext<GameDbContext>(options =>
-    options.UseNpgsql(Environment.GetEnvironmentVariable("DB_CONNECTION")));
-builder.Services.AddScoped<PlayerRepository>();
+builder.Services.AddDbContextFactory<GameDbContext>(options =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("Default");
+    options.UseNpgsql(connectionString);
+});
+builder.Services.AddSingleton<PlayerRepository>();
 
 builder.Services.AddSingleton<LoginHandler>();
 builder.Services.AddSingleton<ChatHandler>();
