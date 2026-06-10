@@ -42,7 +42,7 @@ namespace blueServer.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("CharacterTemplates");
+                    b.ToTable("CharacterTemplates", (string)null);
                 });
 
             modelBuilder.Entity("blueServer.Domain.Entities.OwnedCharacter", b =>
@@ -74,7 +74,7 @@ namespace blueServer.Infrastructure.Migrations
 
                     b.HasIndex("PlayerId");
 
-                    b.ToTable("OwnedCharacters");
+                    b.ToTable("OwnedCharacters", (string)null);
                 });
 
             modelBuilder.Entity("blueServer.Domain.Entities.Player", b =>
@@ -101,7 +101,7 @@ namespace blueServer.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Players");
+                    b.ToTable("Players", (string)null);
                 });
 
             modelBuilder.Entity("blueServer.Domain.Entities.OwnedCharacter", b =>

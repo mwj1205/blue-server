@@ -15,6 +15,7 @@ builder.Services.AddDbContextFactory<GameDbContext>(options =>
     options.UseNpgsql(connectionString);
 });
 builder.Services.AddSingleton<PlayerRepository>();
+builder.Services.AddSingleton<OwnedCharacterRepository>();
 
 builder.Services.AddSingleton<LoginHandler>();
 builder.Services.AddSingleton<ChatHandler>();
