@@ -18,4 +18,6 @@ public class GameDbContext : DbContext
     }
 
     public DbSet<Player> Players => Set<Player>();
+    public DbSet<OwnedCharacter> OwnedCharacters => Set<OwnedCharacter>();
+    public DbSet<CharacterTemplate> CharacterTemplates => Set<CharacterTemplate>();
 }
