@@ -13,7 +13,7 @@ public class OwnedCharacterRepository
         _contextFactory = contextFactory;
     }
 
-    public async Task<List<OwnedCharacter>> GetOwnedCharacterAsync(long playerId)
+    public async Task<List<OwnedCharacter>> GetOwnedCharacterByIdAsync(long playerId)
     {
         await using var db = await _contextFactory.CreateDbContextAsync();
         return await db.OwnedCharacters.Where(c => c.PlayerId == playerId).ToListAsync();

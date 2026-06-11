@@ -87,9 +87,6 @@ public class Session
     // 세션 통신 루프 시작점
     public async Task StartAsync()
     {
-        // 접속 성공 시 세션 매니저에 등록
-        SessionManager.Add(this);
-
         var stream = _client.GetStream();
         var buffer = new byte[1024];
 
