@@ -2,8 +2,6 @@ using System.Net.Sockets;
 using System.Collections.Concurrent;
 using blueServer.Game.Handlers;
 using blueServer.Game.Packets;
-using blueServer.Domain.Entities;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace blueServer.Game;
 
@@ -19,7 +17,9 @@ public class Session
 
     // 세션을 구별할 고유 ID
     public Guid SessionId { get; }
-    public Player? Player { get; private set; }
+    public long? PlayerId { get; private set; }
+    public string? PlayerNickname { get; private set; }
+    public bool IsAuthenticated => PlayerId.HasValue;
     public DateTime LastReceiveTime { get; private set; } = DateTime.UtcNow;
 
     public Session(TcpClient client, PacketDispatcher dispatcher)
@@ -30,11 +30,12 @@ public class Session
         SessionId = Guid.NewGuid();  // 세션이 생성될 때 고유 ID 할당
     }
 
-    public void Login(Player player)
+    public void Login(long playerId, string nickname)
     {
-        Player = player;
+        PlayerId = playerId;
+        PlayerNickname = nickname;
 
-        Console.WriteLine($"Player Login: {player.Nickname}");
+        Console.WriteLine($"Player Login: {nickname}");
     }
 
     // 클라이언트로 바이너리 데이터를 전송하는 메서드

@@ -1,18 +1,15 @@
-using System.Net.Http.Headers;
-using blueServer.Domain.Entities;
 using blueServer.Game.Packets;
-using blueServer.Game.Repositories;
+using blueServer.Game.Services;
 
 namespace blueServer.Game.Handlers;
 
-public class LoginHandler : IPacketHandler
+public sealed class LoginHandler : IPacketHandler
 {
-    // PlayerRepository만 의존
-    private readonly PlayerRepository _repository;
+    private readonly LoginService _loginService;
 
-    public LoginHandler(PlayerRepository repository)
+    public LoginHandler(LoginService loginService)
     {
-        _repository = repository;
+        _loginService = loginService;
     }
 
     public async Task HandleAsync(Session session, PacketReader reader)
@@ -20,13 +17,10 @@ public class LoginHandler : IPacketHandler
         var nickname = reader.ReadString();
         var password = reader.ReadString();
         Console.WriteLine($"[Login] {nickname}");
-        Console.WriteLine($"[password] {password}");
 
-        // Repository를 통해 DB 접근
-        // (Repository 내부에서 DbContext를 메서드별로 생성/관리)
-        var player = await _repository.FindByNicknameAsync(nickname);
+        var loginResult = await _loginService.LoginAsync(nickname, password);
 
-        if (player == null)
+        if (loginResult is null)
         {
             await session.SendAsync(
                 new LoginResultPacket
@@ -38,19 +32,7 @@ public class LoginHandler : IPacketHandler
             return;
         }
 
-        if (player.Password != password)
-        {
-            await session.SendAsync(
-                new LoginResultPacket
-                {
-                    Success = false,
-                    Message = "Login failed"
-                }.Serialize()
-            );
-            return;
-        }
-
-        session.Login(player);
+        session.Login(loginResult.PlayerId, loginResult.Nickname);
 
         var result = new LoginResultPacket
         {
