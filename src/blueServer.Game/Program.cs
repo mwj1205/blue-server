@@ -17,9 +17,9 @@ builder.Services.AddDbContextFactory<GameDbContext>(options =>
 builder.Services.AddSingleton<PlayerRepository>();
 builder.Services.AddSingleton<OwnedCharacterRepository>();
 
-builder.Services.AddSingleton<LoginHandler>();
-builder.Services.AddSingleton<ChatHandler>();
-builder.Services.AddSingleton<PingHandler>();
+builder.Services.AddScoped<IPacketHandler, LoginHandler>();
+builder.Services.AddScoped<IPacketHandler, ChatHandler>();
+builder.Services.AddScoped<IPacketHandler, PingHandler>();
 
 builder.Services.AddSingleton<PacketDispatcher>();
 builder.Services.AddSingleton<SessionFactory>();

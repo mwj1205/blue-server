@@ -1,29 +1,24 @@
 using blueServer.Game.Packets;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace blueServer.Game.Handlers;
 
-public class PacketDispatcher
+public sealed class PacketDispatcher
 {
-    private readonly Dictionary<Opcode, IPacketHandler> _handlers = new();
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public PacketDispatcher(
-        LoginHandler loginHandler,
-        ChatHandler chatHandler,
-        PingHandler pingHandler)
+    public PacketDispatcher(IServiceScopeFactory scopeFactory)
     {
-        Register(loginHandler);
-        Register(chatHandler);
-        Register(pingHandler);
-    }
-
-    private void Register(IPacketHandler handler)
-    {
-        _handlers[handler.Opcode] = handler;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task DispatchAsync(Session session, PacketReader reader)
     {
-        if (_handlers.TryGetValue(reader.Opcode, out var handler))
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var handlers = scope.ServiceProvider.GetRequiredService<IEnumerable<IPacketHandler>>();
+        var handler = handlers.FirstOrDefault(candidate => candidate.Opcode == reader.Opcode);
+
+        if (handler is not null)
         {
             await handler.HandleAsync(session, reader);
             return;
