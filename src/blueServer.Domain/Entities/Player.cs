@@ -7,6 +7,7 @@ public class Player
     public string Nickname { get; set; } = "";
     public int Gold { get; set; }
     public int Gem { get; set; }
+    public uint Version { get; set; }
 
     public ICollection<OwnedCharacter> OwnedCharacters { get; set; } = new List<OwnedCharacter>();
 }

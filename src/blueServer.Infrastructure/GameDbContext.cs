@@ -20,4 +20,20 @@ public class GameDbContext : DbContext
     public DbSet<Player> Players => Set<Player>();
     public DbSet<OwnedCharacter> OwnedCharacters => Set<OwnedCharacter>();
     public DbSet<CharacterTemplate> CharacterTemplates => Set<CharacterTemplate>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Player>(entity =>
+        {
+            entity.HasIndex(player => player.Nickname)
+                .IsUnique();
+
+            entity.Property(player => player.Version)
+                .IsRowVersion();
+        });
+
+        modelBuilder.Entity<OwnedCharacter>()
+            .Property(character => character.Version)
+            .IsRowVersion();
+    }
 }

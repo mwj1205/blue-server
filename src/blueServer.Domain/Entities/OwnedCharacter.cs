@@ -13,6 +13,7 @@ public class OwnedCharacter
     public int Level { get; set; }
     public int Star { get; set; }
     public long Exp { get; set; }
+    public uint Version { get; set; }
 
     // Navigation Property
     public Player? Player { get; set; }
