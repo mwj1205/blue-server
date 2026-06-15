@@ -4,26 +4,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace blueServer.Game.Repositories;
 
-public class PlayerRepository
+public sealed class PlayerRepository
 {
-    // GameDbContext 대신 Factory를 주입받음
-    private readonly IDbContextFactory<GameDbContext> _contextFactory;
+    private readonly GameDbContext _db;
 
-    public PlayerRepository(IDbContextFactory<GameDbContext> contextFactory)
+    public PlayerRepository(GameDbContext db)
     {
-        _contextFactory = contextFactory;
+        _db = db;
     }
 
-    // 메서드마다 새로운 DbContext를 생성해서 사용
-    public async Task<Player?> FindByNicknameAsync(string nickname)
+    public Task<Player?> FindByNicknameAsync(string nickname)
     {
-        await using var db = await _contextFactory.CreateDbContextAsync();
-        return await db.Players.FirstOrDefaultAsync(p => p.Nickname == nickname);
+        return _db.Players.FirstOrDefaultAsync(p => p.Nickname == nickname);
     }
 
-    public async Task<Player?> FindByIdAsync(long id)
+    public Task<Player?> FindByIdAsync(long id)
     {
-        await using var db = await _contextFactory.CreateDbContextAsync();
-        return await db.Players.FirstOrDefaultAsync(p => p.Id == id);
+        return _db.Players.FirstOrDefaultAsync(p => p.Id == id);
     }
 }

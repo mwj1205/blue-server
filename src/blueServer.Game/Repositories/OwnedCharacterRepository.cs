@@ -4,18 +4,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace blueServer.Game.Repositories;
 
-public class OwnedCharacterRepository
+public sealed class OwnedCharacterRepository
 {
-    private readonly IDbContextFactory<GameDbContext> _contextFactory;
+    private readonly GameDbContext _db;
 
-    public OwnedCharacterRepository(IDbContextFactory<GameDbContext> contextFactory)
+    public OwnedCharacterRepository(GameDbContext db)
     {
-        _contextFactory = contextFactory;
+        _db = db;
     }
 
-    public async Task<List<OwnedCharacter>> GetOwnedCharacterByIdAsync(long playerId)
+    public Task<List<OwnedCharacter>> GetOwnedCharacterByIdAsync(long playerId)
     {
-        await using var db = await _contextFactory.CreateDbContextAsync();
-        return await db.OwnedCharacters.Where(c => c.PlayerId == playerId).ToListAsync();
+        return _db.OwnedCharacters.Where(c => c.PlayerId == playerId).ToListAsync();
     }
 }

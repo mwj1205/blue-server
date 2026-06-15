@@ -10,13 +10,13 @@ using Microsoft.Extensions.Configuration;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Services.AddDbContextFactory<GameDbContext>(options =>
+builder.Services.AddDbContext<GameDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("Default");
     options.UseNpgsql(connectionString);
 });
-builder.Services.AddSingleton<PlayerRepository>();
-builder.Services.AddSingleton<OwnedCharacterRepository>();
+builder.Services.AddScoped<PlayerRepository>();
+builder.Services.AddScoped<OwnedCharacterRepository>();
 
 builder.Services.AddKeyedScoped<IPacketHandler, LoginHandler>(Opcode.Login);
 builder.Services.AddKeyedScoped<IPacketHandler, ChatHandler>(Opcode.Chat);
