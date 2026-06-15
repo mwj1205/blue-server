@@ -18,6 +18,20 @@ public class PacketWriter
         _stream.Write(bytes);
     }
 
+    public void WriteInt(int value)
+    {
+        var bytes = BitConverter.GetBytes(value);
+
+        _stream.Write(bytes);
+    }
+
+    public void WriteLong(long value)
+    {
+        var bytes = BitConverter.GetBytes(value);
+
+        _stream.Write(bytes);
+    }
+
     public void WriteString(string value)
     {
         var bytes = Encoding.UTF8.GetBytes(value);

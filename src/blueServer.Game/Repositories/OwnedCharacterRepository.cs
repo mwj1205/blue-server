@@ -17,4 +17,9 @@ public sealed class OwnedCharacterRepository
     {
         return _db.OwnedCharacters.Where(c => c.PlayerId == playerId).ToListAsync();
     }
+
+    public void Add(OwnedCharacter character)
+    {
+        _db.OwnedCharacters.Add(character);
+    }
 }
