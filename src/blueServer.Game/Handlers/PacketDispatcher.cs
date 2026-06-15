@@ -15,8 +15,7 @@ public sealed class PacketDispatcher
     public async Task DispatchAsync(Session session, PacketReader reader)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var handlers = scope.ServiceProvider.GetRequiredService<IEnumerable<IPacketHandler>>();
-        var handler = handlers.FirstOrDefault(candidate => candidate.Opcode == reader.Opcode);
+        var handler = scope.ServiceProvider.GetKeyedService<IPacketHandler>(reader.Opcode);
 
         if (handler is not null)
         {

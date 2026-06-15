@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using blueServer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using blueServer.Game.Repositories;
+using blueServer.Game.Packets;
 using Microsoft.Extensions.Configuration;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -17,9 +18,9 @@ builder.Services.AddDbContextFactory<GameDbContext>(options =>
 builder.Services.AddSingleton<PlayerRepository>();
 builder.Services.AddSingleton<OwnedCharacterRepository>();
 
-builder.Services.AddScoped<IPacketHandler, LoginHandler>();
-builder.Services.AddScoped<IPacketHandler, ChatHandler>();
-builder.Services.AddScoped<IPacketHandler, PingHandler>();
+builder.Services.AddKeyedScoped<IPacketHandler, LoginHandler>(Opcode.Login);
+builder.Services.AddKeyedScoped<IPacketHandler, ChatHandler>(Opcode.Chat);
+builder.Services.AddKeyedScoped<IPacketHandler, PingHandler>(Opcode.Ping);
 
 builder.Services.AddSingleton<PacketDispatcher>();
 builder.Services.AddSingleton<SessionFactory>();

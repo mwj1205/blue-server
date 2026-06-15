@@ -15,8 +15,6 @@ public class LoginHandler : IPacketHandler
         _repository = repository;
     }
 
-    public Opcode Opcode => Opcode.Login;
-
     public async Task HandleAsync(Session session, PacketReader reader)
     {
         var nickname = reader.ReadString();

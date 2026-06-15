@@ -4,8 +4,6 @@ namespace blueServer.Game.Handlers;
 
 public class ChatHandler : IPacketHandler
 {
-    public Opcode Opcode => Opcode.Chat;
-
     public async Task HandleAsync(Session session, PacketReader reader)
     {
         if (session.Player is null)
