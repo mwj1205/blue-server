@@ -14,7 +14,7 @@ public class Session
 
     // 전송 대기중인 패킷 저장할 큐
     private readonly ConcurrentQueue<byte[]> _sendQueue = new();
-    private bool _sending;
+    private int _sendLoopRunning;
 
     // 세션을 구별할 고유 ID
     public Guid SessionId { get; }
@@ -46,7 +46,7 @@ public class Session
         _sendQueue.Enqueue(data);
 
         // 이미 송신 루프가 돌고 있다면 중복 가동하지 않고 즉시 리턴
-        if (_sending)
+        if (Interlocked.CompareExchange(ref _sendLoopRunning, 1, 0) != 0)
         {
             return Task.CompletedTask;
         }
@@ -59,30 +59,34 @@ public class Session
 
     private async Task SendLoopAsync()
     {
-        _sending = true;
-
         try
         {
             var stream = _client.GetStream();
 
-            while (_sendQueue.TryDequeue(out var packet))
+            while (true)
             {
-                await stream.WriteAsync(packet);
+                while (_sendQueue.TryDequeue(out var packet))
+                {
+                    await stream.WriteAsync(packet);
+                }
+
+                Interlocked.Exchange(ref _sendLoopRunning, 0);
+
+                if (_sendQueue.IsEmpty)
+                {
+                    return;
+                }
+
+                if (Interlocked.CompareExchange(ref _sendLoopRunning, 1, 0) != 0)
+                {
+                    return;
+                }
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Send Error: {ex}");
-        }
-        finally
-        {
-            _sending = false;
-
-            // 송신 종료 직전에 새 패킷이 들어온 경우
-            if (!_sendQueue.IsEmpty)
-            {
-                _ = Task.Run(SendLoopAsync);
-            }
+            Interlocked.Exchange(ref _sendLoopRunning, 0);
         }
     }
 
