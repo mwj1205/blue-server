@@ -15,6 +15,7 @@ public class Session
     // 전송 대기중인 패킷 저장할 큐
     private readonly ConcurrentQueue<byte[]> _sendQueue = new();
     private int _sendLoopRunning;
+    private int _disconnected;
 
     // 세션을 구별할 고유 ID
     public Guid SessionId { get; }
@@ -42,6 +43,11 @@ public class Session
     // 클라이언트로 바이너리 데이터를 전송하는 메서드
     public Task SendAsync(byte[] data)
     {
+        if (Volatile.Read(ref _disconnected) == 1)
+        {
+            return Task.CompletedTask;
+        }
+
         // 바로 전송이 아니라 데이터를 전송 큐에 삽입
         _sendQueue.Enqueue(data);
 
@@ -87,6 +93,7 @@ public class Session
         {
             Console.WriteLine($"Send Error: {ex}");
             Interlocked.Exchange(ref _sendLoopRunning, 0);
+            Disconnect();
         }
     }
 
@@ -171,12 +178,17 @@ public class Session
             // 연결이 종료되었을 때 매니저에서 제거하고 소켓 폐쇄
             SessionManager.Remove(this);
             Console.WriteLine($"Client Disconnected: {SessionId}");
-            _client.Close();
+            Disconnect();
         }
     }
 
     public void Disconnect()
     {
+        if (Interlocked.Exchange(ref _disconnected, 1) == 1)
+        {
+            return;
+        }
+
         try
         {
             _client.Close();
