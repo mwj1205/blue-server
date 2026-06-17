@@ -5,6 +5,8 @@ namespace blueServer.Game.Packets;
 
 public class PacketReader
 {
+    private const int HeaderSize = 4;
+
     private readonly byte[] _buffer;
     private int _position;
 
@@ -13,6 +15,13 @@ public class PacketReader
 
     public PacketReader(byte[] buffer)
     {
+        if (buffer.Length < HeaderSize)
+        {
+            throw new ArgumentException(
+                $"Packet must contain at least {HeaderSize} bytes for size and opcode.",
+                nameof(buffer));
+        }
+
         _buffer = buffer;
 
         Size = BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(0, 2));
