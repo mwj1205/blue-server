@@ -7,8 +7,6 @@ namespace blueServer.Game;
 
 public class Session
 {
-    private const int PacketHeaderSize = 4;
-
     private readonly TcpClient _client;
     private readonly PacketDispatcher _dispatcher;
     private readonly ReceiveBuffer _receiveBuffer = new(4096);
@@ -118,10 +116,10 @@ public class Session
 
                     // 버퍼의 맨 앞 2바이트 읽어서 패킷의 전체 크기(packetSize) 획득
                     var packetSize = BitConverter.ToUInt16(_receiveBuffer.Buffer, 0);
-                    if (packetSize < PacketHeaderSize)
+                    if (packetSize < PacketReader.HeaderSize)
                     {
                         throw new InvalidOperationException(
-                            $"Invalid packet size: {packetSize}. Minimum packet size is {PacketHeaderSize}.");
+                            $"Invalid packet size: {packetSize}. Minimum packet size is {PacketReader.HeaderSize}.");
                     }
 
                     // Console.WriteLine($"PacketSize: {packetSize}");
