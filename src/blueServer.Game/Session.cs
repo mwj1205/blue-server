@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Net.Sockets;
 using System.Collections.Concurrent;
 using blueServer.Game.Handlers;
@@ -115,11 +116,19 @@ public class Session
                     if (_receiveBuffer.Length < 2) break;
 
                     // 버퍼의 맨 앞 2바이트 읽어서 패킷의 전체 크기(packetSize) 획득
-                    var packetSize = BitConverter.ToUInt16(_receiveBuffer.Buffer, 0);
+                    var packetSize = BinaryPrimitives.ReadUInt16LittleEndian(
+                        _receiveBuffer.Buffer.AsSpan(0, sizeof(ushort)));
+
                     if (packetSize < PacketReader.HeaderSize)
                     {
                         throw new InvalidOperationException(
                             $"Invalid packet size: {packetSize}. Minimum packet size is {PacketReader.HeaderSize}.");
+                    }
+
+                    if (packetSize > _receiveBuffer.Capacity)
+                    {
+                        throw new InvalidOperationException(
+                            $"Invalid packet size: {packetSize}. Maximum packet size is {_receiveBuffer.Capacity}.");
                     }
 
                     // Console.WriteLine($"PacketSize: {packetSize}");
