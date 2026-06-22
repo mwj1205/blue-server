@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Collections.Concurrent;
 using blueServer.Game.Handlers;
 using blueServer.Game.Packets;
+using Microsoft.Extensions.Logging;
 
 namespace blueServer.Game;
 
@@ -10,6 +11,7 @@ public class Session
 {
     private readonly TcpClient _client;
     private readonly PacketDispatcher _dispatcher;
+    private readonly ILogger<Session> _logger;
     private readonly ReceiveBuffer _receiveBuffer = new(4096);
     private readonly CancellationTokenSource _disconnectCts = new();
 
@@ -25,10 +27,14 @@ public class Session
     public bool IsAuthenticated => PlayerId.HasValue;
     public DateTime LastReceiveTime { get; private set; } = DateTime.UtcNow;
 
-    public Session(TcpClient client, PacketDispatcher dispatcher)
+    public Session(
+        TcpClient client,
+        PacketDispatcher dispatcher,
+        ILogger<Session> logger)
     {
         _client = client;
         _dispatcher = dispatcher;
+        _logger = logger;
 
         SessionId = Guid.NewGuid();  // 세션이 생성될 때 고유 ID 할당
     }
@@ -38,7 +44,11 @@ public class Session
         PlayerId = playerId;
         PlayerNickname = nickname;
 
-        Console.WriteLine($"Player Login: {nickname}");
+        _logger.LogInformation(
+            "Player logged in. SessionId={SessionId}, PlayerId={PlayerId}, Nickname={Nickname}",
+            SessionId,
+            playerId,
+            nickname);
     }
 
     // 클라이언트로 바이너리 데이터를 전송하는 메서드
@@ -96,7 +106,11 @@ public class Session
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Send Error: {ex}");
+            _logger.LogError(
+                ex,
+                "Send failed. SessionId={SessionId}, PlayerId={PlayerId}",
+                SessionId,
+                PlayerId);
             Interlocked.Exchange(ref _sendLoopRunning, 0);
             Disconnect();
         }
@@ -181,17 +195,27 @@ public class Session
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            Console.WriteLine($"Session Canceled: {SessionId}");
+            _logger.LogInformation(
+                "Session canceled. SessionId={SessionId}, PlayerId={PlayerId}",
+                SessionId,
+                PlayerId);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Session Error: {ex.Message}");
+            _logger.LogError(
+                ex,
+                "Session receive loop failed. SessionId={SessionId}, PlayerId={PlayerId}",
+                SessionId,
+                PlayerId);
         }
         finally
         {
             // 연결이 종료되었을 때 매니저에서 제거하고 소켓 폐쇄
             SessionManager.Remove(this);
-            Console.WriteLine($"Client Disconnected: {SessionId}");
+            _logger.LogInformation(
+                "Client disconnected. SessionId={SessionId}, PlayerId={PlayerId}",
+                SessionId,
+                PlayerId);
             Disconnect();
         }
     }
