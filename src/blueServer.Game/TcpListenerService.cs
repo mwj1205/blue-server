@@ -29,7 +29,7 @@ public class TcpListenerService : BackgroundService
                 // 생성을 위임받은 팩토리를 통해 세션 객체 획득
                 var session = _factory.Create(client);
                 SessionManager.Add(session);
-                _ = session.StartAsync();
+                _ = session.StartAsync(stoppingToken);
             }
         }
         catch (OperationCanceledException)

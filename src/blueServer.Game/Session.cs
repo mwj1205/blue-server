@@ -11,6 +11,7 @@ public class Session
     private readonly TcpClient _client;
     private readonly PacketDispatcher _dispatcher;
     private readonly ReceiveBuffer _receiveBuffer = new(4096);
+    private readonly CancellationTokenSource _disconnectCts = new();
 
     // 전송 대기중인 패킷 저장할 큐
     private readonly ConcurrentQueue<byte[]> _sendQueue = new();
@@ -58,22 +59,22 @@ public class Session
         }
 
         // 루프가 쉬고 있다면 스레드 풀에서 전송 전용 루프(SendLoopAsync)를 깨움
-        _ = Task.Run(SendLoopAsync);
+        _ = Task.Run(() => SendLoopAsync(_disconnectCts.Token));
 
         return Task.CompletedTask;
     }
 
-    private async Task SendLoopAsync()
+    private async Task SendLoopAsync(CancellationToken cancellationToken)
     {
         try
         {
             var stream = _client.GetStream();
 
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 while (_sendQueue.TryDequeue(out var packet))
                 {
-                    await stream.WriteAsync(packet);
+                    await stream.WriteAsync(packet, cancellationToken);
                 }
 
                 Interlocked.Exchange(ref _sendLoopRunning, 0);
@@ -89,6 +90,10 @@ public class Session
                 }
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            Interlocked.Exchange(ref _sendLoopRunning, 0);
+        }
         catch (Exception ex)
         {
             Console.WriteLine($"Send Error: {ex}");
@@ -98,17 +103,22 @@ public class Session
     }
 
     // 세션 통신 루프 시작점
-    public async Task StartAsync()
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _disconnectCts.Token);
+
+        var token = linkedCts.Token;
         var stream = _client.GetStream();
         var buffer = new byte[1024];
 
         try
         {
-            while (true)
+            while (!token.IsCancellationRequested)
             {
                 // 클라이언트로부터 데이터 수신 대기
-                var length = await stream.ReadAsync(buffer);
+                var length = await stream.ReadAsync(buffer, token);
                 LastReceiveTime = DateTime.UtcNow;
 
                 // Console.WriteLine($"ReadAsync Length: {length}");
@@ -169,6 +179,10 @@ public class Session
 
             }
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            Console.WriteLine($"Session Canceled: {SessionId}");
+        }
         catch (Exception ex)
         {
             Console.WriteLine($"Session Error: {ex.Message}");
@@ -191,6 +205,7 @@ public class Session
 
         try
         {
+            _disconnectCts.Cancel();
             _client.Close();
         }
         catch
