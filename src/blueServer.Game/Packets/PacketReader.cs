@@ -5,6 +5,8 @@ namespace blueServer.Game.Packets;
 
 public class PacketReader
 {
+    public const int HeaderSize = 4;
+
     private readonly byte[] _buffer;
     private int _position;
 
@@ -13,20 +15,36 @@ public class PacketReader
 
     public PacketReader(byte[] buffer)
     {
+        if (buffer.Length < HeaderSize)
+        {
+            throw new ArgumentException(
+                $"Packet must contain at least {HeaderSize} bytes for size and opcode.",
+                nameof(buffer));
+        }
+
         _buffer = buffer;
 
         Size = BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(0, 2));
+        if (Size != buffer.Length)
+        {
+            throw new ArgumentException(
+                $"Packet size mismatch. Header size is {Size}, but actual size is {buffer.Length}.",
+                nameof(buffer));
+        }
+
         Opcode = (Opcode)BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(2, 2));
         _position = 4;
     }
 
     public bool ReadBool()
     {
+        EnsureAvailable(1);
         return _buffer[_position++] == 1;
     }
 
     public ushort ReadUShort()
     {
+        EnsureAvailable(2);
         var value = BinaryPrimitives.ReadUInt16LittleEndian(_buffer.AsSpan(_position, 2));
         _position += 2;
         return value;
@@ -35,6 +53,7 @@ public class PacketReader
     public string ReadString()
     {
         var length = ReadUShort();
+        EnsureAvailable(length);
 
         var text = Encoding.UTF8.GetString(
                 _buffer,
@@ -43,5 +62,14 @@ public class PacketReader
 
         _position += length;
         return text;
+    }
+
+    private void EnsureAvailable(int byteCount)
+    {
+        if (_position + byteCount > _buffer.Length)
+        {
+            throw new InvalidOperationException(
+                $"Packet payload is too short. Position={_position}, Requested={byteCount}, Length={_buffer.Length}.");
+        }
     }
 }

@@ -1,7 +1,9 @@
+using System.Buffers.Binary;
 using System.Net.Sockets;
 using System.Collections.Concurrent;
 using blueServer.Game.Handlers;
 using blueServer.Game.Packets;
+using Microsoft.Extensions.Logging;
 
 namespace blueServer.Game;
 
@@ -9,11 +11,14 @@ public class Session
 {
     private readonly TcpClient _client;
     private readonly PacketDispatcher _dispatcher;
+    private readonly ILogger<Session> _logger;
     private readonly ReceiveBuffer _receiveBuffer = new(4096);
+    private readonly CancellationTokenSource _disconnectCts = new();
 
     // 전송 대기중인 패킷 저장할 큐
     private readonly ConcurrentQueue<byte[]> _sendQueue = new();
-    private bool _sending;
+    private int _sendLoopRunning;
+    private int _disconnected;
 
     // 세션을 구별할 고유 ID
     public Guid SessionId { get; }
@@ -22,10 +27,14 @@ public class Session
     public bool IsAuthenticated => PlayerId.HasValue;
     public DateTime LastReceiveTime { get; private set; } = DateTime.UtcNow;
 
-    public Session(TcpClient client, PacketDispatcher dispatcher)
+    public Session(
+        TcpClient client,
+        PacketDispatcher dispatcher,
+        ILogger<Session> logger)
     {
         _client = client;
         _dispatcher = dispatcher;
+        _logger = logger;
 
         SessionId = Guid.NewGuid();  // 세션이 생성될 때 고유 ID 할당
     }
@@ -35,68 +44,95 @@ public class Session
         PlayerId = playerId;
         PlayerNickname = nickname;
 
-        Console.WriteLine($"Player Login: {nickname}");
+        _logger.LogInformation(
+            "Player logged in. SessionId={SessionId}, PlayerId={PlayerId}, Nickname={Nickname}",
+            SessionId,
+            playerId,
+            nickname);
     }
 
     // 클라이언트로 바이너리 데이터를 전송하는 메서드
     public Task SendAsync(byte[] data)
     {
+        if (Volatile.Read(ref _disconnected) == 1)
+        {
+            return Task.CompletedTask;
+        }
+
         // 바로 전송이 아니라 데이터를 전송 큐에 삽입
         _sendQueue.Enqueue(data);
 
         // 이미 송신 루프가 돌고 있다면 중복 가동하지 않고 즉시 리턴
-        if (_sending)
+        if (Interlocked.CompareExchange(ref _sendLoopRunning, 1, 0) != 0)
         {
             return Task.CompletedTask;
         }
 
         // 루프가 쉬고 있다면 스레드 풀에서 전송 전용 루프(SendLoopAsync)를 깨움
-        _ = Task.Run(SendLoopAsync);
+        _ = Task.Run(() => SendLoopAsync(_disconnectCts.Token));
 
         return Task.CompletedTask;
     }
 
-    private async Task SendLoopAsync()
+    private async Task SendLoopAsync(CancellationToken cancellationToken)
     {
-        _sending = true;
-
         try
         {
             var stream = _client.GetStream();
 
-            while (_sendQueue.TryDequeue(out var packet))
+            while (!cancellationToken.IsCancellationRequested)
             {
-                await stream.WriteAsync(packet);
+                while (_sendQueue.TryDequeue(out var packet))
+                {
+                    await stream.WriteAsync(packet, cancellationToken);
+                }
+
+                Interlocked.Exchange(ref _sendLoopRunning, 0);
+
+                if (_sendQueue.IsEmpty)
+                {
+                    return;
+                }
+
+                if (Interlocked.CompareExchange(ref _sendLoopRunning, 1, 0) != 0)
+                {
+                    return;
+                }
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            Interlocked.Exchange(ref _sendLoopRunning, 0);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Send Error: {ex}");
-        }
-        finally
-        {
-            _sending = false;
-
-            // 송신 종료 직전에 새 패킷이 들어온 경우
-            if (!_sendQueue.IsEmpty)
-            {
-                _ = Task.Run(SendLoopAsync);
-            }
+            _logger.LogError(
+                ex,
+                "Send failed. SessionId={SessionId}, PlayerId={PlayerId}",
+                SessionId,
+                PlayerId);
+            Interlocked.Exchange(ref _sendLoopRunning, 0);
+            Disconnect();
         }
     }
 
     // 세션 통신 루프 시작점
-    public async Task StartAsync()
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _disconnectCts.Token);
+
+        var token = linkedCts.Token;
         var stream = _client.GetStream();
         var buffer = new byte[1024];
 
         try
         {
-            while (true)
+            while (!token.IsCancellationRequested)
             {
                 // 클라이언트로부터 데이터 수신 대기
-                var length = await stream.ReadAsync(buffer);
+                var length = await stream.ReadAsync(buffer, token);
                 LastReceiveTime = DateTime.UtcNow;
 
                 // Console.WriteLine($"ReadAsync Length: {length}");
@@ -115,7 +151,21 @@ public class Session
                     if (_receiveBuffer.Length < 2) break;
 
                     // 버퍼의 맨 앞 2바이트 읽어서 패킷의 전체 크기(packetSize) 획득
-                    var packetSize = BitConverter.ToUInt16(_receiveBuffer.Buffer, 0);
+                    var packetSize = BinaryPrimitives.ReadUInt16LittleEndian(
+                        _receiveBuffer.Buffer.AsSpan(0, sizeof(ushort)));
+
+                    if (packetSize < PacketReader.HeaderSize)
+                    {
+                        throw new InvalidOperationException(
+                            $"Invalid packet size: {packetSize}. Minimum packet size is {PacketReader.HeaderSize}.");
+                    }
+
+                    if (packetSize > _receiveBuffer.Capacity)
+                    {
+                        throw new InvalidOperationException(
+                            $"Invalid packet size: {packetSize}. Maximum packet size is {_receiveBuffer.Capacity}.");
+                    }
+
                     // Console.WriteLine($"PacketSize: {packetSize}");
                     // Console.WriteLine($"CurrentBufferLength: {_receiveBuffer.Length}");
                     // Console.WriteLine(BitConverter.ToString(_receiveBuffer.Buffer, 0, _receiveBuffer.Length));
@@ -143,23 +193,43 @@ public class Session
 
             }
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            _logger.LogInformation(
+                "Session canceled. SessionId={SessionId}, PlayerId={PlayerId}",
+                SessionId,
+                PlayerId);
+        }
         catch (Exception ex)
         {
-            Console.WriteLine($"Session Error: {ex.Message}");
+            _logger.LogError(
+                ex,
+                "Session receive loop failed. SessionId={SessionId}, PlayerId={PlayerId}",
+                SessionId,
+                PlayerId);
         }
         finally
         {
             // 연결이 종료되었을 때 매니저에서 제거하고 소켓 폐쇄
             SessionManager.Remove(this);
-            Console.WriteLine($"Client Disconnected: {SessionId}");
-            _client.Close();
+            _logger.LogInformation(
+                "Client disconnected. SessionId={SessionId}, PlayerId={PlayerId}",
+                SessionId,
+                PlayerId);
+            Disconnect();
         }
     }
 
     public void Disconnect()
     {
+        if (Interlocked.Exchange(ref _disconnected, 1) == 1)
+        {
+            return;
+        }
+
         try
         {
+            _disconnectCts.Cancel();
             _client.Close();
         }
         catch
