@@ -17,9 +17,8 @@ public class PacketReader
     {
         if (buffer.Length < HeaderSize)
         {
-            throw new ArgumentException(
-                $"Packet must contain at least {HeaderSize} bytes for size and opcode.",
-                nameof(buffer));
+            throw new PacketProtocolException(
+                $"Packet must contain at least {HeaderSize} bytes for size and opcode.");
         }
 
         _buffer = buffer;
@@ -27,9 +26,8 @@ public class PacketReader
         Size = BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(0, 2));
         if (Size != buffer.Length)
         {
-            throw new ArgumentException(
-                $"Packet size mismatch. Header size is {Size}, but actual size is {buffer.Length}.",
-                nameof(buffer));
+            throw new PacketProtocolException(
+                $"Packet size mismatch. Header size is {Size}, but actual size is {buffer.Length}.");
         }
 
         Opcode = (Opcode)BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(2, 2));
@@ -68,7 +66,7 @@ public class PacketReader
     {
         if (_position + byteCount > _buffer.Length)
         {
-            throw new InvalidOperationException(
+            throw new PacketProtocolException(
                 $"Packet payload is too short. Position={_position}, Requested={byteCount}, Length={_buffer.Length}.");
         }
     }

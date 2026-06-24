@@ -9,10 +9,14 @@ namespace blueServer.Game;
 
 public class Session
 {
+    private const int MaxPacketSize = 4096;
+    private const int ReadBufferSize = 1024;
+    private const int ReceiveBufferCapacity = MaxPacketSize + ReadBufferSize;
+
     private readonly TcpClient _client;
     private readonly PacketDispatcher _dispatcher;
     private readonly ILogger<Session> _logger;
-    private readonly ReceiveBuffer _receiveBuffer = new(4096);
+    private readonly ReceiveBuffer _receiveBuffer = new(ReceiveBufferCapacity);
     private readonly CancellationTokenSource _disconnectCts = new();
 
     // 전송 대기중인 패킷 저장할 큐
@@ -119,13 +123,13 @@ public class Session
     // 세션 통신 루프 시작점
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken,
-            _disconnectCts.Token);
+        using var cancellationRegistration = cancellationToken.Register(
+            static state => ((Session)state!).Disconnect(),
+            this);
 
-        var token = linkedCts.Token;
+        var token = _disconnectCts.Token;
         var stream = _client.GetStream();
-        var buffer = new byte[1024];
+        var buffer = new byte[ReadBufferSize];
 
         try
         {
@@ -147,8 +151,8 @@ public class Session
                 // 버퍼에 완전한 패킷이 들어올 때까지 루프 가동
                 while (true)
                 {
-                    // 패킷 크기 읽으려면 최소 2byte 필요
-                    if (_receiveBuffer.Length < 2) break;
+                    // 패킷 헤더 전체가 모인 뒤 size/opcode를 해석
+                    if (_receiveBuffer.Length < PacketReader.HeaderSize) break;
 
                     // 버퍼의 맨 앞 2바이트 읽어서 패킷의 전체 크기(packetSize) 획득
                     var packetSize = BinaryPrimitives.ReadUInt16LittleEndian(
@@ -156,14 +160,14 @@ public class Session
 
                     if (packetSize < PacketReader.HeaderSize)
                     {
-                        throw new InvalidOperationException(
+                        throw new PacketProtocolException(
                             $"Invalid packet size: {packetSize}. Minimum packet size is {PacketReader.HeaderSize}.");
                     }
 
-                    if (packetSize > _receiveBuffer.Capacity)
+                    if (packetSize > MaxPacketSize)
                     {
-                        throw new InvalidOperationException(
-                            $"Invalid packet size: {packetSize}. Maximum packet size is {_receiveBuffer.Capacity}.");
+                        throw new PacketProtocolException(
+                            $"Invalid packet size: {packetSize}. Maximum packet size is {MaxPacketSize}.");
                     }
 
                     // Console.WriteLine($"PacketSize: {packetSize}");
@@ -197,6 +201,14 @@ public class Session
         {
             _logger.LogInformation(
                 "Session canceled. SessionId={SessionId}, PlayerId={PlayerId}",
+                SessionId,
+                PlayerId);
+        }
+        catch (PacketProtocolException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Session closed due to protocol violation. SessionId={SessionId}, PlayerId={PlayerId}",
                 SessionId,
                 PlayerId);
         }
