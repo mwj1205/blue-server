@@ -5,4 +5,7 @@
     <Project Path="src/blueServer.Game/blueServer.Game.csproj" />
     <Project Path="src/blueServer.Infrastructure/blueServer.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/blueServer.Game.Tests/blueServer.Game.Tests.csproj" />
+  </Folder>
 </Solution>
