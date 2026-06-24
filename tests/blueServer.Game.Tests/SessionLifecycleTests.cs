@@ -42,27 +42,28 @@ public sealed class SessionLifecycleTests
         await fixture.ConnectAsync();
 
         fixture.StartSession();
-        await fixture.ClientStream.WriteAsync(CreateHeaderOnlyPacketSize(2));
+        await fixture.ClientStream.WriteAsync(CreatePacketHeader(2));
 
         await fixture.WaitForSessionToStopAsync();
     }
 
     [Fact]
-    public async Task StartAsync_Completes_WhenPacketSizeExceedsReceiveBufferCapacity()
+    public async Task StartAsync_Completes_WhenPacketSizeExceedsMaxPacketSize()
     {
         using var fixture = new SessionLifecycleFixture();
         await fixture.ConnectAsync();
 
         fixture.StartSession();
-        await fixture.ClientStream.WriteAsync(CreateHeaderOnlyPacketSize(4097));
+        await fixture.ClientStream.WriteAsync(CreatePacketHeader(4097));
 
         await fixture.WaitForSessionToStopAsync();
     }
 
-    private static byte[] CreateHeaderOnlyPacketSize(ushort packetSize)
+    private static byte[] CreatePacketHeader(ushort packetSize)
     {
-        var packet = new byte[sizeof(ushort)];
-        BinaryPrimitives.WriteUInt16LittleEndian(packet, packetSize);
+        var packet = new byte[PacketReader.HeaderSize];
+        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(0, sizeof(ushort)), packetSize);
+        BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(sizeof(ushort), sizeof(ushort)), (ushort)Opcode.Ping);
         return packet;
     }
 

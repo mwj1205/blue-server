@@ -16,7 +16,7 @@ public sealed class PacketReaderTests
     {
         var packet = new byte[length];
 
-        Assert.Throws<ArgumentException>(() => new PacketReader(packet));
+        Assert.Throws<PacketProtocolException>(() => new PacketReader(packet));
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class PacketReaderTests
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(0, 2), 10);
         BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(2, 2), (ushort)Opcode.Ping);
 
-        Assert.Throws<ArgumentException>(() => new PacketReader(packet));
+        Assert.Throws<PacketProtocolException>(() => new PacketReader(packet));
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class PacketReaderTests
         var packet = CreatePacket(Opcode.LoginResult);
         var reader = new PacketReader(packet);
 
-        Assert.Throws<InvalidOperationException>(() => reader.ReadBool());
+        Assert.Throws<PacketProtocolException>(() => reader.ReadBool());
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class PacketReaderTests
 
         var reader = new PacketReader(packet);
 
-        Assert.Throws<InvalidOperationException>(() => reader.ReadString());
+        Assert.Throws<PacketProtocolException>(() => reader.ReadString());
     }
 
     private static byte[] CreatePacket(Opcode opcode, Action<MemoryStream>? writePayload = null)
