@@ -4,5 +4,8 @@ namespace blueServer.Game.Handlers;
 
 public interface IPacketHandler
 {
-    Task HandleAsync(Session session, PacketReader reader);
+    Task HandleAsync(
+        Session session,
+        PacketReader reader,
+        CancellationToken cancellationToken);
 }

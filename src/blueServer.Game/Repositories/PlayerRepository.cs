@@ -13,13 +13,21 @@ public sealed class PlayerRepository
         _db = db;
     }
 
-    public Task<Player?> FindByNicknameAsync(string nickname)
+    public Task<Player?> FindByNicknameAsync(
+        string nickname,
+        CancellationToken cancellationToken = default)
     {
-        return _db.Players.FirstOrDefaultAsync(p => p.Nickname == nickname);
+        return _db.Players.FirstOrDefaultAsync(
+            p => p.Nickname == nickname,
+            cancellationToken);
     }
 
-    public Task<Player?> FindByIdAsync(long id)
+    public Task<Player?> FindByIdAsync(
+        long id,
+        CancellationToken cancellationToken = default)
     {
-        return _db.Players.FirstOrDefaultAsync(p => p.Id == id);
+        return _db.Players.FirstOrDefaultAsync(
+            p => p.Id == id,
+            cancellationToken);
     }
 }

@@ -130,7 +130,10 @@ public sealed class SessionReceiveLoopTests
 
         public bool WasCalled => _completion.Task.IsCompleted;
 
-        public Task HandleAsync(Session session, PacketReader reader)
+        public Task HandleAsync(
+            Session session,
+            PacketReader reader,
+            CancellationToken cancellationToken)
         {
             _completion.TrySetResult(reader.Opcode);
             return Task.CompletedTask;

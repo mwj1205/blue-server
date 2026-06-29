@@ -13,9 +13,13 @@ public sealed class OwnedCharacterRepository
         _db = db;
     }
 
-    public Task<List<OwnedCharacter>> GetOwnedCharacterByIdAsync(long playerId)
+    public Task<List<OwnedCharacter>> GetOwnedCharacterByIdAsync(
+        long playerId,
+        CancellationToken cancellationToken = default)
     {
-        return _db.OwnedCharacters.Where(c => c.PlayerId == playerId).ToListAsync();
+        return _db.OwnedCharacters
+            .Where(c => c.PlayerId == playerId)
+            .ToListAsync(cancellationToken);
     }
 
     public void Add(OwnedCharacter character)

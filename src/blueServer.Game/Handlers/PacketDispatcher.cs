@@ -12,14 +12,19 @@ public sealed class PacketDispatcher
         _scopeFactory = scopeFactory;
     }
 
-    public async Task DispatchAsync(Session session, PacketReader reader)
+    public async Task DispatchAsync(
+        Session session,
+        PacketReader reader,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         await using var scope = _scopeFactory.CreateAsyncScope();
         var handler = scope.ServiceProvider.GetKeyedService<IPacketHandler>(reader.Opcode);
 
         if (handler is not null)
         {
-            await handler.HandleAsync(session, reader);
+            await handler.HandleAsync(session, reader, cancellationToken);
             return;
         }
 

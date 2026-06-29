@@ -189,7 +189,7 @@ public class Session
 
                     // 패킷 데이터를 디스패처로 전달
                     var reader = new PacketReader(packetData);
-                    await _dispatcher.DispatchAsync(this, reader);
+                    await _dispatcher.DispatchAsync(this, reader, token);
 
                     // 처리가 완료된 크기만큼 수신 버퍼에서 제거 및 정렬 처리
                     _receiveBuffer.Remove(packetSize);
