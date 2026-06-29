@@ -11,9 +11,12 @@ public sealed class LoginService
         _players = players;
     }
 
-    public async Task<LoginResult?> LoginAsync(string nickname, string password)
+    public async Task<LoginResult?> LoginAsync(
+        string nickname,
+        string password,
+        CancellationToken cancellationToken)
     {
-        var player = await _players.FindByNicknameAsync(nickname);
+        var player = await _players.FindByNicknameAsync(nickname, cancellationToken);
 
         if (player is null || player.Password != password)
         {

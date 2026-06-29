@@ -32,10 +32,13 @@ public static class SessionManager
 
     // 현재 접속해 있는 모든 유저에게 바이너리 패킷 전송
     // TODO: 더 효율적인 방식으로 broadcast
-    public static async Task BroadcastAsync(byte[] data)
+    public static async Task BroadcastAsync(
+        byte[] data,
+        CancellationToken cancellationToken = default)
     {
         foreach (var session in _sessions.Values)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             await session.SendAsync(data);
         }
     }

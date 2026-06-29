@@ -13,10 +13,11 @@ public sealed class CharacterTemplateRepository
         _db = db;
     }
 
-    public Task<List<CharacterTemplate>> GetAllAsync()
+    public Task<List<CharacterTemplate>> GetAllAsync(
+        CancellationToken cancellationToken = default)
     {
         return _db.CharacterTemplates
             .AsNoTracking()
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 }

@@ -4,8 +4,13 @@ namespace blueServer.Game.Handlers;
 
 public sealed class ChatHandler : IPacketHandler
 {
-    public async Task HandleAsync(Session session, PacketReader reader)
+    public async Task HandleAsync(
+        Session session,
+        PacketReader reader,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (!session.IsAuthenticated)
         {
             Console.WriteLine("Unauthorized Chat");
@@ -16,6 +21,6 @@ public sealed class ChatHandler : IPacketHandler
         Console.WriteLine($"[{session.PlayerNickname}] {message}");
 
         var packet = new ChatMessagePacket { Message = $"[{session.PlayerNickname}]: {message}" };
-        await SessionManager.BroadcastAsync(packet.Serialize());
+        await SessionManager.BroadcastAsync(packet.Serialize(), cancellationToken);
     }
 }

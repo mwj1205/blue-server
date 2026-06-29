@@ -26,7 +26,7 @@ public sealed class PacketDispatcherTests
         var session = CreateSession(dispatcher);
         var reader = new PacketReader(CreatePacket(Opcode.Ping));
 
-        await dispatcher.DispatchAsync(session, reader);
+        await dispatcher.DispatchAsync(session, reader, CancellationToken.None);
 
         Assert.True(handler.WasCalled);
         Assert.Same(session, handler.Session);
@@ -48,7 +48,7 @@ public sealed class PacketDispatcherTests
         var session = CreateSession(dispatcher);
         var reader = new PacketReader(CreatePacket(Opcode.Chat));
 
-        await dispatcher.DispatchAsync(session, reader);
+        await dispatcher.DispatchAsync(session, reader, CancellationToken.None);
 
         Assert.False(handler.WasCalled);
     }
@@ -65,11 +65,38 @@ public sealed class PacketDispatcherTests
         var dispatcher = CreateDispatcher(provider);
         var session = CreateSession(dispatcher);
 
-        await dispatcher.DispatchAsync(session, new PacketReader(CreatePacket(Opcode.Ping)));
-        await dispatcher.DispatchAsync(session, new PacketReader(CreatePacket(Opcode.Ping)));
+        await dispatcher.DispatchAsync(
+            session,
+            new PacketReader(CreatePacket(Opcode.Ping)),
+            CancellationToken.None);
+        await dispatcher.DispatchAsync(
+            session,
+            new PacketReader(CreatePacket(Opcode.Ping)),
+            CancellationToken.None);
 
         Assert.Equal(2, tracker.CreatedCount);
         Assert.Equal(2, tracker.HandledInstanceIds.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task DispatchAsync_PassesCancellationTokenToHandler()
+    {
+        var handler = new RecordingPacketHandler();
+        using var cts = new CancellationTokenSource();
+        using var provider = CreateServiceProvider(services =>
+        {
+            services.AddSingleton(handler);
+            services.AddKeyedSingleton<IPacketHandler>(
+                Opcode.Ping,
+                (serviceProvider, _) => serviceProvider.GetRequiredService<RecordingPacketHandler>());
+        });
+        var dispatcher = CreateDispatcher(provider);
+        var session = CreateSession(dispatcher);
+        var reader = new PacketReader(CreatePacket(Opcode.Ping));
+
+        await dispatcher.DispatchAsync(session, reader, cts.Token);
+
+        Assert.Equal(cts.Token, handler.CancellationToken);
     }
 
     private static ServiceProvider CreateServiceProvider(Action<IServiceCollection> configure)
@@ -106,12 +133,17 @@ public sealed class PacketDispatcherTests
         public bool WasCalled { get; private set; }
         public Session? Session { get; private set; }
         public Opcode? Opcode { get; private set; }
+        public CancellationToken CancellationToken { get; private set; }
 
-        public Task HandleAsync(Session session, PacketReader reader)
+        public Task HandleAsync(
+            Session session,
+            PacketReader reader,
+            CancellationToken cancellationToken)
         {
             WasCalled = true;
             Session = session;
             Opcode = reader.Opcode;
+            CancellationToken = cancellationToken;
             return Task.CompletedTask;
         }
     }
@@ -140,7 +172,10 @@ public sealed class PacketDispatcherTests
             _instanceId = tracker.CreateInstanceId();
         }
 
-        public Task HandleAsync(Session session, PacketReader reader)
+        public Task HandleAsync(
+            Session session,
+            PacketReader reader,
+            CancellationToken cancellationToken)
         {
             _tracker.HandledInstanceIds.Enqueue(_instanceId);
             return Task.CompletedTask;

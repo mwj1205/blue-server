@@ -12,16 +12,24 @@ public sealed class LoginHandler : IPacketHandler
         _loginService = loginService;
     }
 
-    public async Task HandleAsync(Session session, PacketReader reader)
+    public async Task HandleAsync(
+        Session session,
+        PacketReader reader,
+        CancellationToken cancellationToken)
     {
         var nickname = reader.ReadString();
         var password = reader.ReadString();
         Console.WriteLine($"[Login] {nickname}");
 
-        var loginResult = await _loginService.LoginAsync(nickname, password);
+        var loginResult = await _loginService.LoginAsync(
+            nickname,
+            password,
+            cancellationToken);
 
         if (loginResult is null)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             await session.SendAsync(
                 new LoginResultPacket
                 {
@@ -33,6 +41,7 @@ public sealed class LoginHandler : IPacketHandler
         }
 
         session.Login(loginResult.PlayerId, loginResult.Nickname);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var result = new LoginResultPacket
         {

@@ -26,13 +26,15 @@ public sealed class CharacterGachaService
         _characterTemplates = characterTemplates;
     }
 
-    public async Task<CharacterGachaResult> DrawAsync(long playerId)
+    public async Task<CharacterGachaResult> DrawAsync(
+        long playerId,
+        CancellationToken cancellationToken)
     {
-        await using var transaction = await _db.Database.BeginTransactionAsync();
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            var player = await _players.FindByIdAsync(playerId);
+            var player = await _players.FindByIdAsync(playerId, cancellationToken);
 
             if (player is null)
             {
@@ -44,7 +46,7 @@ public sealed class CharacterGachaService
                 return CharacterGachaResult.Fail("Not enough gems", player.Gem);
             }
 
-            var templates = await _characterTemplates.GetAllAsync();
+            var templates = await _characterTemplates.GetAllAsync(cancellationToken);
 
             if (templates.Count == 0)
             {
@@ -64,8 +66,8 @@ public sealed class CharacterGachaService
             player.Gem -= GachaCost;
             _ownedCharacters.Add(ownedCharacter);
 
-            await _db.SaveChangesAsync();
-            await transaction.CommitAsync();
+            await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             return CharacterGachaResult.Success(
                 ownedCharacter.Id,
@@ -76,13 +78,13 @@ public sealed class CharacterGachaService
         }
         catch (DbUpdateConcurrencyException)
         {
-            await transaction.RollbackAsync();
+            await transaction.RollbackAsync(CancellationToken.None);
             return CharacterGachaResult.Fail(
                 "Another request changed the player data. Please try again.");
         }
         catch
         {
-            await transaction.RollbackAsync();
+            await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
     }
