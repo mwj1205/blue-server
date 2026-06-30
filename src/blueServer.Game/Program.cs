@@ -29,6 +29,7 @@ builder.Services.AddKeyedScoped<IPacketHandler, CharacterGachaHandler>(Opcode.Ch
 
 builder.Services.AddSingleton<PacketDispatcher>();
 builder.Services.AddSingleton<SessionFactory>();
+builder.Services.AddSingleton<SessionTaskTracker>();
 
 builder.Services.AddHostedService<TcpListenerService>();
 

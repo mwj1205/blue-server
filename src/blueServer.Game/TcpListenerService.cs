@@ -8,14 +8,17 @@ namespace blueServer.Game;
 public class TcpListenerService : BackgroundService
 {
     private readonly SessionFactory _factory;
+    private readonly SessionTaskTracker _sessionTaskTracker;
     private readonly ILogger<TcpListenerService> _logger;
     private readonly TcpListener _listener;
 
     public TcpListenerService(
         SessionFactory factory,
+        SessionTaskTracker sessionTaskTracker,
         ILogger<TcpListenerService> logger)
     {
         _factory = factory;
+        _sessionTaskTracker = sessionTaskTracker;
         _logger = logger;
         _listener = new TcpListener(IPAddress.Any, 7777);
     }
@@ -34,7 +37,8 @@ public class TcpListenerService : BackgroundService
                 // 생성을 위임받은 팩토리를 통해 세션 객체 획득
                 var session = _factory.Create(client);
                 SessionManager.Add(session);
-                _ = session.StartAsync(stoppingToken);
+                var sessionTask = session.StartAsync(stoppingToken);
+                _sessionTaskTracker.Track(session, sessionTask);
             }
         }
         catch (OperationCanceledException)
