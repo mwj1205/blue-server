@@ -1,42 +1,73 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 
 namespace blueServer.Game;
 
-public static class SessionManager
+public sealed class SessionManager
 {
-    // 동시성이 보장되는 딕셔너리로 실시간 접속 유저 관리
-    private static readonly ConcurrentDictionary<Guid, Session> _sessions = new();
+    private readonly ConcurrentDictionary<Guid, Session> _sessions = new();
+    private readonly ILogger<SessionManager> _logger;
 
-    // 새로운 유저 접속 시 목록에 등록
-    public static void Add(Session session)
+    public SessionManager(ILogger<SessionManager> logger)
     {
-        _sessions.TryAdd(session.SessionId, session);
-
-        Console.WriteLine($"Session Added: {session.SessionId}");
-        Console.WriteLine($"Current Sessions: {_sessions.Count}");
+        _logger = logger;
     }
 
-    // 유저 접속 종료 시 목록에서 안전하게 제거
-    public static void Remove(Session session)
-    {
-        _sessions.TryRemove(session.SessionId, out _);
+    public int Count => _sessions.Count;
 
-        Console.WriteLine($"Session Removed: {session.SessionId}");
-        Console.WriteLine($"Current Sessions: {_sessions.Count}");
+    public bool Add(Session session)
+    {
+        var added = _sessions.TryAdd(session.SessionId, session);
+
+        if (added)
+        {
+            _logger.LogInformation(
+                "Session added. SessionId={SessionId}, ActiveSessionCount={ActiveSessionCount}",
+                session.SessionId,
+                _sessions.Count);
+            return true;
+        }
+
+        _logger.LogWarning(
+            "Session already exists. SessionId={SessionId}, ActiveSessionCount={ActiveSessionCount}",
+            session.SessionId,
+            _sessions.Count);
+
+        return false;
     }
 
-    public static IEnumerable<Session> GetAll()
+    public bool Remove(Session session)
     {
-        return _sessions.Values;
+        var removed = _sessions.TryRemove(session.SessionId, out _);
+
+        if (removed)
+        {
+            _logger.LogInformation(
+                "Session removed. SessionId={SessionId}, ActiveSessionCount={ActiveSessionCount}",
+                session.SessionId,
+                _sessions.Count);
+            return true;
+        }
+
+        _logger.LogDebug(
+            "Session was not registered. SessionId={SessionId}, ActiveSessionCount={ActiveSessionCount}",
+            session.SessionId,
+            _sessions.Count);
+
+        return false;
     }
 
-    // 현재 접속해 있는 모든 유저에게 바이너리 패킷 전송
-    // TODO: 더 효율적인 방식으로 broadcast
-    public static async Task BroadcastAsync(
+    public IReadOnlyCollection<Session> GetAll()
+    {
+        // 호출자가 순회하는 동안 세션 목록이 바뀔 수 있으므로 현재 시점의 스냅샷을 반환한다.
+        return _sessions.Values.ToArray();
+    }
+
+    public async Task BroadcastAsync(
         byte[] data,
         CancellationToken cancellationToken = default)
     {
-        foreach (var session in _sessions.Values)
+        foreach (var session in GetAll())
         {
             cancellationToken.ThrowIfCancellationRequested();
             await session.SendAsync(data);

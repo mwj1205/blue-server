@@ -131,6 +131,7 @@ public sealed class SessionSendLoopTests
             _session = new Session(
                 _serverClient,
                 dispatcher,
+                new SessionManager(NullLogger<SessionManager>.Instance),
                 NullLogger<Session>.Instance);
 
             return _session;

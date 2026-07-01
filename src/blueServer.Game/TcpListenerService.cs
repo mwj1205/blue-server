@@ -10,16 +10,19 @@ public class TcpListenerService : BackgroundService
     private static readonly TimeSpan SessionShutdownTimeout = TimeSpan.FromSeconds(5);
 
     private readonly SessionFactory _factory;
+    private readonly SessionManager _sessionManager;
     private readonly SessionTaskTracker _sessionTaskTracker;
     private readonly ILogger<TcpListenerService> _logger;
     private readonly TcpListener _listener;
 
     public TcpListenerService(
         SessionFactory factory,
+        SessionManager sessionManager,
         SessionTaskTracker sessionTaskTracker,
         ILogger<TcpListenerService> logger)
     {
         _factory = factory;
+        _sessionManager = sessionManager;
         _sessionTaskTracker = sessionTaskTracker;
         _logger = logger;
         _listener = new TcpListener(IPAddress.Any, 7777);
@@ -38,7 +41,7 @@ public class TcpListenerService : BackgroundService
 
                 // 생성을 위임받은 팩토리를 통해 세션 객체 획득
                 var session = _factory.Create(client);
-                SessionManager.Add(session);
+                _sessionManager.Add(session);
                 var sessionTask = session.StartAsync(stoppingToken);
                 _sessionTaskTracker.Track(session, sessionTask);
             }
@@ -61,7 +64,7 @@ public class TcpListenerService : BackgroundService
 
         await base.StopAsync(cancellationToken);
 
-        var sessions = SessionManager.GetAll().ToArray();
+        var sessions = _sessionManager.GetAll();
 
         foreach (var session in sessions)
         {

@@ -130,6 +130,7 @@ public sealed class SessionLifecycleTests
             _session = new Session(
                 _serverClient,
                 dispatcher,
+                new SessionManager(NullLogger<SessionManager>.Instance),
                 NullLogger<Session>.Instance);
 
             _sessionTask = _session.StartAsync(_sessionCts.Token);

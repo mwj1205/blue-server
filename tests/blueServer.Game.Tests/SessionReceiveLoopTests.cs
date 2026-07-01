@@ -98,6 +98,7 @@ public sealed class SessionReceiveLoopTests
             var session = new Session(
                 _serverClient,
                 _dispatcher,
+                new SessionManager(NullLogger<SessionManager>.Instance),
                 NullLogger<Session>.Instance);
 
             _sessionTask = session.StartAsync(_cts.Token);

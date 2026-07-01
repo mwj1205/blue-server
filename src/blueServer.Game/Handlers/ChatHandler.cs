@@ -4,6 +4,13 @@ namespace blueServer.Game.Handlers;
 
 public sealed class ChatHandler : IPacketHandler
 {
+    private readonly SessionManager _sessionManager;
+
+    public ChatHandler(SessionManager sessionManager)
+    {
+        _sessionManager = sessionManager;
+    }
+
     public async Task HandleAsync(
         Session session,
         PacketReader reader,
@@ -21,6 +28,6 @@ public sealed class ChatHandler : IPacketHandler
         Console.WriteLine($"[{session.PlayerNickname}] {message}");
 
         var packet = new ChatMessagePacket { Message = $"[{session.PlayerNickname}]: {message}" };
-        await SessionManager.BroadcastAsync(packet.Serialize(), cancellationToken);
+        await _sessionManager.BroadcastAsync(packet.Serialize(), cancellationToken);
     }
 }

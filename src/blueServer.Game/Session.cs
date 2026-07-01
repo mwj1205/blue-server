@@ -15,6 +15,7 @@ public class Session : IDisposable
 
     private readonly TcpClient _client;
     private readonly PacketDispatcher _dispatcher;
+    private readonly SessionManager _sessionManager;
     private readonly ILogger<Session> _logger;
     private readonly ReceiveBuffer _receiveBuffer = new(ReceiveBufferCapacity);
     private readonly CancellationTokenSource _disconnectCts = new();
@@ -35,10 +36,12 @@ public class Session : IDisposable
     public Session(
         TcpClient client,
         PacketDispatcher dispatcher,
+        SessionManager sessionManager,
         ILogger<Session> logger)
     {
         _client = client;
         _dispatcher = dispatcher;
+        _sessionManager = sessionManager;
         _logger = logger;
 
         SessionId = Guid.NewGuid();  // 세션이 생성될 때 고유 ID 할당
@@ -224,7 +227,7 @@ public class Session : IDisposable
         finally
         {
             // 연결이 종료되었을 때 매니저에서 제거하고 소켓 폐쇄
-            SessionManager.Remove(this);
+            _sessionManager.Remove(this);
             _logger.LogInformation(
                 "Client disconnected. SessionId={SessionId}, PlayerId={PlayerId}",
                 SessionId,

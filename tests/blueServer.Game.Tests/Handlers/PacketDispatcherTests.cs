@@ -117,6 +117,7 @@ public sealed class PacketDispatcherTests
         return new Session(
             new TcpClient(),
             dispatcher,
+            new SessionManager(NullLogger<SessionManager>.Instance),
             NullLogger<Session>.Instance);
     }
 
