@@ -42,6 +42,43 @@ public sealed class SessionTaskTrackerTests
         await WaitUntilAsync(() => tracker.ActiveSessionCount == 0);
     }
 
+    [Fact]
+    public async Task WaitForAllAsync_ReturnsTrue_WhenTrackedTaskCompletes()
+    {
+        var tracker = CreateTracker();
+        var session = CreateSession();
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        tracker.Track(session, completion.Task);
+        completion.SetResult();
+
+        var completed = await tracker.WaitForAllAsync(
+            TimeSpan.FromSeconds(5),
+            CancellationToken.None);
+
+        Assert.True(completed);
+    }
+
+    [Fact]
+    public async Task WaitForAllAsync_ReturnsFalse_WhenTimeoutExpires()
+    {
+        var tracker = CreateTracker();
+        var session = CreateSession();
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        tracker.Track(session, completion.Task);
+
+        var completed = await tracker.WaitForAllAsync(
+            TimeSpan.FromMilliseconds(10),
+            CancellationToken.None);
+
+        Assert.False(completed);
+
+        completion.SetResult();
+    }
+
     private static SessionTaskTracker CreateTracker()
     {
         return new SessionTaskTracker(

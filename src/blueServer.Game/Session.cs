@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace blueServer.Game;
 
-public class Session
+public class Session : IDisposable
 {
     private const int MaxPacketSize = 4096;
     private const int ReadBufferSize = 1024;
@@ -23,6 +23,7 @@ public class Session
     private readonly ConcurrentQueue<byte[]> _sendQueue = new();
     private int _sendLoopRunning;
     private int _disconnected;
+    private int _disposed;
 
     // 세션을 구별할 고유 ID
     public Guid SessionId { get; }
@@ -228,7 +229,7 @@ public class Session
                 "Client disconnected. SessionId={SessionId}, PlayerId={PlayerId}",
                 SessionId,
                 PlayerId);
-            Disconnect();
+            Dispose();
         }
     }
 
@@ -244,9 +245,24 @@ public class Session
             _disconnectCts.Cancel();
             _client.Close();
         }
+        catch (ObjectDisposedException)
+        {
+        }
         catch
         {
 
         }
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        {
+            return;
+        }
+
+        Disconnect();
+        _disconnectCts.Dispose();
+        _client.Dispose();
     }
 }

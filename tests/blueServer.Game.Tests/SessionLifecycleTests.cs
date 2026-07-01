@@ -36,6 +36,21 @@ public sealed class SessionLifecycleTests
     }
 
     [Fact]
+    public async Task Dispose_DoesNotThrow_WhenCalledMultipleTimesAfterSessionStops()
+    {
+        using var fixture = new SessionLifecycleFixture();
+        await fixture.ConnectAsync();
+
+        var session = fixture.StartSession();
+        session.Disconnect();
+        await fixture.WaitForSessionToStopAsync();
+
+        session.Dispose();
+        session.Dispose();
+        session.Disconnect();
+    }
+
+    [Fact]
     public async Task StartAsync_Completes_WhenPacketSizeIsSmallerThanHeader()
     {
         using var fixture = new SessionLifecycleFixture();
