@@ -7,16 +7,13 @@ namespace blueServer.Game;
 public class SessionFactory
 {
     private readonly PacketDispatcher _dispatcher;
-    private readonly SessionManager _sessionManager;
     private readonly ILogger<Session> _logger;
 
     public SessionFactory(
         PacketDispatcher dispatcher,
-        SessionManager sessionManager,
         ILogger<Session> logger)
     {
         _dispatcher = dispatcher;
-        _sessionManager = sessionManager;
         _logger = logger;
     }
 
@@ -25,7 +22,6 @@ public class SessionFactory
         return new Session(
             client,
             _dispatcher,
-            _sessionManager,
             _logger);
     }
 }

@@ -13,7 +13,7 @@ public sealed class SessionManagerTests
     {
         var firstManager = CreateManager();
         var secondManager = CreateManager();
-        using var session = CreateSession(firstManager);
+        using var session = CreateSession();
 
         firstManager.Add(session);
 
@@ -25,7 +25,7 @@ public sealed class SessionManagerTests
     public void Remove_DeletesSessionFromCurrentManagerOnly()
     {
         var manager = CreateManager();
-        using var session = CreateSession(manager);
+        using var session = CreateSession();
 
         manager.Add(session);
         var removed = manager.Remove(session);
@@ -40,7 +40,7 @@ public sealed class SessionManagerTests
             NullLogger<SessionManager>.Instance);
     }
 
-    private static Session CreateSession(SessionManager sessionManager)
+    private static Session CreateSession()
     {
         var services = new ServiceCollection();
         using var provider = services.BuildServiceProvider();
@@ -50,7 +50,6 @@ public sealed class SessionManagerTests
         return new Session(
             new TcpClient(),
             dispatcher,
-            sessionManager,
             NullLogger<Session>.Instance);
     }
 }

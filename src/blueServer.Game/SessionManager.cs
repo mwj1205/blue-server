@@ -59,7 +59,7 @@ public sealed class SessionManager
 
     public IReadOnlyCollection<Session> GetAll()
     {
-        // 호출자가 순회하는 동안 세션 목록이 바뀔 수 있으므로 현재 시점의 스냅샷을 반환한다.
+        // 호출자가 순회하는 동안 세션 목록이 바뀔 수 있으므로 현재 시점의 스냅샷 반환
         return _sessions.Values.ToArray();
     }
 

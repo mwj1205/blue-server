@@ -42,7 +42,7 @@ public class TcpListenerService : BackgroundService
                 // 생성을 위임받은 팩토리를 통해 세션 객체 획득
                 var session = _factory.Create(client);
                 _sessionManager.Add(session);
-                var sessionTask = session.StartAsync(stoppingToken);
+                var sessionTask = RunSessionAsync(session, stoppingToken);
                 _sessionTaskTracker.Track(session, sessionTask);
             }
         }
@@ -85,5 +85,21 @@ public class TcpListenerService : BackgroundService
             "Timed out while waiting for TCP sessions to stop. ActiveSessionCount={ActiveSessionCount}, TimeoutSeconds={TimeoutSeconds}",
             _sessionTaskTracker.ActiveSessionCount,
             SessionShutdownTimeout.TotalSeconds);
+    }
+
+    private async Task RunSessionAsync(
+        Session session,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await session.StartAsync(cancellationToken);
+        }
+        finally
+        {
+            // 세션을 등록한 쪽에서 제거까지 책임져야 Session이 SessionManager를 알지 않아도 된다.
+            _sessionManager.Remove(session);
+            session.Dispose();
+        }
     }
 }

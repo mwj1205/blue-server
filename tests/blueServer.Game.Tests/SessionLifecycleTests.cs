@@ -130,7 +130,6 @@ public sealed class SessionLifecycleTests
             _session = new Session(
                 _serverClient,
                 dispatcher,
-                new SessionManager(NullLogger<SessionManager>.Instance),
                 NullLogger<Session>.Instance);
 
             _sessionTask = _session.StartAsync(_sessionCts.Token);
@@ -154,7 +153,7 @@ public sealed class SessionLifecycleTests
 
         public void Dispose()
         {
-            _session?.Disconnect();
+            _session?.Dispose();
             _sessionCts.Cancel();
             Client.Dispose();
             _serverClient?.Dispose();

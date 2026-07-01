@@ -131,7 +131,6 @@ public sealed class SessionSendLoopTests
             _session = new Session(
                 _serverClient,
                 dispatcher,
-                new SessionManager(NullLogger<SessionManager>.Instance),
                 NullLogger<Session>.Instance);
 
             return _session;
@@ -161,7 +160,7 @@ public sealed class SessionSendLoopTests
 
         public void Dispose()
         {
-            _session?.Disconnect();
+            _session?.Dispose();
             _cts.Cancel();
             Client.Dispose();
             _serverClient?.Dispose();

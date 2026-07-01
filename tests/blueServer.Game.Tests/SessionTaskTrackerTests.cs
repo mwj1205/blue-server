@@ -95,7 +95,6 @@ public sealed class SessionTaskTrackerTests
         return new Session(
             new TcpClient(),
             dispatcher,
-            new SessionManager(NullLogger<SessionManager>.Instance),
             NullLogger<Session>.Instance);
     }
 
