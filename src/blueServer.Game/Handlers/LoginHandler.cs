@@ -49,8 +49,8 @@ public sealed class LoginHandler : IPacketHandler
                 {
                     Success = false,
                     Message = "Login failed"
-                }.Serialize()
-            );
+                }.Serialize(),
+                cancellationToken);
             return;
         }
 
@@ -63,6 +63,6 @@ public sealed class LoginHandler : IPacketHandler
             Message = "Login Success"
         };
 
-        await session.SendAsync(result.Serialize());
+        await session.SendAsync(result.Serialize(), cancellationToken);
     }
 }

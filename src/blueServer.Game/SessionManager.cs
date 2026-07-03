@@ -70,7 +70,7 @@ public sealed class SessionManager
         foreach (var session in GetAll())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await session.SendAsync(data);
+            await session.SendAsync(data, cancellationToken);
         }
     }
 }

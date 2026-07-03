@@ -50,6 +50,6 @@ public sealed class CharacterGachaHandler : IPacketHandler
             RemainingGem = result.RemainingGem
         };
 
-        return session.SendAsync(packet.Serialize());
+        return session.SendAsync(packet.Serialize(), cancellationToken);
     }
 }

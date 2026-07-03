@@ -13,6 +13,6 @@ public class PingHandler : IPacketHandler
 
         var pong = new PongPacket();
 
-        await session.SendAsync(pong.Serialize());
+        await session.SendAsync(pong.Serialize(), cancellationToken);
     }
 }
