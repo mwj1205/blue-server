@@ -36,6 +36,21 @@ public sealed class SessionLifecycleTests
     }
 
     [Fact]
+    public async Task Dispose_DoesNotThrow_WhenCalledMultipleTimesAfterSessionStops()
+    {
+        using var fixture = new SessionLifecycleFixture();
+        await fixture.ConnectAsync();
+
+        var session = fixture.StartSession();
+        session.Disconnect();
+        await fixture.WaitForSessionToStopAsync();
+
+        session.Dispose();
+        session.Dispose();
+        session.Disconnect();
+    }
+
+    [Fact]
     public async Task StartAsync_Completes_WhenPacketSizeIsSmallerThanHeader()
     {
         using var fixture = new SessionLifecycleFixture();
@@ -110,7 +125,8 @@ public sealed class SessionLifecycleTests
             }
 
             var dispatcher = new PacketDispatcher(
-                _provider.GetRequiredService<IServiceScopeFactory>());
+                _provider.GetRequiredService<IServiceScopeFactory>(),
+                NullLogger<PacketDispatcher>.Instance);
 
             _session = new Session(
                 _serverClient,
@@ -138,7 +154,7 @@ public sealed class SessionLifecycleTests
 
         public void Dispose()
         {
-            _session?.Disconnect();
+            _session?.Dispose();
             _sessionCts.Cancel();
             Client.Dispose();
             _serverClient?.Dispose();

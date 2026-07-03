@@ -1,24 +1,40 @@
+using Microsoft.Extensions.Logging;
+
 namespace blueServer.Game;
 
-public static class SessionMonitor
+public sealed class SessionMonitor
 {
-    public static async Task StartAsync()
+    private readonly SessionManager _sessionManager;
+    private readonly ILogger<SessionMonitor> _logger;
+
+    public SessionMonitor(
+        SessionManager sessionManager,
+        ILogger<SessionMonitor> logger)
     {
-        while (true)
+        _sessionManager = sessionManager;
+        _logger = logger;
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken = default)
+    {
+        while (!cancellationToken.IsCancellationRequested)
         {
-            foreach (var session in SessionManager.GetAll())
+            foreach (var session in _sessionManager.GetAll())
             {
                 var diff = DateTime.UtcNow - session.LastReceiveTime;
 
                 if (diff.TotalSeconds > 30)
                 {
-                    Console.WriteLine($"Timeout: {session.SessionId}");
-
+                    _logger.LogWarning(
+                        "Session timed out. SessionId={SessionId}, PlayerId={PlayerId}, IdleSeconds={IdleSeconds}",
+                        session.SessionId,
+                        session.PlayerId,
+                        diff.TotalSeconds);
                     session.Disconnect();
                 }
             }
 
-            await Task.Delay(10000);
+            await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
         }
     }
 }

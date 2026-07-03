@@ -1,15 +1,20 @@
 using blueServer.Game.Packets;
 using blueServer.Game.Services;
+using Microsoft.Extensions.Logging;
 
 namespace blueServer.Game.Handlers;
 
 public sealed class LoginHandler : IPacketHandler
 {
     private readonly LoginService _loginService;
+    private readonly ILogger<LoginHandler> _logger;
 
-    public LoginHandler(LoginService loginService)
+    public LoginHandler(
+        LoginService loginService,
+        ILogger<LoginHandler> logger)
     {
         _loginService = loginService;
+        _logger = logger;
     }
 
     public async Task HandleAsync(
@@ -19,7 +24,11 @@ public sealed class LoginHandler : IPacketHandler
     {
         var nickname = reader.ReadString();
         var password = reader.ReadString();
-        Console.WriteLine($"[Login] {nickname}");
+
+        _logger.LogInformation(
+            "Login packet received. SessionId={SessionId}, Nickname={Nickname}",
+            session.SessionId,
+            nickname);
 
         var loginResult = await _loginService.LoginAsync(
             nickname,
@@ -30,13 +39,18 @@ public sealed class LoginHandler : IPacketHandler
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            _logger.LogWarning(
+                "Login failed. SessionId={SessionId}, Nickname={Nickname}",
+                session.SessionId,
+                nickname);
+
             await session.SendAsync(
                 new LoginResultPacket
                 {
                     Success = false,
                     Message = "Login failed"
-                }.Serialize()
-            );
+                }.Serialize(),
+                cancellationToken);
             return;
         }
 
@@ -49,6 +63,6 @@ public sealed class LoginHandler : IPacketHandler
             Message = "Login Success"
         };
 
-        await session.SendAsync(result.Serialize());
+        await session.SendAsync(result.Serialize(), cancellationToken);
     }
 }

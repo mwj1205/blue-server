@@ -60,7 +60,8 @@ public sealed class SessionReceiveLoopTests
 
         var provider = services.BuildServiceProvider();
         var dispatcher = new PacketDispatcher(
-            provider.GetRequiredService<IServiceScopeFactory>());
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PacketDispatcher>.Instance);
 
         return new SessionTestFixture(dispatcher);
     }
@@ -72,6 +73,7 @@ public sealed class SessionReceiveLoopTests
         private readonly CancellationTokenSource _cts = new(TimeSpan.FromSeconds(5));
 
         private Task? _sessionTask;
+        private Session? _session;
         private TcpClient? _serverClient;
 
         public SessionTestFixture(PacketDispatcher dispatcher)
@@ -95,12 +97,12 @@ public sealed class SessionReceiveLoopTests
 
             _serverClient = await acceptTask;
 
-            var session = new Session(
+            _session = new Session(
                 _serverClient,
                 _dispatcher,
                 NullLogger<Session>.Instance);
 
-            _sessionTask = session.StartAsync(_cts.Token);
+            _sessionTask = _session.StartAsync(_cts.Token);
         }
 
         public async Task WaitForSessionToStopAsync()
@@ -115,6 +117,7 @@ public sealed class SessionReceiveLoopTests
 
         public void Dispose()
         {
+            _session?.Dispose();
             _cts.Cancel();
             Client.Dispose();
             _serverClient?.Dispose();

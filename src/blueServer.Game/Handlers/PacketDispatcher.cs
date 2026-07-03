@@ -1,15 +1,20 @@
 using blueServer.Game.Packets;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace blueServer.Game.Handlers;
 
 public sealed class PacketDispatcher
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<PacketDispatcher> _logger;
 
-    public PacketDispatcher(IServiceScopeFactory scopeFactory)
+    public PacketDispatcher(
+        IServiceScopeFactory scopeFactory,
+        ILogger<PacketDispatcher> logger)
     {
         _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
     public async Task DispatchAsync(
@@ -28,6 +33,10 @@ public sealed class PacketDispatcher
             return;
         }
 
-        Console.WriteLine($"Unhandled Opcode: {reader.Opcode}");
+        _logger.LogWarning(
+            "Unhandled opcode received. SessionId={SessionId}, PlayerId={PlayerId}, Opcode={Opcode}",
+            session.SessionId,
+            session.PlayerId,
+            reader.Opcode);
     }
 }

@@ -109,7 +109,8 @@ public sealed class PacketDispatcherTests
     private static PacketDispatcher CreateDispatcher(IServiceProvider provider)
     {
         return new PacketDispatcher(
-            provider.GetRequiredService<IServiceScopeFactory>());
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PacketDispatcher>.Instance);
     }
 
     private static Session CreateSession(PacketDispatcher dispatcher)

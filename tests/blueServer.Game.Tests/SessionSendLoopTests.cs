@@ -126,7 +126,8 @@ public sealed class SessionSendLoopTests
             }
 
             var dispatcher = new PacketDispatcher(
-                _provider.GetRequiredService<IServiceScopeFactory>());
+                _provider.GetRequiredService<IServiceScopeFactory>(),
+                NullLogger<PacketDispatcher>.Instance);
 
             _session = new Session(
                 _serverClient,
@@ -160,7 +161,7 @@ public sealed class SessionSendLoopTests
 
         public void Dispose()
         {
-            _session?.Disconnect();
+            _session?.Dispose();
             _cts.Cancel();
             Client.Dispose();
             _serverClient?.Dispose();
