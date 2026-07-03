@@ -60,7 +60,8 @@ public sealed class SessionReceiveLoopTests
 
         var provider = services.BuildServiceProvider();
         var dispatcher = new PacketDispatcher(
-            provider.GetRequiredService<IServiceScopeFactory>());
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PacketDispatcher>.Instance);
 
         return new SessionTestFixture(dispatcher);
     }

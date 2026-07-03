@@ -90,7 +90,8 @@ public sealed class SessionTaskTrackerTests
         var services = new ServiceCollection();
         using var provider = services.BuildServiceProvider();
         var dispatcher = new PacketDispatcher(
-            provider.GetRequiredService<IServiceScopeFactory>());
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PacketDispatcher>.Instance);
 
         return new Session(
             new TcpClient(),

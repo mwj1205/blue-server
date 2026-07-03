@@ -126,7 +126,8 @@ public sealed class SessionSendLoopTests
             }
 
             var dispatcher = new PacketDispatcher(
-                _provider.GetRequiredService<IServiceScopeFactory>());
+                _provider.GetRequiredService<IServiceScopeFactory>(),
+                NullLogger<PacketDispatcher>.Instance);
 
             _session = new Session(
                 _serverClient,
