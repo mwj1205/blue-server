@@ -34,4 +34,22 @@ public class Player
         };
     }
 
+    public bool TrySpendGems(int amount)
+    {
+        if (amount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "Amount must be greater than zero.");
+        }
+
+        if (Gem < amount)
+        {
+            return false;
+        }
+
+        Gem -= amount;
+        return true;
+    }
 }
