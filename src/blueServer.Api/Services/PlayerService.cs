@@ -27,12 +27,7 @@ public class PlayerService
                 "Nickname already exists");
         }
 
-        var player = new Player
-        {
-            Nickname = request.Nickname,
-            Gold = 1000,
-            Gem = 500
-        };
+        var player = Player.Create(request.Nickname);
 
         _db.Players.Add(player);
 
