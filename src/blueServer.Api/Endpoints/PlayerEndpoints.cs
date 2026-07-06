@@ -40,6 +40,20 @@ public static class PlayerEndpoints
           return player is null ? Results.NotFound() : Results.Ok(player);
       });
 
+        app.MapGet("/players/{id:long}/characters", async (
+            PlayerService playerService,
+            long id,
+            CancellationToken cancellationToken) =>
+        {
+            var characters = await playerService.GetOwnedCharactersAsync(
+                id,
+                cancellationToken);
+
+            return characters is null
+                ? Results.NotFound()
+                : Results.Ok(characters);
+        });
+
         return app;
     }
 }

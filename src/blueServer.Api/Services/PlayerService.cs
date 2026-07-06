@@ -60,4 +60,37 @@ public class PlayerService
             Gem = player.Gem
         };
     }
+
+    public async Task<IReadOnlyList<OwnedCharacterResponse>?> GetOwnedCharactersAsync(
+        long playerId,
+        CancellationToken cancellationToken)
+    {
+        var playerExists = await _db.Players
+            .AsNoTracking()
+            .AnyAsync(
+                player => player.Id == playerId,
+                cancellationToken);
+
+        if (!playerExists)
+        {
+            return null;
+        }
+
+        return await _db.OwnedCharacters
+            .AsNoTracking()
+            .Where(character => character.PlayerId == playerId)
+            .OrderBy(character => character.Id)
+            .Select(character => new OwnedCharacterResponse
+            {
+                Id = character.Id,
+                CharacterTemplateId = character.CharacterTemplateId,
+                CharacterName = character.CharacterTemplate!.Name,
+                Rarity = character.CharacterTemplate.Rarity,
+                Role = character.CharacterTemplate.Role,
+                Level = character.Level,
+                Star = character.Star,
+                Exp = character.Exp
+            })
+            .ToListAsync(cancellationToken);
+    }
 }
