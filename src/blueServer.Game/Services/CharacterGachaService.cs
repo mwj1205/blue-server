@@ -30,40 +30,33 @@ public sealed class CharacterGachaService
         long playerId,
         CancellationToken cancellationToken)
     {
+        var player = await _players.FindByIdAsync(playerId, cancellationToken);
+
+        if (player is null)
+        {
+            return CharacterGachaResult.Fail("Player not found");
+        }
+
+        var templates = await _characterTemplates.GetAllAsync(cancellationToken);
+
+        if (templates.Count == 0)
+        {
+            return CharacterGachaResult.Fail("No character templates available", player.Gem);
+        }
+
+        var template = templates[Random.Shared.Next(templates.Count)];
+
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            var player = await _players.FindByIdAsync(playerId, cancellationToken);
-
-            if (player is null)
+            if (!player.TrySpendGems(GachaCost))
             {
-                return CharacterGachaResult.Fail("Player not found");
-            }
-
-            if (player.Gem < GachaCost)
-            {
+                await transaction.RollbackAsync(CancellationToken.None);
                 return CharacterGachaResult.Fail("Not enough gems", player.Gem);
             }
 
-            var templates = await _characterTemplates.GetAllAsync(cancellationToken);
-
-            if (templates.Count == 0)
-            {
-                return CharacterGachaResult.Fail("No character templates available", player.Gem);
-            }
-
-            var template = templates[Random.Shared.Next(templates.Count)];
-            var ownedCharacter = new OwnedCharacter
-            {
-                PlayerId = player.Id,
-                CharacterTemplateId = template.Id,
-                Level = 1,
-                Star = template.Rarity,
-                Exp = 0
-            };
-
-            player.Gem -= GachaCost;
+            var ownedCharacter = OwnedCharacter.Create(player.Id, template);
             _ownedCharacters.Add(ownedCharacter);
 
             await _db.SaveChangesAsync(cancellationToken);

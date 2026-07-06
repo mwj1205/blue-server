@@ -18,6 +18,22 @@ public static class AuthEndpoints
             PasswordService passwordService,
             RegisterRequest request) =>
         {
+            if (string.IsNullOrWhiteSpace(request.Nickname))
+            {
+                return Results.BadRequest(new
+                {
+                    message = "Nickname is required"
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Password))
+            {
+                return Results.BadRequest(new
+                {
+                    message = "Password is required"
+                });
+            }
+
             var exists = await db.Players
                 .AnyAsync(x =>
                     x.Nickname == request.Nickname);
@@ -32,15 +48,9 @@ public static class AuthEndpoints
                     });
             }
 
-            var player = new Player
-            {
-                Nickname = request.Nickname,
-                // 해시값으로 저장
-                Password = passwordService.HashPassword(request.Password),
-
-                Gold = 1000,
-                Gem = 500
-            };
+            var player = Player.Create(
+                request.Nickname,
+                passwordService.HashPassword(request.Password));
 
             db.Players.Add(player);
 
