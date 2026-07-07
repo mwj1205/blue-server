@@ -12,6 +12,9 @@ using blueServer.Infrastructure.Security;
 
 var builder = Host.CreateApplicationBuilder(args);
 
+builder.Services.Configure<JwtOptions>(
+    builder.Configuration.GetSection(JwtOptions.SectionName));
+
 builder.Services.AddDbContext<GameDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("Default");
