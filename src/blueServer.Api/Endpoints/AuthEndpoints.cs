@@ -3,6 +3,7 @@ using blueServer.Api.DTOs;
 using blueServer.Api.Services;
 using blueServer.Domain.Entities;
 using blueServer.Infrastructure;
+using blueServer.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace blueServer.Api.Endpoints;

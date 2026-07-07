@@ -8,6 +8,7 @@ using blueServer.Game.Repositories;
 using blueServer.Game.Packets;
 using blueServer.Game.Services;
 using Microsoft.Extensions.Configuration;
+using blueServer.Infrastructure.Security;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -21,6 +22,7 @@ builder.Services.AddScoped<OwnedCharacterRepository>();
 builder.Services.AddScoped<CharacterTemplateRepository>();
 builder.Services.AddScoped<LoginService>();
 builder.Services.AddScoped<CharacterGachaService>();
+builder.Services.AddScoped<PasswordService>();
 
 builder.Services.AddKeyedScoped<IPacketHandler, LoginHandler>(Opcode.Login);
 builder.Services.AddKeyedScoped<IPacketHandler, ChatHandler>(Opcode.Chat);

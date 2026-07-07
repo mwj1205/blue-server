@@ -1,14 +1,19 @@
 using blueServer.Game.Repositories;
+using blueServer.Infrastructure.Security;
 
 namespace blueServer.Game.Services;
 
 public sealed class LoginService
 {
     private readonly PlayerRepository _players;
+    private readonly PasswordService _passwordService;
 
-    public LoginService(PlayerRepository players)
+    public LoginService(
+        PlayerRepository players,
+        PasswordService passwordService)
     {
         _players = players;
+        _passwordService = passwordService;
     }
 
     public async Task<LoginResult?> LoginAsync(
@@ -18,7 +23,8 @@ public sealed class LoginService
     {
         var player = await _players.FindByNicknameAsync(nickname, cancellationToken);
 
-        if (player is null || player.Password != password)
+        if (player is null ||
+            !_passwordService.VerifyPassword(password, player.Password))
         {
             return null;
         }

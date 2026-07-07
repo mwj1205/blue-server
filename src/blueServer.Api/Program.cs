@@ -2,6 +2,7 @@ using blueServer.Api.Endpoints;
 using blueServer.Api.Extensions;
 using blueServer.Api.Middlewares;
 using blueServer.Api.Services;
+using blueServer.Infrastructure.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
