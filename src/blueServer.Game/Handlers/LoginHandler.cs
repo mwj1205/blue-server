@@ -6,14 +6,14 @@ namespace blueServer.Game.Handlers;
 
 public sealed class LoginHandler : IPacketHandler
 {
-    private readonly LoginService _loginService;
+    private readonly GameJwtValidator _jwtValidator;
     private readonly ILogger<LoginHandler> _logger;
 
     public LoginHandler(
-        LoginService loginService,
+        GameJwtValidator jwtValidator,
         ILogger<LoginHandler> logger)
     {
-        _loginService = loginService;
+        _jwtValidator = jwtValidator;
         _logger = logger;
     }
 
@@ -22,27 +22,22 @@ public sealed class LoginHandler : IPacketHandler
         PacketReader reader,
         CancellationToken cancellationToken)
     {
-        var nickname = reader.ReadString();
-        var password = reader.ReadString();
+        var request = LoginRequestPacket.Read(reader);
 
         _logger.LogInformation(
-            "Login packet received. SessionId={SessionId}, Nickname={Nickname}",
-            session.SessionId,
-            nickname);
+            "Login packet received. SessionId={SessionId}",
+            session.SessionId);
 
-        var loginResult = await _loginService.LoginAsync(
-            nickname,
-            password,
-            cancellationToken);
+        var validationResult = _jwtValidator.Validate(request.AccessToken);
 
-        if (loginResult is null)
+        if (!validationResult.IsSuccess)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             _logger.LogWarning(
-                "Login failed. SessionId={SessionId}, Nickname={Nickname}",
+                "Login failed. SessionId={SessionId}, Reason={Reason}",
                 session.SessionId,
-                nickname);
+                validationResult.ErrorMessage);
 
             await session.SendAsync(
                 new LoginResultPacket
@@ -54,7 +49,7 @@ public sealed class LoginHandler : IPacketHandler
             return;
         }
 
-        session.Login(loginResult.PlayerId, loginResult.Nickname);
+        session.Login(validationResult.PlayerId, validationResult.Nickname);
         cancellationToken.ThrowIfCancellationRequested();
 
         var result = new LoginResultPacket

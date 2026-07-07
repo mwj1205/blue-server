@@ -23,10 +23,8 @@ builder.Services.AddDbContext<GameDbContext>(options =>
 builder.Services.AddScoped<PlayerRepository>();
 builder.Services.AddScoped<OwnedCharacterRepository>();
 builder.Services.AddScoped<CharacterTemplateRepository>();
-builder.Services.AddScoped<LoginService>();
 builder.Services.AddScoped<CharacterGachaService>();
 builder.Services.AddScoped<GameJwtValidator>();
-builder.Services.AddScoped<PasswordService>();
 
 builder.Services.AddKeyedScoped<IPacketHandler, LoginHandler>(Opcode.Login);
 builder.Services.AddKeyedScoped<IPacketHandler, ChatHandler>(Opcode.Chat);
