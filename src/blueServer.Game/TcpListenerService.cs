@@ -71,20 +71,29 @@ public class TcpListenerService : BackgroundService
             session.Disconnect();
         }
 
-        var allSessionsStopped = await _sessionTaskTracker.WaitForAllAsync(
-            SessionShutdownTimeout,
-            cancellationToken);
-
-        if (allSessionsStopped)
+        try
         {
-            _logger.LogInformation("All TCP sessions stopped.");
-            return;
-        }
+            var allSessionsStopped = await _sessionTaskTracker.WaitForAllAsync(
+                SessionShutdownTimeout,
+                cancellationToken);
 
-        _logger.LogWarning(
-            "Timed out while waiting for TCP sessions to stop. ActiveSessionCount={ActiveSessionCount}, TimeoutSeconds={TimeoutSeconds}",
-            _sessionTaskTracker.ActiveSessionCount,
-            SessionShutdownTimeout.TotalSeconds);
+            if (allSessionsStopped)
+            {
+                _logger.LogInformation("All TCP sessions stopped.");
+                return;
+            }
+
+            _logger.LogWarning(
+                "Timed out while waiting for TCP sessions to stop. ActiveSessionCount={ActiveSessionCount}, TimeoutSeconds={TimeoutSeconds}",
+                _sessionTaskTracker.ActiveSessionCount,
+                SessionShutdownTimeout.TotalSeconds);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(
+                "TCP server shutdown was canceled before all sessions stopped. ActiveSessionCount={ActiveSessionCount}",
+                _sessionTaskTracker.ActiveSessionCount);
+        }
     }
 
     private async Task RunSessionAsync(
