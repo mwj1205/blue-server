@@ -22,6 +22,18 @@ public sealed class OwnedCharacterRepository
             .ToListAsync(cancellationToken);
     }
 
+    public Task<List<OwnedCharacter>> GetByPlayerIdWithTemplateAsync(
+        long playerId,
+        CancellationToken cancellationToken = default)
+    {
+        return _db.OwnedCharacters
+            .AsNoTracking()
+            .Include(character => character.CharacterTemplate)
+            .Where(character => character.PlayerId == playerId)
+            .OrderBy(character => character.Id)
+            .ToListAsync(cancellationToken);
+    }
+
     public void Add(OwnedCharacter character)
     {
         _db.OwnedCharacters.Add(character);

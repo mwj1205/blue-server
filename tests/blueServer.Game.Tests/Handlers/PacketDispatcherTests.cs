@@ -79,6 +79,50 @@ public sealed class PacketDispatcherTests
     }
 
     [Fact]
+    public async Task DispatchAsync_DoesNotCallHandler_WhenSessionIsUnauthenticatedAndOpcodeRequiresLogin()
+    {
+        var handler = new RecordingPacketHandler();
+        using var provider = CreateServiceProvider(services =>
+        {
+            services.AddSingleton(handler);
+            services.AddKeyedSingleton<IPacketHandler>(
+                Opcode.Chat,
+                (serviceProvider, _) => serviceProvider.GetRequiredService<RecordingPacketHandler>());
+        });
+        var dispatcher = CreateDispatcher(provider);
+        var session = CreateSession(dispatcher);
+        var reader = new PacketReader(CreatePacket(Opcode.Chat));
+
+        await dispatcher.DispatchAsync(session, reader, CancellationToken.None);
+
+        Assert.False(handler.WasCalled);
+    }
+
+    [Fact]
+    public async Task DispatchAsync_CallsHandler_WhenSessionIsAuthenticatedAndOpcodeRequiresLogin()
+    {
+        var handler = new RecordingPacketHandler();
+        using var provider = CreateServiceProvider(services =>
+        {
+            services.AddSingleton(handler);
+            services.AddKeyedSingleton<IPacketHandler>(
+                Opcode.Chat,
+                (serviceProvider, _) => serviceProvider.GetRequiredService<RecordingPacketHandler>());
+        });
+        var dispatcher = CreateDispatcher(provider);
+        var session = CreateSession(dispatcher);
+        var reader = new PacketReader(CreatePacket(Opcode.Chat));
+
+        session.Login(1, "sensei");
+
+        await dispatcher.DispatchAsync(session, reader, CancellationToken.None);
+
+        Assert.True(handler.WasCalled);
+        Assert.Same(session, handler.Session);
+        Assert.Equal(Opcode.Chat, handler.Opcode);
+    }
+
+    [Fact]
     public async Task DispatchAsync_PassesCancellationTokenToHandler()
     {
         var handler = new RecordingPacketHandler();

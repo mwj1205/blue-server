@@ -19,14 +19,8 @@ public sealed class CharacterGachaHandler : IPacketHandler
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (session.PlayerId is not long playerId)
-        {
-            await SendResultAsync(
-                session,
-                CharacterGachaResult.Fail("Login required"),
-                cancellationToken);
-            return;
-        }
+        var playerId = session.PlayerId ??
+            throw new InvalidOperationException("Character gacha handler requires authenticated session.");
 
         var result = await _gachaService.DrawAsync(playerId, cancellationToken);
         await SendResultAsync(session, result, cancellationToken);

@@ -1,5 +1,6 @@
 using System.Text;
 using blueServer.Api.Services;
+using blueServer.Infrastructure.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
@@ -11,6 +12,12 @@ public static class JwtExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        var jwtOptions = configuration
+            .GetSection(JwtOptions.SectionName)
+            .Get<JwtOptions>() ?? new JwtOptions();
+
+        services.Configure<JwtOptions>(
+            configuration.GetSection(JwtOptions.SectionName));
         services.AddScoped<JwtService>();
 
         services
@@ -27,15 +34,15 @@ public static class JwtExtensions
                         ValidateIssuerSigningKey = true,
 
                         ValidIssuer =
-                            configuration["Jwt:Issuer"],
+                            jwtOptions.Issuer,
 
                         ValidAudience =
-                            configuration["Jwt:Issuer"],
+                            jwtOptions.EffectiveAudience,
 
                         IssuerSigningKey =
                             new SymmetricSecurityKey(
                                 Encoding.UTF8.GetBytes(
-                                    configuration["Jwt:Key"]!))
+                                    jwtOptions.Key))
                     };
             });
 
