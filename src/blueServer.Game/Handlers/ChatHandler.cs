@@ -23,15 +23,9 @@ public sealed class ChatHandler : IPacketHandler
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (!session.IsAuthenticated)
-        {
-            _logger.LogWarning(
-                "Unauthorized chat packet rejected. SessionId={SessionId}",
-                session.SessionId);
-            return;
-        }
-
         var message = reader.ReadString();
+        var playerNickname = session.PlayerNickname ??
+            throw new InvalidOperationException("Chat handler requires authenticated session.");
 
         _logger.LogInformation(
             "Chat packet received. SessionId={SessionId}, PlayerId={PlayerId}, MessageLength={MessageLength}",
@@ -39,7 +33,7 @@ public sealed class ChatHandler : IPacketHandler
             session.PlayerId,
             message.Length);
 
-        var packet = new ChatMessagePacket { Message = $"[{session.PlayerNickname}]: {message}" };
+        var packet = new ChatMessagePacket { Message = $"[{playerNickname}]: {message}" };
         await _sessionManager.BroadcastAsync(packet.Serialize(), cancellationToken);
     }
 }

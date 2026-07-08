@@ -24,6 +24,15 @@ public sealed class PacketDispatcher
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        if (!CanDispatch(session, reader.Opcode))
+        {
+            _logger.LogWarning(
+                "Unauthenticated packet rejected. SessionId={SessionId}, Opcode={Opcode}",
+                session.SessionId,
+                reader.Opcode);
+            return;
+        }
+
         await using var scope = _scopeFactory.CreateAsyncScope();
         var handler = scope.ServiceProvider.GetKeyedService<IPacketHandler>(reader.Opcode);
 
@@ -38,5 +47,11 @@ public sealed class PacketDispatcher
             session.SessionId,
             session.PlayerId,
             reader.Opcode);
+    }
+
+    private static bool CanDispatch(Session session, Opcode opcode)
+    {
+        return session.IsAuthenticated ||
+            opcode is Opcode.Login or Opcode.Ping;
     }
 }
