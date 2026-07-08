@@ -13,5 +13,8 @@ public enum Opcode : ushort
     CharacterGacha = 6,
     CharacterGachaResult = 7,
 
+    OwnedCharacterList = 8,
+    OwnedCharacterListResult = 9,
+
     ChatMessage = 1000  // S -> C
 }

@@ -82,6 +82,52 @@ public sealed class OutboundPacketSerializationTests
         Assert.Equal(packet.Length, offset);
     }
 
+    [Fact]
+    public void OwnedCharacterListRequestPacket_Serialize_WritesSizeAndOpcode()
+    {
+        var packet = new OwnedCharacterListRequestPacket().Serialize();
+
+        AssertPacketHeader(packet, Opcode.OwnedCharacterList);
+    }
+
+    [Fact]
+    public void OwnedCharacterListResultPacket_Serialize_WritesExpectedPayload()
+    {
+        var packet = new OwnedCharacterListResultPacket
+        {
+            Success = true,
+            Message = "Owned characters loaded",
+            Characters =
+            [
+                new OwnedCharacterListPacketItem(
+                    100,
+                    7,
+                    "Shiroko",
+                    3,
+                    "Striker",
+                    12,
+                    4,
+                    250)
+            ]
+        }.Serialize();
+
+        AssertPacketHeader(packet, Opcode.OwnedCharacterListResult);
+
+        var offset = PacketReader.HeaderSize;
+        Assert.True(ReadBool(packet, ref offset));
+        Assert.Equal("Owned characters loaded", ReadString(packet, ref offset));
+        Assert.Equal(1, ReadInt(packet, ref offset));
+        Assert.Equal(100, ReadLong(packet, ref offset));
+        Assert.Equal(7, ReadInt(packet, ref offset));
+        Assert.Equal("Shiroko", ReadString(packet, ref offset));
+        Assert.Equal(3, ReadInt(packet, ref offset));
+        Assert.Equal("Striker", ReadString(packet, ref offset));
+        Assert.Equal(12, ReadInt(packet, ref offset));
+        Assert.Equal(4, ReadInt(packet, ref offset));
+        Assert.Equal(250, ReadLong(packet, ref offset));
+        Assert.Equal(packet.Length, offset);
+    }
+
     private static void AssertPacketHeader(byte[] packet, Opcode expectedOpcode)
     {
         var size = BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(0, 2));

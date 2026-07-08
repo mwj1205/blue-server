@@ -24,12 +24,14 @@ builder.Services.AddScoped<PlayerRepository>();
 builder.Services.AddScoped<OwnedCharacterRepository>();
 builder.Services.AddScoped<CharacterTemplateRepository>();
 builder.Services.AddScoped<CharacterGachaService>();
+builder.Services.AddScoped<OwnedCharacterListService>();
 builder.Services.AddScoped<GameJwtValidator>();
 
 builder.Services.AddKeyedScoped<IPacketHandler, LoginHandler>(Opcode.Login);
 builder.Services.AddKeyedScoped<IPacketHandler, ChatHandler>(Opcode.Chat);
 builder.Services.AddKeyedScoped<IPacketHandler, PingHandler>(Opcode.Ping);
 builder.Services.AddKeyedScoped<IPacketHandler, CharacterGachaHandler>(Opcode.CharacterGacha);
+builder.Services.AddKeyedScoped<IPacketHandler, OwnedCharacterListHandler>(Opcode.OwnedCharacterList);
 
 builder.Services.AddSingleton<PacketDispatcher>();
 builder.Services.AddSingleton<SessionFactory>();

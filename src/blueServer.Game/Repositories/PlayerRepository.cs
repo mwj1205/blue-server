@@ -30,4 +30,15 @@ public sealed class PlayerRepository
             p => p.Id == id,
             cancellationToken);
     }
+
+    public Task<bool> ExistsByIdAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        return _db.Players
+            .AsNoTracking()
+            .AnyAsync(
+                player => player.Id == id,
+                cancellationToken);
+    }
 }
