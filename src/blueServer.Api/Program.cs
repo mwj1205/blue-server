@@ -13,6 +13,7 @@ builder.Services.AddJwt(builder.Configuration);
 builder.Services.AddAuthorization();
 builder.Services.AddValidation();
 builder.Services.AddScoped<PlayerService>();
+builder.Services.AddScoped<PartyService>();
 builder.Services.AddScoped<PasswordService>();
 builder.Services.AddScoped<RefreshTokenService>();
 var app = builder.Build();

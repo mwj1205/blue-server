@@ -1,5 +1,6 @@
 using blueServer.Api.DTOs;
 using blueServer.Api.Services;
+using blueServer.Domain.Entities;
 using FluentValidation;
 
 namespace blueServer.Api.Endpoints;
@@ -54,6 +55,76 @@ public static class PlayerEndpoints
                 : Results.Ok(characters);
         });
 
+        app.MapGet("/players/{id:long}/parties/{partyNo:int}", async (
+            PartyService partyService,
+            long id,
+            int partyNo,
+            CancellationToken cancellationToken) =>
+        {
+            if (!IsValidPartyNo(partyNo))
+            {
+                return Results.BadRequest(new
+                {
+                    message = $"Party no must be between {Party.MinPartyNo} and {Party.MaxPartyNo}"
+                });
+            }
+
+            var party = await partyService.GetPartyAsync(
+                id,
+                partyNo,
+                cancellationToken);
+
+            return party is null
+                ? Results.NotFound()
+                : Results.Ok(party);
+        });
+
+        app.MapPut("/players/{id:long}/parties/{partyNo:int}", async (
+            PartyService partyService,
+            IValidator<SavePartyRequest> validator,
+            long id,
+            int partyNo,
+            SavePartyRequest request,
+            CancellationToken cancellationToken) =>
+        {
+            if (!IsValidPartyNo(partyNo))
+            {
+                return Results.BadRequest(new
+                {
+                    message = $"Party no must be between {Party.MinPartyNo} and {Party.MaxPartyNo}"
+                });
+            }
+
+            var validationResult = await validator.ValidateAsync(
+                request,
+                cancellationToken);
+
+            if (!validationResult.IsValid)
+            {
+                return Results.BadRequest(
+                    validationResult.Errors.Select(x => new
+                    {
+                        field = x.PropertyName,
+                        message = x.ErrorMessage
+                    }));
+            }
+
+            var party = await partyService.SavePartyAsync(
+                id,
+                partyNo,
+                request,
+                cancellationToken);
+
+            return party is null
+                ? Results.NotFound()
+                : Results.Ok(party);
+        });
+
         return app;
+    }
+
+    private static bool IsValidPartyNo(int partyNo)
+    {
+        return partyNo is >= Party.MinPartyNo and <= Party.MaxPartyNo;
     }
 }
