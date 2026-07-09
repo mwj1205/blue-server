@@ -13,6 +13,7 @@ public class Player
     public uint Version { get; set; }
 
     public ICollection<OwnedCharacter> OwnedCharacters { get; set; } = new List<OwnedCharacter>();
+    public ICollection<Party> Parties { get; set; } = new List<Party>();
 
     public static Player Create(
         string nickname,
