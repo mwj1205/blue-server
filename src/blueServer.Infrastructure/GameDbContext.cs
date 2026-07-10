@@ -22,6 +22,8 @@ public class GameDbContext : DbContext
     public DbSet<CharacterTemplate> CharacterTemplates => Set<CharacterTemplate>();
     public DbSet<Party> Parties => Set<Party>();
     public DbSet<PartySlot> PartySlots => Set<PartySlot>();
+    public DbSet<StageTemplate> StageTemplates => Set<StageTemplate>();
+    public DbSet<StageClearRecord> StageClearRecords => Set<StageClearRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -72,6 +74,39 @@ public class GameDbContext : DbContext
             entity.HasOne(slot => slot.OwnedCharacter)
                 .WithMany()
                 .HasForeignKey(slot => slot.OwnedCharacterId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<StageTemplate>(entity =>
+        {
+            entity.HasIndex(stage => stage.Name)
+                .IsUnique();
+
+            entity.HasData(
+                new StageTemplate
+                {
+                    Id = 1,
+                    Name = "1-1",
+                    RewardGold = 100,
+                    RewardGem = 10
+                });
+        });
+
+        modelBuilder.Entity<StageClearRecord>(entity =>
+        {
+            entity.HasIndex(record => new
+                {
+                    record.PlayerId,
+                    record.StageTemplateId
+                })
+                .IsUnique();
+
+            entity.Property(record => record.Version)
+                .IsRowVersion();
+
+            entity.HasOne(record => record.StageTemplate)
+                .WithMany(stage => stage.ClearRecords)
+                .HasForeignKey(record => record.StageTemplateId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

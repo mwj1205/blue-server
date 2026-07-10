@@ -56,4 +56,28 @@ public sealed class PlayerTests
         Assert.Throws<ArgumentOutOfRangeException>(
             () => player.TrySpendGems(amount));
     }
+
+    [Fact]
+    public void AddRewards_IncreasesCurrency()
+    {
+        var player = Player.Create("sensei");
+
+        player.AddGold(100);
+        player.AddGems(10);
+
+        Assert.Equal(Player.InitialGold + 100, player.Gold);
+        Assert.Equal(Player.InitialGem + 10, player.Gem);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    public void AddRewards_Throws_WhenAmountIsNegative(int amount)
+    {
+        var player = Player.Create("sensei");
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => player.AddGold(amount));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => player.AddGems(amount));
+    }
 }

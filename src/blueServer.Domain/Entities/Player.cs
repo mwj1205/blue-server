@@ -53,4 +53,30 @@ public class Player
         Gem -= amount;
         return true;
     }
+
+    public void AddGold(int amount)
+    {
+        if (amount < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "Amount must not be negative.");
+        }
+
+        Gold = checked(Gold + amount);
+    }
+
+    public void AddGems(int amount)
+    {
+        if (amount < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "Amount must not be negative.");
+        }
+
+        Gem = checked(Gem + amount);
+    }
 }
