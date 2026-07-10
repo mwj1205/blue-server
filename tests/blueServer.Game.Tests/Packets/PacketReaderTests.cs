@@ -63,6 +63,32 @@ public sealed class PacketReaderTests
     }
 
     [Fact]
+    public void ReadInt_ReturnsExpectedValue_WhenPayloadContainsInt()
+    {
+        var packet = CreatePacket(Opcode.PartyGet, writer =>
+        {
+            WriteInt(writer, 123);
+        });
+
+        var reader = new PacketReader(packet);
+
+        Assert.Equal(123, reader.ReadInt());
+    }
+
+    [Fact]
+    public void ReadLong_ReturnsExpectedValue_WhenPayloadContainsLong()
+    {
+        var packet = CreatePacket(Opcode.PartySave, writer =>
+        {
+            WriteLong(writer, 123456789L);
+        });
+
+        var reader = new PacketReader(packet);
+
+        Assert.Equal(123456789L, reader.ReadLong());
+    }
+
+    [Fact]
     public void ReadString_ReturnsExpectedString_WhenPayloadContainsValidString()
     {
         const string expected = "Arona";
@@ -114,6 +140,22 @@ public sealed class PacketReaderTests
 
         BinaryPrimitives.WriteUInt16LittleEndian(lengthBytes, checked((ushort)bytes.Length));
         stream.Write(lengthBytes);
+        stream.Write(bytes);
+    }
+
+    private static void WriteInt(Stream stream, int value)
+    {
+        Span<byte> bytes = stackalloc byte[4];
+
+        BinaryPrimitives.WriteInt32LittleEndian(bytes, value);
+        stream.Write(bytes);
+    }
+
+    private static void WriteLong(Stream stream, long value)
+    {
+        Span<byte> bytes = stackalloc byte[8];
+
+        BinaryPrimitives.WriteInt64LittleEndian(bytes, value);
         stream.Write(bytes);
     }
 }
