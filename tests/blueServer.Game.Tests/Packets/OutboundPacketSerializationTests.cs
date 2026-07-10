@@ -212,6 +212,56 @@ public sealed class OutboundPacketSerializationTests
         Assert.Equal(packet.Length, offset);
     }
 
+    [Fact]
+    public void StageClearRequestPacket_Serialize_WritesExpectedPayload()
+    {
+        var packet = new StageClearRequestPacket
+        {
+            StageTemplateId = 1,
+            PartyNo = 1
+        }.Serialize();
+
+        AssertPacketHeader(packet, Opcode.StageClear);
+
+        var request = StageClearRequestPacket.Read(new PacketReader(packet));
+
+        Assert.Equal(1, request.StageTemplateId);
+        Assert.Equal(1, request.PartyNo);
+    }
+
+    [Fact]
+    public void StageClearResultPacket_Serialize_WritesExpectedPayload()
+    {
+        var packet = new StageClearResultPacket
+        {
+            Success = true,
+            Message = "Stage clear success",
+            StageTemplateId = 1,
+            StageName = "1-1",
+            PartyNo = 1,
+            RewardGold = 100,
+            RewardGem = 10,
+            CurrentGold = 1100,
+            CurrentGem = 510,
+            ClearCount = 1
+        }.Serialize();
+
+        AssertPacketHeader(packet, Opcode.StageClearResult);
+
+        var offset = PacketReader.HeaderSize;
+        Assert.True(ReadBool(packet, ref offset));
+        Assert.Equal("Stage clear success", ReadString(packet, ref offset));
+        Assert.Equal(1, ReadInt(packet, ref offset));
+        Assert.Equal("1-1", ReadString(packet, ref offset));
+        Assert.Equal(1, ReadInt(packet, ref offset));
+        Assert.Equal(100, ReadInt(packet, ref offset));
+        Assert.Equal(10, ReadInt(packet, ref offset));
+        Assert.Equal(1100, ReadInt(packet, ref offset));
+        Assert.Equal(510, ReadInt(packet, ref offset));
+        Assert.Equal(1, ReadInt(packet, ref offset));
+        Assert.Equal(packet.Length, offset);
+    }
+
     private static void AssertPacketHeader(byte[] packet, Opcode expectedOpcode)
     {
         var size = BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(0, 2));

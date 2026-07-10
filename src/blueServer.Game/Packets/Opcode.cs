@@ -20,5 +20,8 @@ public enum Opcode : ushort
     PartySave = 11,
     PartyResult = 12,
 
+    StageClear = 13,
+    StageClearResult = 14,
+
     ChatMessage = 1000  // S -> C
 }

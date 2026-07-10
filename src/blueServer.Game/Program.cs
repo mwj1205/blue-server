@@ -26,6 +26,7 @@ builder.Services.AddScoped<CharacterTemplateRepository>();
 builder.Services.AddScoped<CharacterGachaService>();
 builder.Services.AddScoped<OwnedCharacterListService>();
 builder.Services.AddScoped<PartyService>();
+builder.Services.AddScoped<StageClearService>();
 builder.Services.AddScoped<GameJwtValidator>();
 
 builder.Services.AddKeyedScoped<IPacketHandler, LoginHandler>(Opcode.Login);
@@ -35,6 +36,7 @@ builder.Services.AddKeyedScoped<IPacketHandler, CharacterGachaHandler>(Opcode.Ch
 builder.Services.AddKeyedScoped<IPacketHandler, OwnedCharacterListHandler>(Opcode.OwnedCharacterList);
 builder.Services.AddKeyedScoped<IPacketHandler, PartyGetHandler>(Opcode.PartyGet);
 builder.Services.AddKeyedScoped<IPacketHandler, PartySaveHandler>(Opcode.PartySave);
+builder.Services.AddKeyedScoped<IPacketHandler, StageClearHandler>(Opcode.StageClear);
 
 builder.Services.AddSingleton<PacketDispatcher>();
 builder.Services.AddSingleton<SessionFactory>();
