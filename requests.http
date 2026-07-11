@@ -36,6 +36,10 @@ Content-Type: application/json
 GET {{host}}/me
 Authorization: Bearer {{login.response.body.$.accessToken}}
 
+### 플레이어 프로필 조회
+GET {{host}}/players/me/profile
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
 ### access token 재발급
 POST {{host}}/refresh
 Content-Type: application/json

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using blueServer.Api.DTOs;
 using blueServer.Api.Services;
 using blueServer.Domain.Entities;
@@ -40,6 +41,26 @@ public static class PlayerEndpoints
           var player = await playerService.GetPlayerAsync(id);
           return player is null ? Results.NotFound() : Results.Ok(player);
       });
+
+        app.MapGet("/players/me/profile", async (
+            ClaimsPrincipal user,
+            PlayerService playerService,
+            CancellationToken cancellationToken) =>
+        {
+            if (!TryGetPlayerId(user, out var playerId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var profile = await playerService.GetProfileAsync(
+                playerId,
+                cancellationToken);
+
+            return profile is null
+                ? Results.NotFound()
+                : Results.Ok(profile);
+        })
+        .RequireAuthorization();
 
         app.MapGet("/players/{id:long}/characters", async (
             PlayerService playerService,
@@ -126,5 +147,17 @@ public static class PlayerEndpoints
     private static bool IsValidPartyNo(int partyNo)
     {
         return partyNo is >= Party.MinPartyNo and <= Party.MaxPartyNo;
+    }
+
+    private static bool TryGetPlayerId(
+        ClaimsPrincipal user,
+        out long playerId)
+    {
+        var playerIdClaim = user.FindFirstValue(
+            ClaimTypes.NameIdentifier);
+
+        return long.TryParse(
+            playerIdClaim,
+            out playerId);
     }
 }
