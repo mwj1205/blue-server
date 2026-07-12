@@ -262,6 +262,47 @@ public sealed class OutboundPacketSerializationTests
         Assert.Equal(packet.Length, offset);
     }
 
+    [Fact]
+    public void PlayerProfileRequestPacket_Serialize_WritesSizeAndOpcode()
+    {
+        var packet = new PlayerProfileRequestPacket().Serialize();
+
+        AssertPacketHeader(packet, Opcode.PlayerProfile);
+    }
+
+    [Fact]
+    public void PlayerProfileResultPacket_Serialize_WritesExpectedPayload()
+    {
+        var packet = new PlayerProfileResultPacket
+        {
+            Success = true,
+            Message = "Player profile loaded",
+            PlayerId = 10,
+            Nickname = "Sensei",
+            Gold = 1200,
+            Gem = 450,
+            OwnedCharacterCount = 7,
+            PartyCount = 2,
+            ClearedStageCount = 3,
+            TotalStageClearCount = 8
+        }.Serialize();
+
+        AssertPacketHeader(packet, Opcode.PlayerProfileResult);
+
+        var offset = PacketReader.HeaderSize;
+        Assert.True(ReadBool(packet, ref offset));
+        Assert.Equal("Player profile loaded", ReadString(packet, ref offset));
+        Assert.Equal(10, ReadLong(packet, ref offset));
+        Assert.Equal("Sensei", ReadString(packet, ref offset));
+        Assert.Equal(1200, ReadInt(packet, ref offset));
+        Assert.Equal(450, ReadInt(packet, ref offset));
+        Assert.Equal(7, ReadInt(packet, ref offset));
+        Assert.Equal(2, ReadInt(packet, ref offset));
+        Assert.Equal(3, ReadInt(packet, ref offset));
+        Assert.Equal(8, ReadInt(packet, ref offset));
+        Assert.Equal(packet.Length, offset);
+    }
+
     private static void AssertPacketHeader(byte[] packet, Opcode expectedOpcode)
     {
         var size = BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(0, 2));
