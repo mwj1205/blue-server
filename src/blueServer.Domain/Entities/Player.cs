@@ -13,6 +13,7 @@ public class Player
     public uint Version { get; set; }
 
     public ICollection<OwnedCharacter> OwnedCharacters { get; set; } = new List<OwnedCharacter>();
+    public ICollection<Party> Parties { get; set; } = new List<Party>();
 
     public static Player Create(
         string nickname,
@@ -51,5 +52,31 @@ public class Player
 
         Gem -= amount;
         return true;
+    }
+
+    public void AddGold(int amount)
+    {
+        if (amount < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "Amount must not be negative.");
+        }
+
+        Gold = checked(Gold + amount);
+    }
+
+    public void AddGems(int amount)
+    {
+        if (amount < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "Amount must not be negative.");
+        }
+
+        Gem = checked(Gem + amount);
     }
 }

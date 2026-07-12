@@ -16,5 +16,15 @@ public enum Opcode : ushort
     OwnedCharacterList = 8,
     OwnedCharacterListResult = 9,
 
+    PartyGet = 10,
+    PartySave = 11,
+    PartyResult = 12,
+
+    StageClear = 13,
+    StageClearResult = 14,
+
+    PlayerProfile = 15,
+    PlayerProfileResult = 16,
+
     ChatMessage = 1000  // S -> C
 }

@@ -1,51 +1,129 @@
 @host = http://localhost:5201
+@nickname = Iory
+@password = q1w2e3r4
+@partyNo = 1
+@ownedCharacterId1 = 1
+@ownedCharacterId2 = 2
+
+### 사전 준비
+# API 서버 실행 필요
+# PostgreSQL / Redis 실행 필요
+# 편성 API 테스트 전 AddPartyTables 마이그레이션 DB 적용 필요
+# ownedCharacterId 값은 GET /players/{id}/characters 응답의 id로 교체 필요
 
 ### 회원가입
+# @name register
 POST {{host}}/register
 Content-Type: application/json
 
 {
-    "nickname": "Iory",
-    "password": "q1w2e3r4"
+  "nickname": "{{nickname}}",
+  "password": "{{password}}"
 }
 
-###
-
 ### 로그인
+# @name login
 POST {{host}}/login
 Content-Type: application/json
 
 {
-    "nickname": "Iory",
-    "password": "q1w2e3r4"
+  "nickname": "{{nickname}}",
+  "password": "{{password}}"
 }
 
-###
+### 내 정보 조회
+# @name me
+GET {{host}}/me
+Authorization: Bearer {{login.response.body.$.accessToken}}
 
-### 플레이어 생성
-POST {{host}}/players
-Content-Type: application/json
+### 플레이어 프로필 조회
+GET {{host}}/players/me/profile
+Authorization: Bearer {{login.response.body.$.accessToken}}
 
-{
-    "nickname": ""
-}
-
-###
-
-### Refrest 토큰 생성
+### access token 재발급
 POST {{host}}/refresh
 Content-Type: application/json
 
 {
-    "PlayerId": 14,
-    "RefreshToken": "nUn5TN8v1W4eEsuILdSQwFacvZSoPKUgEtfozAIxb7Te3gk1ExE2frKmLzPDYwCl6ZT97Nka0S9uJFi0CL5b6g=="
+  "playerId": {{me.response.body.$.userId}},
+  "refreshToken": "{{login.response.body.$.refreshToken}}"
 }
 
-### 내 정보 조회 (JWT 필요)
-GET {{host}}/me
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjE0IiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZSI6IklvcnkiLCJleHAiOjE3Nzk5NTkxNTYsImlzcyI6ImJsdWVTZXJ2ZXIiLCJhdWQiOiJibHVlU2VydmVyIn0.P_OfI--30OWejh6xIl21IPjdnSE-y4OGupFxNW1xH8k
+### 개발용 플레이어 생성
+# register와 별개로 password 없는 player 생성 흐름 확인
+POST {{host}}/players
+Content-Type: application/json
 
-###
+{
+  "nickname": "TestPlayer"
+}
 
 ### 플레이어 조회
-GET {{host}}/players/0
+GET {{host}}/players/{{me.response.body.$.userId}}
+
+### 보유 캐릭터 조회
+# 응답의 id를 ownedCharacterId1 / ownedCharacterId2에 복사해서 편성 저장 테스트 가능
+GET {{host}}/players/{{me.response.body.$.userId}}/characters
+
+### 편성 조회
+# 저장 전이면 404 정상
+GET {{host}}/players/{{me.response.body.$.userId}}/parties/{{partyNo}}
+
+### 빈 편성 저장
+# 보유 캐릭터가 아직 없어도 Party / PartySlots 테이블 동작 확인 가능
+PUT {{host}}/players/{{me.response.body.$.userId}}/parties/{{partyNo}}
+Content-Type: application/json
+
+{
+  "name": "Main",
+  "slots": []
+}
+
+### 보유 캐릭터 포함 편성 저장
+# ownedCharacterId1 / ownedCharacterId2를 실제 보유 캐릭터 id로 교체 후 실행
+PUT {{host}}/players/{{me.response.body.$.userId}}/parties/{{partyNo}}
+Content-Type: application/json
+
+{
+  "name": "Main",
+  "slots": [
+    {
+      "slotIndex": 1,
+      "ownedCharacterId": {{ownedCharacterId1}}
+    },
+    {
+      "slotIndex": 2,
+      "ownedCharacterId": {{ownedCharacterId2}}
+    }
+  ]
+}
+
+### 편성 조회 - 저장 후 확인
+GET {{host}}/players/{{me.response.body.$.userId}}/parties/{{partyNo}}
+
+### 편성 저장 검증 실패 - 중복 슬롯
+PUT {{host}}/players/{{me.response.body.$.userId}}/parties/{{partyNo}}
+Content-Type: application/json
+
+{
+  "name": "Invalid",
+  "slots": [
+    {
+      "slotIndex": 1,
+      "ownedCharacterId": {{ownedCharacterId1}}
+    },
+    {
+      "slotIndex": 1,
+      "ownedCharacterId": {{ownedCharacterId2}}
+    }
+  ]
+}
+
+### 편성 저장 검증 실패 - partyNo 범위 초과
+PUT {{host}}/players/{{me.response.body.$.userId}}/parties/6
+Content-Type: application/json
+
+{
+  "name": "Invalid",
+  "slots": []
+}

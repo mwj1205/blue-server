@@ -48,6 +48,22 @@ public class PacketReader
         return value;
     }
 
+    public int ReadInt()
+    {
+        EnsureAvailable(4);
+        var value = BinaryPrimitives.ReadInt32LittleEndian(_buffer.AsSpan(_position, 4));
+        _position += 4;
+        return value;
+    }
+
+    public long ReadLong()
+    {
+        EnsureAvailable(8);
+        var value = BinaryPrimitives.ReadInt64LittleEndian(_buffer.AsSpan(_position, 8));
+        _position += 8;
+        return value;
+    }
+
     public string ReadString()
     {
         var length = ReadUShort();

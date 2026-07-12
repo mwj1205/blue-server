@@ -128,6 +128,181 @@ public sealed class OutboundPacketSerializationTests
         Assert.Equal(packet.Length, offset);
     }
 
+    [Fact]
+    public void PartyGetRequestPacket_Serialize_WritesExpectedPayload()
+    {
+        var packet = new PartyGetRequestPacket
+        {
+            PartyNo = 1
+        }.Serialize();
+
+        AssertPacketHeader(packet, Opcode.PartyGet);
+
+        var request = PartyGetRequestPacket.Read(new PacketReader(packet));
+
+        Assert.Equal(1, request.PartyNo);
+    }
+
+    [Fact]
+    public void PartySaveRequestPacket_Serialize_WritesExpectedPayload()
+    {
+        var packet = new PartySaveRequestPacket
+        {
+            PartyNo = 1,
+            Name = "Main",
+            Slots =
+            [
+                new PartySaveSlotPacketItem(1, 100),
+                new PartySaveSlotPacketItem(2, 101)
+            ]
+        }.Serialize();
+
+        AssertPacketHeader(packet, Opcode.PartySave);
+
+        var request = PartySaveRequestPacket.Read(new PacketReader(packet));
+
+        Assert.Equal(1, request.PartyNo);
+        Assert.Equal("Main", request.Name);
+        Assert.Equal(2, request.Slots.Count);
+        Assert.Equal(new PartySaveSlotPacketItem(1, 100), request.Slots[0]);
+        Assert.Equal(new PartySaveSlotPacketItem(2, 101), request.Slots[1]);
+    }
+
+    [Fact]
+    public void PartyResultPacket_Serialize_WritesExpectedPayload()
+    {
+        var packet = new PartyResultPacket
+        {
+            Success = true,
+            Message = "Party loaded",
+            PartyNo = 1,
+            Name = "Main",
+            Slots =
+            [
+                new PartySlotPacketItem(
+                    1,
+                    100,
+                    7,
+                    "Shiroko",
+                    3,
+                    "Striker",
+                    12,
+                    4,
+                    250)
+            ]
+        }.Serialize();
+
+        AssertPacketHeader(packet, Opcode.PartyResult);
+
+        var offset = PacketReader.HeaderSize;
+        Assert.True(ReadBool(packet, ref offset));
+        Assert.Equal("Party loaded", ReadString(packet, ref offset));
+        Assert.Equal(1, ReadInt(packet, ref offset));
+        Assert.Equal("Main", ReadString(packet, ref offset));
+        Assert.Equal(1, ReadInt(packet, ref offset));
+        Assert.Equal(1, ReadInt(packet, ref offset));
+        Assert.Equal(100, ReadLong(packet, ref offset));
+        Assert.Equal(7, ReadInt(packet, ref offset));
+        Assert.Equal("Shiroko", ReadString(packet, ref offset));
+        Assert.Equal(3, ReadInt(packet, ref offset));
+        Assert.Equal("Striker", ReadString(packet, ref offset));
+        Assert.Equal(12, ReadInt(packet, ref offset));
+        Assert.Equal(4, ReadInt(packet, ref offset));
+        Assert.Equal(250, ReadLong(packet, ref offset));
+        Assert.Equal(packet.Length, offset);
+    }
+
+    [Fact]
+    public void StageClearRequestPacket_Serialize_WritesExpectedPayload()
+    {
+        var packet = new StageClearRequestPacket
+        {
+            StageTemplateId = 1,
+            PartyNo = 1
+        }.Serialize();
+
+        AssertPacketHeader(packet, Opcode.StageClear);
+
+        var request = StageClearRequestPacket.Read(new PacketReader(packet));
+
+        Assert.Equal(1, request.StageTemplateId);
+        Assert.Equal(1, request.PartyNo);
+    }
+
+    [Fact]
+    public void StageClearResultPacket_Serialize_WritesExpectedPayload()
+    {
+        var packet = new StageClearResultPacket
+        {
+            Success = true,
+            Message = "Stage clear success",
+            StageTemplateId = 1,
+            StageName = "1-1",
+            PartyNo = 1,
+            RewardGold = 100,
+            RewardGem = 10,
+            CurrentGold = 1100,
+            CurrentGem = 510,
+            ClearCount = 1
+        }.Serialize();
+
+        AssertPacketHeader(packet, Opcode.StageClearResult);
+
+        var offset = PacketReader.HeaderSize;
+        Assert.True(ReadBool(packet, ref offset));
+        Assert.Equal("Stage clear success", ReadString(packet, ref offset));
+        Assert.Equal(1, ReadInt(packet, ref offset));
+        Assert.Equal("1-1", ReadString(packet, ref offset));
+        Assert.Equal(1, ReadInt(packet, ref offset));
+        Assert.Equal(100, ReadInt(packet, ref offset));
+        Assert.Equal(10, ReadInt(packet, ref offset));
+        Assert.Equal(1100, ReadInt(packet, ref offset));
+        Assert.Equal(510, ReadInt(packet, ref offset));
+        Assert.Equal(1, ReadInt(packet, ref offset));
+        Assert.Equal(packet.Length, offset);
+    }
+
+    [Fact]
+    public void PlayerProfileRequestPacket_Serialize_WritesSizeAndOpcode()
+    {
+        var packet = new PlayerProfileRequestPacket().Serialize();
+
+        AssertPacketHeader(packet, Opcode.PlayerProfile);
+    }
+
+    [Fact]
+    public void PlayerProfileResultPacket_Serialize_WritesExpectedPayload()
+    {
+        var packet = new PlayerProfileResultPacket
+        {
+            Success = true,
+            Message = "Player profile loaded",
+            PlayerId = 10,
+            Nickname = "Sensei",
+            Gold = 1200,
+            Gem = 450,
+            OwnedCharacterCount = 7,
+            PartyCount = 2,
+            ClearedStageCount = 3,
+            TotalStageClearCount = 8
+        }.Serialize();
+
+        AssertPacketHeader(packet, Opcode.PlayerProfileResult);
+
+        var offset = PacketReader.HeaderSize;
+        Assert.True(ReadBool(packet, ref offset));
+        Assert.Equal("Player profile loaded", ReadString(packet, ref offset));
+        Assert.Equal(10, ReadLong(packet, ref offset));
+        Assert.Equal("Sensei", ReadString(packet, ref offset));
+        Assert.Equal(1200, ReadInt(packet, ref offset));
+        Assert.Equal(450, ReadInt(packet, ref offset));
+        Assert.Equal(7, ReadInt(packet, ref offset));
+        Assert.Equal(2, ReadInt(packet, ref offset));
+        Assert.Equal(3, ReadInt(packet, ref offset));
+        Assert.Equal(8, ReadInt(packet, ref offset));
+        Assert.Equal(packet.Length, offset);
+    }
+
     private static void AssertPacketHeader(byte[] packet, Opcode expectedOpcode)
     {
         var size = BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(0, 2));
