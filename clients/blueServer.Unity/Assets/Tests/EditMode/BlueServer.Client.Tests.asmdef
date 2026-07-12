@@ -1,0 +1,12 @@
+{
+  "name": "BlueServer.Client.Tests",
+  "references": [
+    "BlueServer.Client"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
+}
