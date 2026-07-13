@@ -9,8 +9,22 @@ using blueServer.Game.Packets;
 using blueServer.Game.Services;
 using Microsoft.Extensions.Configuration;
 using blueServer.Infrastructure.Security;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddJsonConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.TimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fff'Z'";
+    options.UseUtcTimestamp = true;
+    options.JsonWriterOptions = new JsonWriterOptions
+    {
+        Indented = false
+    };
+});
 
 builder.Services.Configure<JwtOptions>(
     builder.Configuration.GetSection(JwtOptions.SectionName));
