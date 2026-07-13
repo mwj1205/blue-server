@@ -3,8 +3,21 @@ using blueServer.Api.Extensions;
 using blueServer.Api.Middlewares;
 using blueServer.Api.Services;
 using blueServer.Infrastructure.Security;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddJsonConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.TimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fff'Z'";
+    options.UseUtcTimestamp = true;
+    options.JsonWriterOptions = new JsonWriterOptions
+    {
+        Indented = false
+    };
+});
 
 builder.Services.AddOpenApi();
 builder.Services.AddDatabase(builder.Configuration);
@@ -18,6 +31,7 @@ builder.Services.AddScoped<PasswordService>();
 builder.Services.AddScoped<RefreshTokenService>();
 var app = builder.Build();
 
+app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();

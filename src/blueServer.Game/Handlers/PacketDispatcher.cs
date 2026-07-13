@@ -1,4 +1,5 @@
 using blueServer.Game.Packets;
+using blueServer.Infrastructure.Observability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -27,11 +28,21 @@ public sealed class PacketDispatcher
         if (!CanDispatch(session, reader.Opcode))
         {
             _logger.LogWarning(
-                "Unauthenticated packet rejected. SessionId={SessionId}, Opcode={Opcode}",
+                LogEventIds.Game.UnauthenticatedPacketRejected,
+                "Unauthenticated packet rejected. SessionId={SessionId}, PlayerId={PlayerId}, Opcode={Opcode}",
                 session.SessionId,
+                session.PlayerId,
                 reader.Opcode);
             return;
         }
+
+        _logger.LogDebug(
+            LogEventIds.Game.PacketDispatchStarted,
+            "Packet dispatch started. SessionId={SessionId}, PlayerId={PlayerId}, Opcode={Opcode}, PacketSize={PacketSize}",
+            session.SessionId,
+            session.PlayerId,
+            reader.Opcode,
+            reader.Size);
 
         await using var scope = _scopeFactory.CreateAsyncScope();
         var handler = scope.ServiceProvider.GetKeyedService<IPacketHandler>(reader.Opcode);
@@ -43,6 +54,7 @@ public sealed class PacketDispatcher
         }
 
         _logger.LogWarning(
+            LogEventIds.Game.UnhandledOpcodeReceived,
             "Unhandled opcode received. SessionId={SessionId}, PlayerId={PlayerId}, Opcode={Opcode}",
             session.SessionId,
             session.PlayerId,
