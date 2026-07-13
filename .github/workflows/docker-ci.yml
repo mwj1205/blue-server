@@ -29,6 +29,9 @@ jobs:
           - name: Game
             image: blue-server-game
             dockerfile: src/blueServer.Game/Dockerfile
+          - name: Migrations
+            image: blue-server-migrations
+            dockerfile: src/blueServer.Migrations/Dockerfile
 
     steps:
       - name: Checkout
