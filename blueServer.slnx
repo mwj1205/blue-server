@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/blueServer.Admin/blueServer.Admin.csproj" />
     <Project Path="src/blueServer.Api/blueServer.Api.csproj" />
     <Project Path="src/blueServer.Domain/blueServer.Domain.csproj" />
     <Project Path="src/blueServer.Game/blueServer.Game.csproj" />

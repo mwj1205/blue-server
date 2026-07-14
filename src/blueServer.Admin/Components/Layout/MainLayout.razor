@@ -1,0 +1,45 @@
+@inherits LayoutComponentBase
+
+<div class="admin-shell">
+    <aside class="sidebar">
+        <a class="brand" href="/" aria-label="Blue Server Admin 홈">
+            <span class="brand-mark">B</span>
+            <span>
+                <strong>Blue Server</strong>
+                <small>Admin Console</small>
+            </span>
+        </a>
+
+        <nav aria-label="관리자 메뉴">
+            <NavLink href="/" Match="NavLinkMatch.All">
+                <span aria-hidden="true">⌂</span>
+                대시보드
+            </NavLink>
+        </nav>
+
+        <div class="runtime-info">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span>Interactive Server</span>
+        </div>
+    </aside>
+
+    <main>
+        <header class="topbar">
+            <div>
+                <span class="eyebrow">운영 도구</span>
+                <strong>수집형 RPG 서버 관리</strong>
+            </div>
+            <span class="framework-badge">.NET 10</span>
+        </header>
+
+        <section class="content">
+            @Body
+        </section>
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    처리 중 오류가 발생했습니다.
+    <a href="." class="reload">새로고침</a>
+    <span class="dismiss">🗙</span>
+</div>

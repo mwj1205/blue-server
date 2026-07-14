@@ -1,0 +1,43 @@
+@page "/"
+
+<PageTitle>대시보드 | Blue Server Admin</PageTitle>
+
+<div class="page-heading">
+    <span class="page-kicker">Dashboard</span>
+    <h1>Blue Server Admin</h1>
+    <p>게임 서버 운영 기능을 한곳에서 확인하기 위한 관리자 화면입니다.</p>
+</div>
+
+<div class="foundation-grid">
+    <article>
+        <span class="card-number">01</span>
+        <h2>Blazor 실행 기반</h2>
+        <p>.NET 10과 Interactive Server 렌더링으로 관리자 UI를 실행합니다.</p>
+        <span class="state-ready">준비 완료</span>
+    </article>
+
+    <article>
+        <span class="card-number">02</span>
+        <h2>게임 데이터 조회</h2>
+        <p>PlayerProfile과 Roster를 HTTP API를 통해 읽는 화면을 연결합니다.</p>
+        <span class="state-next">다음 단계</span>
+    </article>
+
+    <article>
+        <span class="card-number">03</span>
+        <h2>운영 보안</h2>
+        <p>관리자 인증과 Viewer 역할을 적용해 운영 API 접근을 제한합니다.</p>
+        <span class="state-planned">계획됨</span>
+    </article>
+</div>
+
+<section class="architecture-note">
+    <div>
+        <span class="page-kicker">Boundary</span>
+        <h2>API 경계를 통한 데이터 접근</h2>
+    </div>
+    <p>
+        Admin은 Domain이나 Infrastructure를 직접 참조하지 않습니다.
+        이후 게임 데이터는 blueServer.Api의 관리자 전용 HTTP API를 통해 조회합니다.
+    </p>
+</section>
