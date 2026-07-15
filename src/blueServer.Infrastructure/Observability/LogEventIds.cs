@@ -15,6 +15,9 @@ public static class LogEventIds
 
         public static readonly EventId UnhandledRequestException =
             new(1002, nameof(UnhandledRequestException));
+
+        public static readonly EventId HttpRequestCancelled =
+            new(1003, nameof(HttpRequestCancelled));
     }
 
     // Game 이벤트 범위: 2000~2999
