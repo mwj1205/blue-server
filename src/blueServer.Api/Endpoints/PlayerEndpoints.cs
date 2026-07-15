@@ -82,12 +82,17 @@ public static class PlayerEndpoints
                 : Results.Ok(characters);
         });
 
-        app.MapGet("/players/{id:long}/parties/{partyNo:int}", async (
+        app.MapGet("/players/me/parties/{partyNo:int}", async (
+            ClaimsPrincipal user,
             PartyService partyService,
-            long id,
             int partyNo,
             CancellationToken cancellationToken) =>
         {
+            if (!TryGetPlayerId(user, out var playerId))
+            {
+                return Results.Unauthorized();
+            }
+
             if (!IsValidPartyNo(partyNo))
             {
                 return Results.BadRequest(new
@@ -97,23 +102,28 @@ public static class PlayerEndpoints
             }
 
             var party = await partyService.GetPartyAsync(
-                id,
+                playerId,
                 partyNo,
                 cancellationToken);
 
             return party is null
                 ? Results.NotFound()
                 : Results.Ok(party);
-        });
+        }).RequireAuthorization();
 
-        app.MapPut("/players/{id:long}/parties/{partyNo:int}", async (
+        app.MapPut("/players/me/parties/{partyNo:int}", async (
+            ClaimsPrincipal user,
             PartyService partyService,
             IValidator<SavePartyRequest> validator,
-            long id,
             int partyNo,
             SavePartyRequest request,
             CancellationToken cancellationToken) =>
         {
+            if (!TryGetPlayerId(user, out var playerId))
+            {
+                return Results.Unauthorized();
+            }
+
             if (!IsValidPartyNo(partyNo))
             {
                 return Results.BadRequest(new
@@ -137,7 +147,7 @@ public static class PlayerEndpoints
             }
 
             var party = await partyService.SavePartyAsync(
-                id,
+                playerId,
                 partyNo,
                 request,
                 cancellationToken);
@@ -145,7 +155,7 @@ public static class PlayerEndpoints
             return party is null
                 ? Results.NotFound()
                 : Results.Ok(party);
-        });
+        }).RequireAuthorization();
 
         return app;
     }
