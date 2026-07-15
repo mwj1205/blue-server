@@ -1,0 +1,303 @@
+@page "/players"
+@implements IAsyncDisposable
+@using System.Net
+@using Microsoft.Extensions.Options
+@inject PlayerAdminClient PlayerClient
+@inject IOptions<GameApiOptions> GameApiOptions
+@inject IHostEnvironment HostEnvironment
+@inject ILogger<Players> Logger
+
+<PageTitle>플레이어 조회 | Blue Server Admin</PageTitle>
+
+<div class="page-heading">
+    <span class="page-kicker">Player Operations</span>
+    <h1>플레이어 조회</h1>
+    <p>PlayerProfile과 보유 캐릭터 Roster를 읽기 전용으로 확인합니다.</p>
+</div>
+
+<div class="security-notice" role="note">
+    <strong>로컬 개발 전용</strong>
+    <span>AdminViewer 인증을 적용하기 전에는 외부 환경에 배포하면 안 됩니다.</span>
+</div>
+
+@if (!IsLookupEnabled)
+{
+    <section class="disabled-panel" role="status">
+        <h2>조회 기능 비활성화</h2>
+        <p>
+            이 기능은 Development 환경에서
+            <code>GameApi:EnableInsecurePlayerLookup</code>이 활성화된 경우에만 사용할 수 있습니다.
+        </p>
+    </section>
+}
+else
+{
+    <section class="search-panel" aria-label="플레이어 검색">
+        <EditForm Model="_searchInput" OnValidSubmit="SearchAsync" FormName="player-lookup">
+            <DataAnnotationsValidator />
+
+            <label for="player-id">Player ID</label>
+            <div class="search-row">
+                <input id="player-id"
+                       type="number"
+                       min="1"
+                       step="1"
+                       @bind="_searchInput.PlayerId"
+                       @bind:event="oninput"
+                       placeholder="예: 1"
+                       disabled="@(!_isInteractive || _isLoading)" />
+                <button type="submit" disabled="@(!_isInteractive || _isLoading)">
+                    @GetSearchButtonText()
+                </button>
+            </div>
+            <ValidationMessage For="@(() => _searchInput.PlayerId)" />
+        </EditForm>
+    </section>
+
+    <div class="result-region" aria-live="polite" aria-busy="@_isLoading">
+        @if (_isLoading)
+        {
+            <div class="loading-panel" role="status">
+                <span class="loading-dot" aria-hidden="true"></span>
+                Player @_searchedPlayerId 정보를 불러오는 중입니다.
+            </div>
+        }
+        else if (_errorMessage is not null)
+        {
+            <div class="error-panel" role="alert">
+                <strong>조회 실패</strong>
+                <span>@_errorMessage</span>
+            </div>
+        }
+        else if (_hasSearched && _details is null)
+        {
+            <div class="empty-panel" role="status">
+                Player @_searchedPlayerId 정보를 찾을 수 없습니다.
+            </div>
+        }
+        else if (_details is not null)
+        {
+            <section class="profile-section" aria-labelledby="profile-heading">
+                <div class="section-heading">
+                    <div>
+                        <span class="page-kicker">PlayerProfile</span>
+                        <h2 id="profile-heading">@_details.Profile.Nickname</h2>
+                    </div>
+                    <span class="player-id">ID @_details.Profile.Id</span>
+                </div>
+
+                <div class="profile-grid">
+                    <article>
+                        <span>Gold</span>
+                        <strong>@_details.Profile.Gold.ToString("N0")</strong>
+                    </article>
+                    <article>
+                        <span>Gem</span>
+                        <strong>@_details.Profile.Gem.ToString("N0")</strong>
+                    </article>
+                    <article>
+                        <span>보유 캐릭터</span>
+                        <strong>@_details.Roster.Count.ToString("N0")</strong>
+                    </article>
+                </div>
+            </section>
+
+            <section class="roster-section" aria-labelledby="roster-heading">
+                <div class="section-heading">
+                    <div>
+                        <span class="page-kicker">Roster</span>
+                        <h2 id="roster-heading">보유 캐릭터</h2>
+                    </div>
+                    <span class="roster-count">@($"{_details.Roster.Count}명")</span>
+                </div>
+
+                @if (_details.Roster.Count == 0)
+                {
+                    <div class="empty-roster">보유한 캐릭터가 없습니다.</div>
+                }
+                else
+                {
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th scope="col">캐릭터</th>
+                                    <th scope="col">역할</th>
+                                    <th scope="col">희귀도</th>
+                                    <th scope="col">레벨</th>
+                                    <th scope="col">성급</th>
+                                    <th scope="col">경험치</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var character in _details.Roster)
+                                {
+                                    <tr @key="character.Id">
+                                        <td>
+                                            <strong>@character.CharacterName</strong>
+                                            <small>Template @character.CharacterTemplateId · ID @character.Id</small>
+                                        </td>
+                                        <td>@character.Role</td>
+                                        <td>@character.Rarity</td>
+                                        <td>@character.Level</td>
+                                        <td>@character.Star</td>
+                                        <td>@character.Exp.ToString("N0")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        }
+    </div>
+}
+
+@code {
+    private readonly PlayerSearchInput _searchInput = new();
+    private CancellationTokenSource? _requestCts;
+    private PlayerDetails? _details;
+    private string? _errorMessage;
+    private long _requestGeneration;
+    private long _searchedPlayerId;
+    private bool _hasSearched;
+    private bool _isInteractive;
+    private bool _isLoading;
+
+    private bool IsLookupEnabled =>
+        HostEnvironment.IsDevelopment() &&
+        GameApiOptions.Value.EnableInsecurePlayerLookup;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _isInteractive = true;
+        StateHasChanged();
+    }
+
+    private string GetSearchButtonText()
+    {
+        if (!_isInteractive)
+        {
+            return "연결 중...";
+        }
+
+        return _isLoading ? "조회 중..." : "조회";
+    }
+
+    private async Task SearchAsync()
+    {
+        if (!_searchInput.TryGetPlayerId(out var playerId))
+        {
+            return;
+        }
+
+        var generation = ++_requestGeneration;
+        var requestCts = new CancellationTokenSource();
+        var previousRequestCts = _requestCts;
+
+        _requestCts = requestCts;
+        previousRequestCts?.Cancel();
+        previousRequestCts?.Dispose();
+
+        _searchedPlayerId = playerId;
+        _hasSearched = true;
+        _isLoading = true;
+        _details = null;
+        _errorMessage = null;
+
+        try
+        {
+            var details = await PlayerClient.GetPlayerDetailsAsync(
+                playerId,
+                requestCts.Token);
+
+            if (generation == _requestGeneration)
+            {
+                _details = details;
+            }
+        }
+        catch (OperationCanceledException)
+            when (requestCts.IsCancellationRequested)
+        {
+        }
+        catch (OperationCanceledException ex)
+        {
+            if (generation == _requestGeneration)
+            {
+                Logger.LogWarning(
+                    ex,
+                    "Admin player lookup timed out. PlayerId={PlayerId}",
+                    playerId);
+                _errorMessage = "게임 API 응답 시간이 초과됐습니다.";
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            if (generation == _requestGeneration)
+            {
+                Logger.LogWarning(
+                    ex,
+                    "Admin player lookup HTTP request failed. PlayerId={PlayerId}, StatusCode={StatusCode}",
+                    playerId,
+                    ex.StatusCode);
+                _errorMessage = GetHttpErrorMessage(ex);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (generation == _requestGeneration)
+            {
+                Logger.LogError(
+                    ex,
+                    "Admin player lookup failed. PlayerId={PlayerId}",
+                    playerId);
+                _errorMessage = "응답을 처리하는 중 오류가 발생했습니다.";
+            }
+        }
+        finally
+        {
+            if (generation == _requestGeneration)
+            {
+                _isLoading = false;
+                _requestCts = null;
+                requestCts.Dispose();
+            }
+        }
+    }
+
+    private static string GetHttpErrorMessage(HttpRequestException exception)
+    {
+        if (exception.StatusCode is
+            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            return "게임 API 조회 권한이 없습니다.";
+        }
+
+        if (exception.StatusCode.HasValue &&
+            (int)exception.StatusCode.Value >= 500)
+        {
+            return "게임 API에서 서버 오류가 발생했습니다.";
+        }
+
+        return exception.StatusCode.HasValue
+            ? "게임 API가 조회 요청을 처리하지 못했습니다."
+            : "게임 API에 연결할 수 없습니다.";
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _requestGeneration++;
+
+        var requestCts = _requestCts;
+        _requestCts = null;
+        requestCts?.Cancel();
+        requestCts?.Dispose();
+
+        return ValueTask.CompletedTask;
+    }
+}
