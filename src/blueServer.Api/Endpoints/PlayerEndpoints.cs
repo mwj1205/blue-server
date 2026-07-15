@@ -34,19 +34,7 @@ public static class PlayerEndpoints
             return Results.Ok(createdPlayer);
         });
 
-        app.MapGet("/players/{id:long}", async (
-            PlayerService playerService,
-            long id,
-            CancellationToken cancellationToken) =>
-        {
-            var player = await playerService.GetPlayerAsync(
-                id,
-                cancellationToken);
-
-            return player is null
-                ? Results.NotFound()
-                : Results.Ok(player);
-        });
+        MapDevelopmentOnlyPlayerLookupEndpoints(app);
 
         app.MapGet("/players/me/profile", async (
             ClaimsPrincipal user,
@@ -68,26 +56,17 @@ public static class PlayerEndpoints
         })
         .RequireAuthorization();
 
-        app.MapGet("/players/{id:long}/characters", async (
-            PlayerService playerService,
-            long id,
-            CancellationToken cancellationToken) =>
-        {
-            var characters = await playerService.GetOwnedCharactersAsync(
-                id,
-                cancellationToken);
-
-            return characters is null
-                ? Results.NotFound()
-                : Results.Ok(characters);
-        });
-
-        app.MapGet("/players/{id:long}/parties/{partyNo:int}", async (
+        app.MapGet("/players/me/parties/{partyNo:int}", async (
+            ClaimsPrincipal user,
             PartyService partyService,
-            long id,
             int partyNo,
             CancellationToken cancellationToken) =>
         {
+            if (!TryGetPlayerId(user, out var playerId))
+            {
+                return Results.Unauthorized();
+            }
+
             if (!IsValidPartyNo(partyNo))
             {
                 return Results.BadRequest(new
@@ -97,23 +76,28 @@ public static class PlayerEndpoints
             }
 
             var party = await partyService.GetPartyAsync(
-                id,
+                playerId,
                 partyNo,
                 cancellationToken);
 
             return party is null
                 ? Results.NotFound()
                 : Results.Ok(party);
-        });
+        }).RequireAuthorization();
 
-        app.MapPut("/players/{id:long}/parties/{partyNo:int}", async (
+        app.MapPut("/players/me/parties/{partyNo:int}", async (
+            ClaimsPrincipal user,
             PartyService partyService,
             IValidator<SavePartyRequest> validator,
-            long id,
             int partyNo,
             SavePartyRequest request,
             CancellationToken cancellationToken) =>
         {
+            if (!TryGetPlayerId(user, out var playerId))
+            {
+                return Results.Unauthorized();
+            }
+
             if (!IsValidPartyNo(partyNo))
             {
                 return Results.BadRequest(new
@@ -137,7 +121,7 @@ public static class PlayerEndpoints
             }
 
             var party = await partyService.SavePartyAsync(
-                id,
+                playerId,
                 partyNo,
                 request,
                 cancellationToken);
@@ -145,9 +129,49 @@ public static class PlayerEndpoints
             return party is null
                 ? Results.NotFound()
                 : Results.Ok(party);
-        });
+        }).RequireAuthorization();
 
         return app;
+    }
+
+    private static void MapDevelopmentOnlyPlayerLookupEndpoints(
+        IEndpointRouteBuilder app)
+    {
+        var environment = app.ServiceProvider
+            .GetRequiredService<IHostEnvironment>();
+
+        if (!environment.IsDevelopment())
+        {
+            return;
+        }
+
+        app.MapGet("/players/{id:long}", async (
+            PlayerService playerService,
+            long id,
+            CancellationToken cancellationToken) =>
+        {
+            var player = await playerService.GetPlayerAsync(
+                id,
+                cancellationToken);
+
+            return player is null
+                ? Results.NotFound()
+                : Results.Ok(player);
+        });
+
+        app.MapGet("/players/{id:long}/characters", async (
+            PlayerService playerService,
+            long id,
+            CancellationToken cancellationToken) =>
+        {
+            var characters = await playerService.GetOwnedCharactersAsync(
+                id,
+                cancellationToken);
+
+            return characters is null
+                ? Results.NotFound()
+                : Results.Ok(characters);
+        });
     }
 
     private static bool IsValidPartyNo(int partyNo)
