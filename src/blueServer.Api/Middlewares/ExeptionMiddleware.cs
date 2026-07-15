@@ -23,6 +23,21 @@ public class ExceptionMiddleware
         {
             await _next(context);
         }
+        catch (OperationCanceledException)
+            when (context.RequestAborted.IsCancellationRequested)
+        {
+            if (!context.Response.HasStarted)
+            {
+                context.Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
+            }
+
+            _logger.LogDebug(
+                LogEventIds.Api.HttpRequestCancelled,
+                "HTTP request cancelled by client. Method={Method}, Path={Path}, RequestId={RequestId}",
+                context.Request.Method,
+                context.Request.Path.Value,
+                context.TraceIdentifier);
+        }
         catch (GameException ex)
         {
             _logger.LogWarning(

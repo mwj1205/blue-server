@@ -35,12 +35,18 @@ public static class PlayerEndpoints
         });
 
         app.MapGet("/players/{id:long}", async (
-          PlayerService playerService,
-          long id) =>
-      {
-          var player = await playerService.GetPlayerAsync(id);
-          return player is null ? Results.NotFound() : Results.Ok(player);
-      });
+            PlayerService playerService,
+            long id,
+            CancellationToken cancellationToken) =>
+        {
+            var player = await playerService.GetPlayerAsync(
+                id,
+                cancellationToken);
+
+            return player is null
+                ? Results.NotFound()
+                : Results.Ok(player);
+        });
 
         app.MapGet("/players/me/profile", async (
             ClaimsPrincipal user,

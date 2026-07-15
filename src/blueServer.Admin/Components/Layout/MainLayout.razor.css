@@ -1,0 +1,167 @@
+.admin-shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    min-height: 100vh;
+}
+
+.sidebar {
+    background: #111827;
+    color: #dbeafe;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    padding: 1.5rem;
+}
+
+.brand {
+    align-items: center;
+    color: #f8fafc;
+    display: flex;
+    gap: 0.8rem;
+    text-decoration: none;
+}
+
+.brand-mark {
+    align-items: center;
+    background: linear-gradient(135deg, #38bdf8, #6366f1);
+    border-radius: 0.85rem;
+    display: inline-flex;
+    font-size: 1.25rem;
+    font-weight: 800;
+    height: 2.75rem;
+    justify-content: center;
+    width: 2.75rem;
+}
+
+.brand strong,
+.brand small {
+    display: block;
+}
+
+.brand small {
+    color: #94a3b8;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    margin-top: 0.15rem;
+    text-transform: uppercase;
+}
+
+nav ::deep a {
+    align-items: center;
+    border-radius: 0.65rem;
+    color: #cbd5e1;
+    display: flex;
+    gap: 0.65rem;
+    padding: 0.75rem 0.85rem;
+    text-decoration: none;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+nav ::deep a:hover,
+nav ::deep a.active {
+    background: #1e293b;
+    color: #ffffff;
+}
+
+.runtime-info {
+    align-items: center;
+    color: #94a3b8;
+    display: flex;
+    font-size: 0.78rem;
+    gap: 0.5rem;
+    margin-top: auto;
+}
+
+.status-dot {
+    background: #22c55e;
+    border-radius: 50%;
+    box-shadow: 0 0 0 4px rgb(34 197 94 / 14%);
+    height: 0.5rem;
+    width: 0.5rem;
+}
+
+main {
+    min-width: 0;
+}
+
+.topbar {
+    align-items: center;
+    background: rgb(255 255 255 / 86%);
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    min-height: 76px;
+    padding: 0 2rem;
+}
+
+.topbar strong,
+.eyebrow {
+    display: block;
+}
+
+.eyebrow {
+    color: #64748b;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.2rem;
+    text-transform: uppercase;
+}
+
+.framework-badge {
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 999px;
+    color: #4338ca;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 0.35rem 0.7rem;
+}
+
+.content {
+    margin: 0 auto;
+    max-width: 1200px;
+    padding: 2.25rem;
+}
+
+#blazor-error-ui {
+    background: #fef3c7;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgb(15 23 42 / 20%);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+@media (max-width: 720px) {
+    .admin-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .runtime-info {
+        display: none;
+    }
+
+    .topbar {
+        padding: 0 1rem;
+    }
+
+    .content {
+        padding: 1.25rem 1rem;
+    }
+}

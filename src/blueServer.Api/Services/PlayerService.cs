@@ -43,22 +43,20 @@ public class PlayerService
     }
 
     public async Task<PlayerResponse?> GetPlayerAsync(
-        long id)
+        long id,
+        CancellationToken cancellationToken)
     {
-        var player = await _db.Players.FindAsync(id);
-
-        if (player is null)
-        {
-            return null;
-        }
-
-        return new PlayerResponse
-        {
-            Id = player.Id,
-            Nickname = player.Nickname,
-            Gold = player.Gold,
-            Gem = player.Gem
-        };
+        return await _db.Players
+            .AsNoTracking()
+            .Where(player => player.Id == id)
+            .Select(player => new PlayerResponse
+            {
+                Id = player.Id,
+                Nickname = player.Nickname,
+                Gold = player.Gold,
+                Gem = player.Gem
+            })
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<PlayerProfileResponse?> GetProfileAsync(
