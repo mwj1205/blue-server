@@ -65,6 +65,8 @@ services:
       Jwt__AccessTokenDays: ${JWT_ACCESS_TOKEN_DAYS:-7}
     ports:
       - "${API_PORT:-5201}:8080"
+    labels:
+      blue_server_logs: api
     depends_on:
       migration:
         condition: service_completed_successfully
@@ -89,6 +91,8 @@ services:
       Jwt__AccessTokenDays: ${JWT_ACCESS_TOKEN_DAYS:-7}
     ports:
       - "${GAME_PORT:-7777}:7777"
+    labels:
+      blue_server_logs: game
     depends_on:
       migration:
         condition: service_completed_successfully

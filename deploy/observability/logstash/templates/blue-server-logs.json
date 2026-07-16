@@ -1,0 +1,50 @@
+{
+  "index_patterns": [
+    "blue-server-logs-*"
+  ],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "mappings": {
+      "dynamic": true,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "service": {
+          "properties": {
+            "name": {
+              "type": "keyword"
+            }
+          }
+        },
+        "event": {
+          "properties": {
+            "code": {
+              "type": "keyword"
+            },
+            "dataset": {
+              "type": "keyword"
+            }
+          }
+        },
+        "log": {
+          "properties": {
+            "level": {
+              "type": "keyword"
+            },
+            "logger": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Local blue-server application log template"
+  }
+}

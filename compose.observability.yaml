@@ -41,5 +41,49 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${ELASTIC_VERSION:-9.4.2}
+    environment:
+      LS_JAVA_OPTS: -Xms256m -Xmx256m
+      MONITORING_ENABLED: "false"
+    ports:
+      - "127.0.0.1:${LOGSTASH_API_PORT:-9600}:9600"
+    volumes:
+      - ./deploy/observability/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./deploy/observability/logstash/templates:/usr/share/logstash/templates:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl --fail --silent http://localhost:9600/_node/pipelines/main > /dev/null || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:${ELASTIC_VERSION:-9.4.2}
+    user: root
+    command:
+      - --strict.perms=false
+    volumes:
+      - ./deploy/observability/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - filebeat-data:/usr/share/filebeat/data
+    depends_on:
+      logstash:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
 volumes:
   elasticsearch-data:
+  filebeat-data:
