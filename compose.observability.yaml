@@ -1,4 +1,14 @@
 services:
+  api:
+    environment:
+      Observability__ElasticApmEnabled: "true"
+      ELASTIC_APM_SERVER_URL: http://apm-server:8200
+      ELASTIC_APM_SERVICE_NAME: blue-server-api
+      ELASTIC_APM_ENVIRONMENT: ${ELASTIC_APM_ENVIRONMENT:-local}
+      ELASTIC_APM_TRANSACTION_SAMPLE_RATE: ${ELASTIC_APM_TRANSACTION_SAMPLE_RATE:-1.0}
+      ELASTIC_APM_CAPTURE_BODY: "off"
+      ELASTIC_APM_CENTRAL_CONFIG: "false"
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-9.4.2}
     environment:
@@ -80,6 +90,34 @@ services:
     depends_on:
       logstash:
         condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:${ELASTIC_VERSION:-9.4.2}
+    command:
+      - --strict.perms=false
+      - -e
+    ports:
+      - "127.0.0.1:${APM_SERVER_PORT:-18200}:8200"
+    volumes:
+      - ./deploy/observability/apm-server.yml:/usr/share/apm-server/apm-server.yml:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - /usr/bin/bash
+        - -c
+        - exec 3<>/dev/tcp/127.0.0.1/8200
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
