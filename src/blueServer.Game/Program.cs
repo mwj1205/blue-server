@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using blueServer.Infrastructure.Security;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using Elastic.Apm.EntityFrameworkCore;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -25,6 +26,13 @@ builder.Logging.AddJsonConsole(options =>
         Indented = false
     };
 });
+
+if (builder.Configuration.GetValue<bool>(
+        "Observability:ElasticApmEnabled"))
+{
+    builder.Services.AddElasticApm(
+        new EfCoreDiagnosticsSubscriber());
+}
 
 builder.Services.Configure<JwtOptions>(
     builder.Configuration.GetSection(JwtOptions.SectionName));

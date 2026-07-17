@@ -3,6 +3,7 @@ using blueServer.Api.Extensions;
 using blueServer.Api.Middlewares;
 using blueServer.Api.Services;
 using blueServer.Infrastructure.Security;
+using Elastic.Apm.EntityFrameworkCore;
 using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +21,14 @@ builder.Logging.AddJsonConsole(options =>
 });
 
 builder.Services.AddOpenApi();
+
+if (builder.Configuration.GetValue<bool>(
+        "Observability:ElasticApmEnabled"))
+{
+    builder.Services.AddElasticApmForAspNetCore(
+        new EfCoreDiagnosticsSubscriber());
+}
+
 builder.Services.AddDatabase(builder.Configuration);
 builder.Services.AddRedis(builder.Configuration);
 builder.Services.AddJwt(builder.Configuration);

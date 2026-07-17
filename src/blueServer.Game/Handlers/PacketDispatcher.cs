@@ -1,5 +1,7 @@
 using blueServer.Game.Packets;
 using blueServer.Infrastructure.Observability;
+using Elastic.Apm;
+using Elastic.Apm.Api;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -9,13 +11,16 @@ public sealed class PacketDispatcher
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PacketDispatcher> _logger;
+    private readonly IApmAgent? _apmAgent;
 
     public PacketDispatcher(
         IServiceScopeFactory scopeFactory,
-        ILogger<PacketDispatcher> logger)
+        ILogger<PacketDispatcher> logger,
+        IApmAgent? apmAgent = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _apmAgent = apmAgent;
     }
 
     public async Task DispatchAsync(
@@ -25,6 +30,66 @@ public sealed class PacketDispatcher
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        var transaction = _apmAgent?.Tracer.StartTransaction(
+            $"TCP {reader.Opcode}",
+            "tcp");
+
+        if (transaction is not null)
+        {
+            transaction.SetLabel(
+                "session_id",
+                session.SessionId.ToString("N"));
+            transaction.SetLabel("opcode", (int)reader.Opcode);
+            transaction.SetLabel("packet_size", reader.Size);
+
+            if (session.PlayerId is long playerId)
+            {
+                transaction.SetLabel("player_id", playerId);
+            }
+        }
+
+        try
+        {
+            await DispatchCoreAsync(
+                session,
+                reader,
+                transaction,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
+        {
+            if (transaction is not null)
+            {
+                transaction.Result = "canceled";
+                transaction.Outcome = Outcome.Unknown;
+            }
+
+            throw;
+        }
+        catch (Exception ex)
+        {
+            if (transaction is not null)
+            {
+                transaction.CaptureException(ex);
+                transaction.Result = "failed";
+                transaction.Outcome = Outcome.Failure;
+            }
+
+            throw;
+        }
+        finally
+        {
+            transaction?.End();
+        }
+    }
+
+    private async Task DispatchCoreAsync(
+        Session session,
+        PacketReader reader,
+        ITransaction? transaction,
+        CancellationToken cancellationToken)
+    {
         if (!CanDispatch(session, reader.Opcode))
         {
             _logger.LogWarning(
@@ -33,6 +98,13 @@ public sealed class PacketDispatcher
                 session.SessionId,
                 session.PlayerId,
                 reader.Opcode);
+
+            if (transaction is not null)
+            {
+                transaction.Result = "rejected";
+                transaction.Outcome = Outcome.Failure;
+            }
+
             return;
         }
 
@@ -50,6 +122,13 @@ public sealed class PacketDispatcher
         if (handler is not null)
         {
             await handler.HandleAsync(session, reader, cancellationToken);
+
+            if (transaction is not null)
+            {
+                transaction.Result = "handled";
+                transaction.Outcome = Outcome.Success;
+            }
+
             return;
         }
 
@@ -59,6 +138,12 @@ public sealed class PacketDispatcher
             session.SessionId,
             session.PlayerId,
             reader.Opcode);
+
+        if (transaction is not null)
+        {
+            transaction.Result = "unhandled";
+            transaction.Outcome = Outcome.Failure;
+        }
     }
 
     private static bool CanDispatch(Session session, Opcode opcode)

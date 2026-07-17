@@ -1,0 +1,45 @@
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      host: unix:///var/run/docker.sock
+      templates:
+        - condition:
+            equals:
+              docker.container.labels.blue_server_logs: api
+          config:
+            - type: filestream
+              id: blue-server-api-${data.docker.container.id}
+              close.on_state_change.removed: false
+              prospector.scanner.symlinks: true
+              parsers:
+                - container: ~
+              paths:
+                - /var/lib/docker/containers/${data.docker.container.id}/*.log
+              fields:
+                service:
+                  name: blue-server-api
+              fields_under_root: true
+
+        - condition:
+            equals:
+              docker.container.labels.blue_server_logs: game
+          config:
+            - type: filestream
+              id: blue-server-game-${data.docker.container.id}
+              close.on_state_change.removed: false
+              prospector.scanner.symlinks: true
+              parsers:
+                - container: ~
+              paths:
+                - /var/lib/docker/containers/${data.docker.container.id}/*.log
+              fields:
+                service:
+                  name: blue-server-game
+              fields_under_root: true
+
+output.logstash:
+  hosts:
+    - logstash:5044
+
+logging.level: info
+logging.to_files: false

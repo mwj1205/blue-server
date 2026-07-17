@@ -1,0 +1,139 @@
+services:
+  api:
+    environment:
+      Observability__ElasticApmEnabled: "true"
+      ELASTIC_APM_SERVER_URL: http://apm-server:8200
+      ELASTIC_APM_SERVICE_NAME: blue-server-api
+      ELASTIC_APM_ENVIRONMENT: ${ELASTIC_APM_ENVIRONMENT:-local}
+      ELASTIC_APM_TRANSACTION_SAMPLE_RATE: ${ELASTIC_APM_TRANSACTION_SAMPLE_RATE:-1.0}
+      ELASTIC_APM_CAPTURE_BODY: "off"
+      ELASTIC_APM_CENTRAL_CONFIG: "false"
+      ELASTIC_APM_OPENTELEMETRY_BRIDGE_ENABLED: "false"
+
+  game:
+    environment:
+      Observability__ElasticApmEnabled: "true"
+      ELASTIC_APM_SERVER_URL: http://apm-server:8200
+      ELASTIC_APM_SERVICE_NAME: blue-server-game
+      ELASTIC_APM_ENVIRONMENT: ${ELASTIC_APM_ENVIRONMENT:-local}
+      ELASTIC_APM_TRANSACTION_SAMPLE_RATE: ${ELASTIC_APM_TRANSACTION_SAMPLE_RATE:-1.0}
+      ELASTIC_APM_CAPTURE_BODY: "off"
+      ELASTIC_APM_CENTRAL_CONFIG: "false"
+      ELASTIC_APM_OPENTELEMETRY_BRIDGE_ENABLED: "false"
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-9.4.2}
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.enrollment.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "127.0.0.1:${ELASTICSEARCH_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl --fail --silent "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s" > /dev/null || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION:-9.4.2}
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      SERVER_HOST: 0.0.0.0
+      XPACK_SECURITY_ENABLED: "false"
+    ports:
+      - "127.0.0.1:${KIBANA_PORT:-5601}:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl --fail --silent http://localhost:5601/api/status > /dev/null || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${ELASTIC_VERSION:-9.4.2}
+    environment:
+      LS_JAVA_OPTS: -Xms256m -Xmx256m
+      MONITORING_ENABLED: "false"
+    ports:
+      - "127.0.0.1:${LOGSTASH_API_PORT:-9600}:9600"
+    volumes:
+      - ./deploy/observability/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./deploy/observability/logstash/templates:/usr/share/logstash/templates:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl --fail --silent http://localhost:9600/_node/pipelines/main > /dev/null || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:${ELASTIC_VERSION:-9.4.2}
+    user: root
+    command:
+      - --strict.perms=false
+    volumes:
+      - ./deploy/observability/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - filebeat-data:/usr/share/filebeat/data
+    depends_on:
+      logstash:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:${ELASTIC_VERSION:-9.4.2}
+    command:
+      - --strict.perms=false
+      - -e
+    ports:
+      - "127.0.0.1:${APM_SERVER_PORT:-18200}:8200"
+    volumes:
+      - ./deploy/observability/apm-server.yml:/usr/share/apm-server/apm-server.yml:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - /usr/bin/bash
+        - -c
+        - exec 3<>/dev/tcp/127.0.0.1/8200
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+volumes:
+  elasticsearch-data:
+  filebeat-data:
