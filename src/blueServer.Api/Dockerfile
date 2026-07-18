@@ -1,6 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
+COPY src/Orleans/blueServer.GrainContracts/blueServer.GrainContracts.csproj src/Orleans/blueServer.GrainContracts/
 COPY src/blueServer.Domain/blueServer.Domain.csproj src/blueServer.Domain/
 COPY src/blueServer.Infrastructure/blueServer.Infrastructure.csproj src/blueServer.Infrastructure/
 COPY src/blueServer.Api/blueServer.Api.csproj src/blueServer.Api/
