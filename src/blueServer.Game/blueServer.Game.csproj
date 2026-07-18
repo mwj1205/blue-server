@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\Orleans\blueServer.GrainContracts\blueServer.GrainContracts.csproj" />
     <ProjectReference Include="..\blueServer.Domain\blueServer.Domain.csproj" />
     <ProjectReference Include="..\blueServer.Infrastructure\blueServer.Infrastructure.csproj" />
   </ItemGroup>

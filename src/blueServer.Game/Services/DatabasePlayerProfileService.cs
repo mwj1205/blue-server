@@ -3,11 +3,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace blueServer.Game.Services;
 
-public sealed class PlayerProfileService
+public sealed class DatabasePlayerProfileService : IPlayerProfileService
 {
     private readonly GameDbContext _db;
 
-    public PlayerProfileService(GameDbContext db)
+    public DatabasePlayerProfileService(GameDbContext db)
     {
         _db = db;
     }
@@ -36,33 +36,5 @@ public sealed class PlayerProfileService
             .FirstOrDefaultAsync(cancellationToken);
 
         return profile ?? PlayerProfileResult.Fail("Player not found");
-    }
-}
-
-public sealed record PlayerProfileResult(
-    bool IsSuccess,
-    string Message,
-    long PlayerId,
-    string Nickname,
-    int Gold,
-    int Gem,
-    int OwnedCharacterCount,
-    int PartyCount,
-    int ClearedStageCount,
-    int TotalStageClearCount)
-{
-    public static PlayerProfileResult Fail(string message)
-    {
-        return new PlayerProfileResult(
-            false,
-            message,
-            0,
-            string.Empty,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0);
     }
 }

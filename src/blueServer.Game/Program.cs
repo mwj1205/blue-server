@@ -16,6 +16,8 @@ using Elastic.Apm.EntityFrameworkCore;
 
 var builder = Host.CreateApplicationBuilder(args);
 
+var orleansEnabled = builder.Configuration.GetValue<bool>(
+    "Orleans:Enabled");
 builder.AddConfiguredOrleansClient();
 
 builder.Logging.ClearProviders();
@@ -52,8 +54,20 @@ builder.Services.AddScoped<CharacterGachaService>();
 builder.Services.AddScoped<OwnedCharacterListService>();
 builder.Services.AddScoped<PartyService>();
 builder.Services.AddScoped<StageClearService>();
-builder.Services.AddScoped<PlayerProfileService>();
 builder.Services.AddScoped<GameJwtValidator>();
+
+if (orleansEnabled)
+{
+    builder.Services.AddScoped<
+        IPlayerProfileService,
+        OrleansPlayerProfileService>();
+}
+else
+{
+    builder.Services.AddScoped<
+        IPlayerProfileService,
+        DatabasePlayerProfileService>();
+}
 
 builder.Services.AddKeyedScoped<IPacketHandler, LoginHandler>(Opcode.Login);
 builder.Services.AddKeyedScoped<IPacketHandler, ChatHandler>(Opcode.Chat);

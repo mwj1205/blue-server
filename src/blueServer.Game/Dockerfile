@@ -3,6 +3,7 @@ WORKDIR /src
 
 COPY src/blueServer.Domain/blueServer.Domain.csproj src/blueServer.Domain/
 COPY src/blueServer.Infrastructure/blueServer.Infrastructure.csproj src/blueServer.Infrastructure/
+COPY src/Orleans/blueServer.GrainContracts/blueServer.GrainContracts.csproj src/Orleans/blueServer.GrainContracts/
 COPY src/blueServer.Game/blueServer.Game.csproj src/blueServer.Game/
 RUN dotnet restore src/blueServer.Game/blueServer.Game.csproj
 
