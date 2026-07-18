@@ -1,4 +1,5 @@
 using blueServer.Game;
+using blueServer.Game.Extensions;
 using blueServer.Game.Handlers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -14,6 +15,8 @@ using System.Text.Json;
 using Elastic.Apm.EntityFrameworkCore;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+builder.AddConfiguredOrleansClient();
 
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options =>
