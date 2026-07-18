@@ -43,10 +43,10 @@ public class GameDbContext : DbContext
         modelBuilder.Entity<Party>(entity =>
         {
             entity.HasIndex(party => new
-                {
-                    party.PlayerId,
-                    party.PartyNo
-                })
+            {
+                party.PlayerId,
+                party.PartyNo
+            })
                 .IsUnique();
 
             entity.HasMany(party => party.Slots)
@@ -58,17 +58,17 @@ public class GameDbContext : DbContext
         modelBuilder.Entity<PartySlot>(entity =>
         {
             entity.HasIndex(slot => new
-                {
-                    slot.PartyId,
-                    slot.SlotIndex
-                })
+            {
+                slot.PartyId,
+                slot.SlotIndex
+            })
                 .IsUnique();
 
             entity.HasIndex(slot => new
-                {
-                    slot.PartyId,
-                    slot.OwnedCharacterId
-                })
+            {
+                slot.PartyId,
+                slot.OwnedCharacterId
+            })
                 .IsUnique();
 
             entity.HasOne(slot => slot.OwnedCharacter)
@@ -95,10 +95,10 @@ public class GameDbContext : DbContext
         modelBuilder.Entity<StageClearRecord>(entity =>
         {
             entity.HasIndex(record => new
-                {
-                    record.PlayerId,
-                    record.StageTemplateId
-                })
+            {
+                record.PlayerId,
+                record.StageTemplateId
+            })
                 .IsUnique();
 
             entity.Property(record => record.Version)
