@@ -9,6 +9,7 @@
   </Folder>
   <Folder Name="/src/Orleans/">
     <Project Path="src/Orleans/blueServer.GrainContracts/blueServer.GrainContracts.csproj" />
+    <Project Path="src/Orleans/blueServer.Grains/blueServer.Grains.csproj" />
     <Project Path="src/Orleans/blueServer.Silo/blueServer.Silo.csproj" />
   </Folder>
   <Folder Name="/tests/">

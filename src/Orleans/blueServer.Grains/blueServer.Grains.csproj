@@ -1,12 +1,12 @@
-<Project Sdk="Microsoft.NET.Sdk.Worker">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\blueServer.Grains\blueServer.Grains.csproj" />
+    <ProjectReference Include="..\blueServer.GrainContracts\blueServer.GrainContracts.csproj" />
     <ProjectReference Include="..\..\blueServer.Infrastructure\blueServer.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Orleans.Server" Version="10.2.1" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" Version="10.2.1" />
   </ItemGroup>
 
   <PropertyGroup>

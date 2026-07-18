@@ -1,4 +1,6 @@
 using System.Text.Json;
+using blueServer.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 using Orleans.Hosting;
 
 var builder = Host.CreateApplicationBuilder(
@@ -32,12 +34,20 @@ var siloPort = GetRequiredPort(
 var gatewayPort = GetRequiredPort(
     builder.Configuration,
     "Orleans:GatewayPort");
+var connectionString = GetRequiredValue(
+    builder.Configuration,
+    "ConnectionStrings:Default");
 
 if (siloPort == gatewayPort)
 {
     throw new InvalidOperationException(
         "Orleans silo and gateway ports must be different.");
 }
+
+builder.Services.AddPooledDbContextFactory<GameDbContext>(options =>
+{
+    options.UseNpgsql(connectionString);
+});
 
 builder.UseOrleans(siloBuilder =>
 {
