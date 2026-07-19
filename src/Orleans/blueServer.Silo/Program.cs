@@ -1,6 +1,9 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Text.Json;
 using blueServer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Orleans.Configuration;
 using Orleans.Hosting;
 
 var builder = Host.CreateApplicationBuilder(
@@ -28,12 +31,16 @@ var clusterId = GetRequiredValue(
 var serviceId = GetRequiredValue(
     builder.Configuration,
     "Orleans:ServiceId");
+var advertisedHost = GetRequiredValue(
+    builder.Configuration,
+    "Orleans:AdvertisedHost");
 var siloPort = GetRequiredPort(
     builder.Configuration,
     "Orleans:SiloPort");
 var gatewayPort = GetRequiredPort(
     builder.Configuration,
     "Orleans:GatewayPort");
+var advertisedAddress = ResolveAdvertisedAddress(advertisedHost);
 var connectionString = GetRequiredValue(
     builder.Configuration,
     "ConnectionStrings:Default");
@@ -51,11 +58,19 @@ builder.Services.AddPooledDbContextFactory<GameDbContext>(options =>
 
 builder.UseOrleans(siloBuilder =>
 {
-    siloBuilder.UseLocalhostClustering(
-        siloPort: siloPort,
-        gatewayPort: gatewayPort,
-        serviceId: serviceId,
-        clusterId: clusterId);
+    siloBuilder
+        .Configure<ClusterOptions>(options =>
+        {
+            options.ClusterId = clusterId;
+            options.ServiceId = serviceId;
+        })
+        .UseDevelopmentClustering(
+            new IPEndPoint(advertisedAddress, siloPort))
+        .ConfigureEndpoints(
+            advertisedIP: advertisedAddress,
+            siloPort: siloPort,
+            gatewayPort: gatewayPort,
+            listenOnAnyHostAddress: true);
 });
 
 await builder.Build().RunAsync();
@@ -88,4 +103,23 @@ static int GetRequiredPort(
     }
 
     return port.Value;
+}
+
+static IPAddress ResolveAdvertisedAddress(string host)
+{
+    try
+    {
+        var address = Dns.GetHostAddresses(host)
+            .FirstOrDefault(candidate =>
+                candidate.AddressFamily == AddressFamily.InterNetwork);
+
+        return address ?? throw new InvalidOperationException(
+            "Configuration value 'Orleans:AdvertisedHost' did not resolve to an IPv4 address.");
+    }
+    catch (SocketException ex)
+    {
+        throw new InvalidOperationException(
+            "Configuration value 'Orleans:AdvertisedHost' could not be resolved.",
+            ex);
+    }
 }
