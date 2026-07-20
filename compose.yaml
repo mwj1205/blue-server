@@ -50,7 +50,7 @@ services:
       - no-new-privileges:true
     restart: "no"
 
-  silo:
+  silo-primary:
     build:
       context: .
       dockerfile: src/Orleans/blueServer.Silo/Dockerfile
@@ -60,12 +60,48 @@ services:
       ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-bluearchive};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable
       Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-blue-server-local}
       Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-blue-server}
-      Orleans__AdvertisedHost: silo
+      Orleans__SiloName: blue-server-silo-primary
+      Orleans__AdvertisedHost: silo-primary
+      Orleans__PrimarySiloHost: silo-primary
       Orleans__SiloPort: ${ORLEANS_SILO_PORT:-11111}
       Orleans__GatewayPort: ${ORLEANS_GATEWAY_PORT:-30000}
     depends_on:
       migration:
         condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - port_hex=$$(printf '%04X' "$${Orleans__GatewayPort}") && grep -q 00000000:$${port_hex}.*00000000:0000.*0A /proc/net/tcp
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 15s
+    restart: unless-stopped
+
+  silo-secondary:
+    build:
+      context: .
+      dockerfile: src/Orleans/blueServer.Silo/Dockerfile
+    image: blue-server-silo:local
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-bluearchive};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable
+      Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-blue-server-local}
+      Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-blue-server}
+      Orleans__SiloName: blue-server-silo-secondary
+      Orleans__AdvertisedHost: silo-secondary
+      Orleans__PrimarySiloHost: silo-primary
+      Orleans__SiloPort: ${ORLEANS_SILO_PORT:-11111}
+      Orleans__GatewayPort: ${ORLEANS_GATEWAY_PORT:-30000}
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      silo-primary:
+        condition: service_healthy
     healthcheck:
       test:
         - CMD-SHELL
@@ -96,7 +132,7 @@ services:
       Orleans__Enabled: "true"
       Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-blue-server-local}
       Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-blue-server}
-      Orleans__GatewayHost: silo
+      Orleans__GatewayHost: silo-primary
       Orleans__GatewayPort: ${ORLEANS_GATEWAY_PORT:-30000}
     ports:
       - "${API_PORT:-5201}:8080"
@@ -107,7 +143,7 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-      silo:
+      silo-primary:
         condition: service_healthy
     init: true
     security_opt:
@@ -129,7 +165,7 @@ services:
       Orleans__Enabled: "true"
       Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-blue-server-local}
       Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-blue-server}
-      Orleans__GatewayHost: silo
+      Orleans__GatewayHost: silo-primary
       Orleans__GatewayPort: ${ORLEANS_GATEWAY_PORT:-30000}
     ports:
       - "${GAME_PORT:-7777}:7777"
@@ -138,7 +174,7 @@ services:
     depends_on:
       migration:
         condition: service_completed_successfully
-      silo:
+      silo-primary:
         condition: service_healthy
     init: true
     security_opt:

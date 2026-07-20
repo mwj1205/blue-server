@@ -1,7 +1,9 @@
 using blueServer.GrainContracts.PlayerProfiles;
 using blueServer.Infrastructure;
+using blueServer.Infrastructure.Observability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace blueServer.Grains.PlayerProfiles;
 
@@ -11,13 +13,28 @@ public sealed class PlayerProfileGrain :
 {
     private readonly IDbContextFactory<GameDbContext> _dbContextFactory;
     private readonly IHostApplicationLifetime _applicationLifetime;
+    private readonly ILogger<PlayerProfileGrain> _logger;
 
     public PlayerProfileGrain(
         IDbContextFactory<GameDbContext> dbContextFactory,
-        IHostApplicationLifetime applicationLifetime)
+        IHostApplicationLifetime applicationLifetime,
+        ILogger<PlayerProfileGrain> logger)
     {
         _dbContextFactory = dbContextFactory;
         _applicationLifetime = applicationLifetime;
+        _logger = logger;
+    }
+
+    public override Task OnActivateAsync(
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            LogEventIds.Orleans.PlayerProfileGrainActivated,
+            "PlayerProfile grain activated. PlayerId={PlayerId}, Silo={Silo}",
+            this.GetPrimaryKeyLong(),
+            this.RuntimeIdentity);
+
+        return base.OnActivateAsync(cancellationToken);
     }
 
     public async Task<PlayerProfileSnapshot?> GetProfileAsync(

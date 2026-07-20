@@ -32,4 +32,10 @@ public static class LogEventIds
         public static readonly EventId UnhandledOpcodeReceived =
             new(2002, nameof(UnhandledOpcodeReceived));
     }
+
+    public static class Orleans
+    {
+        public static readonly EventId PlayerProfileGrainActivated =
+            new(3000, nameof(PlayerProfileGrainActivated));
+    }
 }

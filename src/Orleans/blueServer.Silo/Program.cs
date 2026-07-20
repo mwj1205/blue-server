@@ -31,16 +31,27 @@ var clusterId = GetRequiredValue(
 var serviceId = GetRequiredValue(
     builder.Configuration,
     "Orleans:ServiceId");
+var siloName = GetRequiredValue(
+    builder.Configuration,
+    "Orleans:SiloName");
 var advertisedHost = GetRequiredValue(
     builder.Configuration,
     "Orleans:AdvertisedHost");
+var primarySiloHost = GetRequiredValue(
+    builder.Configuration,
+    "Orleans:PrimarySiloHost");
 var siloPort = GetRequiredPort(
     builder.Configuration,
     "Orleans:SiloPort");
 var gatewayPort = GetRequiredPort(
     builder.Configuration,
     "Orleans:GatewayPort");
-var advertisedAddress = ResolveAdvertisedAddress(advertisedHost);
+var advertisedAddress = ResolveAddress(
+    advertisedHost,
+    "Orleans:AdvertisedHost");
+var primarySiloAddress = ResolveAddress(
+    primarySiloHost,
+    "Orleans:PrimarySiloHost");
 var connectionString = GetRequiredValue(
     builder.Configuration,
     "ConnectionStrings:Default");
@@ -64,8 +75,12 @@ builder.UseOrleans(siloBuilder =>
             options.ClusterId = clusterId;
             options.ServiceId = serviceId;
         })
+        .Configure<SiloOptions>(options =>
+        {
+            options.SiloName = siloName;
+        })
         .UseDevelopmentClustering(
-            new IPEndPoint(advertisedAddress, siloPort))
+            new IPEndPoint(primarySiloAddress, siloPort))
         .ConfigureEndpoints(
             advertisedIP: advertisedAddress,
             siloPort: siloPort,
@@ -105,7 +120,9 @@ static int GetRequiredPort(
     return port.Value;
 }
 
-static IPAddress ResolveAdvertisedAddress(string host)
+static IPAddress ResolveAddress(
+    string host,
+    string configurationKey)
 {
     try
     {
@@ -114,12 +131,12 @@ static IPAddress ResolveAdvertisedAddress(string host)
                 candidate.AddressFamily == AddressFamily.InterNetwork);
 
         return address ?? throw new InvalidOperationException(
-            "Configuration value 'Orleans:AdvertisedHost' did not resolve to an IPv4 address.");
+            $"Configuration value '{configurationKey}' did not resolve to an IPv4 address.");
     }
     catch (SocketException ex)
     {
         throw new InvalidOperationException(
-            "Configuration value 'Orleans:AdvertisedHost' could not be resolved.",
+            $"Configuration value '{configurationKey}' could not be resolved.",
             ex);
     }
 }
