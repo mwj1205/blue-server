@@ -21,10 +21,10 @@ public static class OrleansClientExtensions
 
         var clusterId = GetRequiredValue(section, "ClusterId");
         var serviceId = GetRequiredValue(section, "ServiceId");
-        var gatewayHost = GetRequiredValue(section, "GatewayHost");
+        var gatewayHosts = GetRequiredValues(section, "GatewayHosts");
         var gatewayPort = GetRequiredPort(section, "GatewayPort");
         var gatewayEndpoints = ResolveGatewayEndpoints(
-            gatewayHost,
+            gatewayHosts,
             gatewayPort);
 
         builder.Host.UseOrleansClient(clientBuilder =>
@@ -56,6 +56,26 @@ public static class OrleansClientExtensions
         return value;
     }
 
+    private static string[] GetRequiredValues(
+        IConfiguration configuration,
+        string key)
+    {
+        var values = configuration
+            .GetSection(key)
+            .Get<string[]>()?
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray() ?? [];
+
+        if (values.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"Configuration value '{SectionName}:{key}' must contain at least one host when Orleans is enabled.");
+        }
+
+        return values;
+    }
+
     private static int GetRequiredPort(
         IConfiguration configuration,
         string key)
@@ -72,31 +92,40 @@ public static class OrleansClientExtensions
     }
 
     private static IPEndPoint[] ResolveGatewayEndpoints(
-        string host,
+        IEnumerable<string> hosts,
         int port)
     {
-        try
-        {
-            var endpoints = Dns.GetHostAddresses(host)
-                .Where(address =>
-                    address.AddressFamily == AddressFamily.InterNetwork)
-                .Distinct()
-                .Select(address => new IPEndPoint(address, port))
-                .ToArray();
+        var endpoints = new HashSet<IPEndPoint>();
 
-            if (endpoints.Length == 0)
+        foreach (var host in hosts)
+        {
+            try
+            {
+                var addresses = Dns.GetHostAddresses(host)
+                    .Where(address =>
+                        address.AddressFamily == AddressFamily.InterNetwork)
+                    .Distinct()
+                    .ToArray();
+
+                if (addresses.Length == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Gateway host '{host}' in configuration value '{SectionName}:GatewayHosts' did not resolve to an IPv4 address.");
+                }
+
+                foreach (var address in addresses)
+                {
+                    endpoints.Add(new IPEndPoint(address, port));
+                }
+            }
+            catch (SocketException ex)
             {
                 throw new InvalidOperationException(
-                    $"Configuration value '{SectionName}:GatewayHost' did not resolve to an IPv4 address.");
+                    $"Gateway host '{host}' in configuration value '{SectionName}:GatewayHosts' could not be resolved.",
+                    ex);
             }
+        }
 
-            return endpoints;
-        }
-        catch (SocketException ex)
-        {
-            throw new InvalidOperationException(
-                $"Configuration value '{SectionName}:GatewayHost' could not be resolved.",
-                ex);
-        }
+        return endpoints.ToArray();
     }
 }

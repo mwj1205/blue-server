@@ -132,7 +132,8 @@ services:
       Orleans__Enabled: "true"
       Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-blue-server-local}
       Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-blue-server}
-      Orleans__GatewayHost: silo-primary
+      Orleans__GatewayHosts__0: silo-primary
+      Orleans__GatewayHosts__1: silo-secondary
       Orleans__GatewayPort: ${ORLEANS_GATEWAY_PORT:-30000}
     ports:
       - "${API_PORT:-5201}:8080"
@@ -165,7 +166,8 @@ services:
       Orleans__Enabled: "true"
       Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-blue-server-local}
       Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-blue-server}
-      Orleans__GatewayHost: silo-primary
+      Orleans__GatewayHosts__0: silo-primary
+      Orleans__GatewayHosts__1: silo-secondary
       Orleans__GatewayPort: ${ORLEANS_GATEWAY_PORT:-30000}
     ports:
       - "${GAME_PORT:-7777}:7777"
