@@ -4,11 +4,12 @@ WORKDIR /src
 COPY src/blueServer.Domain/blueServer.Domain.csproj src/blueServer.Domain/
 COPY src/blueServer.Infrastructure/blueServer.Infrastructure.csproj src/blueServer.Infrastructure/
 COPY src/Orleans/blueServer.GrainContracts/blueServer.GrainContracts.csproj src/Orleans/blueServer.GrainContracts/
-COPY src/blueServer.Game/blueServer.Game.csproj src/blueServer.Game/
-RUN dotnet restore src/blueServer.Game/blueServer.Game.csproj
+COPY src/Orleans/blueServer.Grains/blueServer.Grains.csproj src/Orleans/blueServer.Grains/
+COPY src/Orleans/blueServer.Silo/blueServer.Silo.csproj src/Orleans/blueServer.Silo/
+RUN dotnet restore src/Orleans/blueServer.Silo/blueServer.Silo.csproj
 
 COPY src/ src/
-RUN dotnet publish src/blueServer.Game/blueServer.Game.csproj \
+RUN dotnet publish src/Orleans/blueServer.Silo/blueServer.Silo.csproj \
     --configuration Release \
     --no-restore \
     --output /app/publish \
@@ -16,8 +17,8 @@ RUN dotnet publish src/blueServer.Game/blueServer.Game.csproj \
 
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app
-EXPOSE 7777
+EXPOSE 11111 30000
 
 COPY --from=build /app/publish .
 USER $APP_UID
-ENTRYPOINT ["dotnet", "blueServer.Game.dll"]
+ENTRYPOINT ["dotnet", "blueServer.Silo.dll"]

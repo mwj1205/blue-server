@@ -154,6 +154,27 @@ function Invoke-JsonRequest {
     }
 }
 
+function Invoke-AuthorizedJsonGet {
+    param(
+        [string]$Name,
+        [string]$Uri,
+        [string]$AccessToken
+    )
+
+    try {
+        return Invoke-RestMethod `
+            -Method Get `
+            -Uri $Uri `
+            -Headers @{
+                Authorization = "Bearer $AccessToken"
+            } `
+            -TimeoutSec 15
+    }
+    catch {
+        throw "$Name request failed. Uri=$Uri, Error=$($_.Exception.Message)"
+    }
+}
+
 function New-UInt16LittleEndianBytes {
     param([int]$Value)
 
@@ -375,6 +396,8 @@ try {
     foreach ($service in @(
         "postgres",
         "redis",
+        "silo-primary",
+        "silo-secondary",
         "api",
         "game",
         "elasticsearch",
@@ -446,6 +469,16 @@ try {
 
     if ([string]::IsNullOrWhiteSpace($accessToken)) {
         throw "Login response does not contain accessToken."
+    }
+
+    Write-Step "Creating API PlayerProfile trace"
+    $profile = Invoke-AuthorizedJsonGet `
+        -Name "player profile" `
+        -Uri "$($ApiBaseUri.TrimEnd('/'))/players/me/profile" `
+        -AccessToken $accessToken
+
+    if ($null -eq $profile -or [Int64]$profile.id -le 0) {
+        throw "PlayerProfile response does not contain a valid player id."
     }
 
     Write-Step "Creating Game transactions with TCP login/PlayerProfile"

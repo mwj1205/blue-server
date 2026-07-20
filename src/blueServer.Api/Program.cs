@@ -8,6 +8,10 @@ using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var orleansEnabled = builder.Configuration.GetValue<bool>(
+    "Orleans:Enabled");
+builder.AddConfiguredOrleansClient();
+
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options =>
 {
@@ -38,6 +42,20 @@ builder.Services.AddScoped<PlayerService>();
 builder.Services.AddScoped<PartyService>();
 builder.Services.AddScoped<PasswordService>();
 builder.Services.AddScoped<RefreshTokenService>();
+
+if (orleansEnabled)
+{
+    builder.Services.AddScoped<
+        IPlayerProfileQueryService,
+        OrleansPlayerProfileQueryService>();
+}
+else
+{
+    builder.Services.AddScoped<
+        IPlayerProfileQueryService,
+        DatabasePlayerProfileQueryService>();
+}
+
 var app = builder.Build();
 
 app.UseMiddleware<RequestLoggingMiddleware>();

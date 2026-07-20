@@ -5,9 +5,9 @@ namespace blueServer.Game.Handlers;
 
 public sealed class PlayerProfileHandler : IPacketHandler
 {
-    private readonly PlayerProfileService _playerProfileService;
+    private readonly IPlayerProfileService _playerProfileService;
 
-    public PlayerProfileHandler(PlayerProfileService playerProfileService)
+    public PlayerProfileHandler(IPlayerProfileService playerProfileService)
     {
         _playerProfileService = playerProfileService;
     }

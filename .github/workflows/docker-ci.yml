@@ -32,6 +32,9 @@ jobs:
           - name: Migrations
             image: blue-server-migrations
             dockerfile: src/blueServer.Migrations/Dockerfile
+          - name: Silo
+            image: blue-server-silo
+            dockerfile: src/Orleans/blueServer.Silo/Dockerfile
 
     steps:
       - name: Checkout

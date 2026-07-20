@@ -38,7 +38,7 @@ public static class PlayerEndpoints
 
         app.MapGet("/players/me/profile", async (
             ClaimsPrincipal user,
-            PlayerService playerService,
+            IPlayerProfileQueryService playerProfileQueryService,
             CancellationToken cancellationToken) =>
         {
             if (!TryGetPlayerId(user, out var playerId))
@@ -46,7 +46,7 @@ public static class PlayerEndpoints
                 return Results.Unauthorized();
             }
 
-            var profile = await playerService.GetProfileAsync(
+            var profile = await playerProfileQueryService.GetAsync(
                 playerId,
                 cancellationToken);
 
