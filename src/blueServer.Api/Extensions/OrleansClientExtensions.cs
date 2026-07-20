@@ -35,7 +35,8 @@ public static class OrleansClientExtensions
                     options.ClusterId = clusterId;
                     options.ServiceId = serviceId;
                 })
-                .UseStaticClustering(gatewayEndpoints);
+                .UseStaticClustering(gatewayEndpoints)
+                .AddActivityPropagation();
         });
 
         return builder;

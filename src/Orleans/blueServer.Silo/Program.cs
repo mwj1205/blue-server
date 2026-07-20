@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 using blueServer.Infrastructure;
+using Elastic.Apm.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Orleans.Configuration;
 using Orleans.Hosting;
@@ -67,6 +68,13 @@ builder.Services.AddPooledDbContextFactory<GameDbContext>(options =>
     options.UseNpgsql(connectionString);
 });
 
+if (builder.Configuration.GetValue<bool>(
+        "Observability:ElasticApmEnabled"))
+{
+    builder.Services.AddElasticApm(
+        new EfCoreDiagnosticsSubscriber());
+}
+
 builder.UseOrleans(siloBuilder =>
 {
     siloBuilder
@@ -85,7 +93,8 @@ builder.UseOrleans(siloBuilder =>
             advertisedIP: advertisedAddress,
             siloPort: siloPort,
             gatewayPort: gatewayPort,
-            listenOnAnyHostAddress: true);
+            listenOnAnyHostAddress: true)
+        .AddActivityPropagation();
 });
 
 await builder.Build().RunAsync();
