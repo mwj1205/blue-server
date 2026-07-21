@@ -1,5 +1,29 @@
 name: blue-server
 
+x-dotnet-environment: &dotnet-environment
+  DOTNET_ENVIRONMENT: ${APP_ENVIRONMENT:-Production}
+
+x-aspnetcore-environment: &aspnetcore-environment
+  ASPNETCORE_ENVIRONMENT: ${APP_ENVIRONMENT:-Production}
+
+x-database-environment: &database-environment
+  ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-bluearchive};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable
+
+x-orleans-cluster-environment: &orleans-cluster-environment
+  ConnectionStrings__OrleansRedis: ${ORLEANS_REDIS_CONNECTION_STRING:-redis:6379,abortConnect=false}
+  Orleans__ClusteringMode: ${ORLEANS_CLUSTERING_MODE:-Redis}
+  Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-blue-server-local}
+  Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-blue-server}
+
+x-orleans-client-environment: &orleans-client-environment
+  Orleans__Enabled: "${ORLEANS_ENABLED:-true}"
+
+x-jwt-environment: &jwt-environment
+  Jwt__Key: ${JWT_KEY:?JWT_KEY is required}
+  Jwt__Issuer: ${JWT_ISSUER:-blueServer}
+  Jwt__Audience: ${JWT_AUDIENCE:-blueServer}
+  Jwt__AccessTokenDays: ${JWT_ACCESS_TOKEN_DAYS:-7}
+
 services:
   postgres:
     image: postgres:18-alpine
@@ -42,7 +66,7 @@ services:
       dockerfile: src/blueServer.Migrations/Dockerfile
     image: blue-server-migrations:local
     environment:
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-bluearchive};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable
+      <<: *database-environment
     depends_on:
       postgres:
         condition: service_healthy
@@ -57,12 +81,10 @@ services:
       dockerfile: src/Orleans/blueServer.Silo/Dockerfile
     image: blue-server-silo:local
     environment:
-      DOTNET_ENVIRONMENT: Production
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-bluearchive};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable
-      ConnectionStrings__OrleansRedis: redis:6379,abortConnect=false
-      Orleans__ClusteringMode: Redis
-      Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-blue-server-local}
-      Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-blue-server}
+      <<:
+        - *dotnet-environment
+        - *database-environment
+        - *orleans-cluster-environment
       Orleans__SiloName: blue-server-silo-1
       Orleans__AdvertisedHost: silo-1
       Orleans__SiloPort: ${ORLEANS_SILO_PORT:-11111}
@@ -92,12 +114,10 @@ services:
       dockerfile: src/Orleans/blueServer.Silo/Dockerfile
     image: blue-server-silo:local
     environment:
-      DOTNET_ENVIRONMENT: Production
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-bluearchive};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable
-      ConnectionStrings__OrleansRedis: redis:6379,abortConnect=false
-      Orleans__ClusteringMode: Redis
-      Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-blue-server-local}
-      Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-blue-server}
+      <<:
+        - *dotnet-environment
+        - *database-environment
+        - *orleans-cluster-environment
       Orleans__SiloName: blue-server-silo-2
       Orleans__AdvertisedHost: silo-2
       Orleans__SiloPort: ${ORLEANS_SILO_PORT:-11111}
@@ -127,18 +147,13 @@ services:
       dockerfile: src/blueServer.Api/Dockerfile
     image: blue-server-api:local
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-bluearchive};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable
+      <<:
+        - *aspnetcore-environment
+        - *database-environment
+        - *orleans-cluster-environment
+        - *orleans-client-environment
+        - *jwt-environment
       ConnectionStrings__Redis: redis:6379,abortConnect=false
-      ConnectionStrings__OrleansRedis: redis:6379,abortConnect=false
-      Jwt__Key: ${JWT_KEY:?JWT_KEY is required}
-      Jwt__Issuer: ${JWT_ISSUER:-blueServer}
-      Jwt__Audience: ${JWT_AUDIENCE:-blueServer}
-      Jwt__AccessTokenDays: ${JWT_ACCESS_TOKEN_DAYS:-7}
-      Orleans__Enabled: "true"
-      Orleans__ClusteringMode: Redis
-      Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-blue-server-local}
-      Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-blue-server}
     ports:
       - "${API_PORT:-5201}:8080"
     labels:
@@ -163,17 +178,12 @@ services:
       dockerfile: src/blueServer.Game/Dockerfile
     image: blue-server-game:local
     environment:
-      DOTNET_ENVIRONMENT: Production
-      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-bluearchive};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};GSS Encryption Mode=Disable
-      ConnectionStrings__OrleansRedis: redis:6379,abortConnect=false
-      Jwt__Key: ${JWT_KEY:?JWT_KEY is required}
-      Jwt__Issuer: ${JWT_ISSUER:-blueServer}
-      Jwt__Audience: ${JWT_AUDIENCE:-blueServer}
-      Jwt__AccessTokenDays: ${JWT_ACCESS_TOKEN_DAYS:-7}
-      Orleans__Enabled: "true"
-      Orleans__ClusteringMode: Redis
-      Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-blue-server-local}
-      Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-blue-server}
+      <<:
+        - *dotnet-environment
+        - *database-environment
+        - *orleans-cluster-environment
+        - *orleans-client-environment
+        - *jwt-environment
     ports:
       - "${GAME_PORT:-7777}:7777"
     labels:
