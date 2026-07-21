@@ -21,24 +21,43 @@ public static class OrleansClientExtensions
             return builder;
         }
 
+        var clusteringMode = GetRequiredValue(
+            section,
+            "ClusteringMode");
+        var useRedisClustering = GetUseRedisClustering(clusteringMode);
         var clusterId = GetRequiredValue(section, "ClusterId");
         var serviceId = GetRequiredValue(section, "ServiceId");
-        var gatewayHosts = GetRequiredValues(section, "GatewayHosts");
-        var gatewayPort = GetRequiredPort(section, "GatewayPort");
-        var gatewayEndpoints = ResolveGatewayEndpoints(
-            gatewayHosts,
-            gatewayPort);
+        var gatewayEndpoints = useRedisClustering
+            ? null
+            : ResolveGatewayEndpoints(
+                GetRequiredValues(section, "GatewayHosts"),
+                GetRequiredPort(section, "GatewayPort"));
+        var redisConnectionString = useRedisClustering
+            ? GetRequiredConnectionString(
+                builder.Configuration,
+                "OrleansRedis")
+            : null;
 
         builder.UseOrleansClient(clientBuilder =>
         {
-            clientBuilder
-                .Configure<ClusterOptions>(options =>
-                {
-                    options.ClusterId = clusterId;
-                    options.ServiceId = serviceId;
-                })
-                .UseStaticClustering(gatewayEndpoints)
-                .AddActivityPropagation();
+            clientBuilder.Configure<ClusterOptions>(options =>
+            {
+                options.ClusterId = clusterId;
+                options.ServiceId = serviceId;
+            });
+
+            if (useRedisClustering)
+            {
+                clientBuilder.UseRedisClustering(
+                    redisConnectionString!);
+            }
+            else
+            {
+                clientBuilder.UseStaticClustering(
+                    gatewayEndpoints!);
+            }
+
+            clientBuilder.AddActivityPropagation();
         });
 
         return builder;
@@ -57,6 +76,37 @@ public static class OrleansClientExtensions
         }
 
         return value;
+    }
+
+    private static string GetRequiredConnectionString(
+        IConfiguration configuration,
+        string name)
+    {
+        var value = configuration.GetConnectionString(name);
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException(
+                $"Connection string '{name}' is required when Orleans Redis clustering is enabled.");
+        }
+
+        return value;
+    }
+
+    private static bool GetUseRedisClustering(string value)
+    {
+        if (value.Equals("Redis", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (value.Equals("Development", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        throw new InvalidOperationException(
+            $"Configuration value '{SectionName}:ClusteringMode' must be 'Development' or 'Redis'.");
     }
 
     private static string[] GetRequiredValues(

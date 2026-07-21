@@ -1,21 +1,21 @@
 services:
-  silo-primary:
+  silo-1:
     environment:
       Observability__ElasticApmEnabled: "true"
       ELASTIC_APM_SERVER_URL: http://apm-server:8200
       ELASTIC_APM_SERVICE_NAME: blue-server-silo
-      ELASTIC_APM_SERVICE_NODE_NAME: blue-server-silo-primary
+      ELASTIC_APM_SERVICE_NODE_NAME: blue-server-silo-1
       ELASTIC_APM_ENVIRONMENT: ${ELASTIC_APM_ENVIRONMENT:-local}
       ELASTIC_APM_TRANSACTION_SAMPLE_RATE: ${ELASTIC_APM_TRANSACTION_SAMPLE_RATE:-1.0}
       ELASTIC_APM_CENTRAL_CONFIG: "false"
       ELASTIC_APM_OPENTELEMETRY_BRIDGE_ENABLED: "true"
 
-  silo-secondary:
+  silo-2:
     environment:
       Observability__ElasticApmEnabled: "true"
       ELASTIC_APM_SERVER_URL: http://apm-server:8200
       ELASTIC_APM_SERVICE_NAME: blue-server-silo
-      ELASTIC_APM_SERVICE_NODE_NAME: blue-server-silo-secondary
+      ELASTIC_APM_SERVICE_NODE_NAME: blue-server-silo-2
       ELASTIC_APM_ENVIRONMENT: ${ELASTIC_APM_ENVIRONMENT:-local}
       ELASTIC_APM_TRANSACTION_SAMPLE_RATE: ${ELASTIC_APM_TRANSACTION_SAMPLE_RATE:-1.0}
       ELASTIC_APM_CENTRAL_CONFIG: "false"

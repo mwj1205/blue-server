@@ -396,8 +396,8 @@ try {
     foreach ($service in @(
         "postgres",
         "redis",
-        "silo-primary",
-        "silo-secondary",
+        "silo-1",
+        "silo-2",
         "api",
         "game",
         "elasticsearch",

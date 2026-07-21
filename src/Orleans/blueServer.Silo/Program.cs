@@ -26,6 +26,10 @@ builder.Logging.AddJsonConsole(options =>
     };
 });
 
+var clusteringMode = GetRequiredValue(
+    builder.Configuration,
+    "Orleans:ClusteringMode");
+var useRedisClustering = GetUseRedisClustering(clusteringMode);
 var clusterId = GetRequiredValue(
     builder.Configuration,
     "Orleans:ClusterId");
@@ -38,9 +42,6 @@ var siloName = GetRequiredValue(
 var advertisedHost = GetRequiredValue(
     builder.Configuration,
     "Orleans:AdvertisedHost");
-var primarySiloHost = GetRequiredValue(
-    builder.Configuration,
-    "Orleans:PrimarySiloHost");
 var siloPort = GetRequiredPort(
     builder.Configuration,
     "Orleans:SiloPort");
@@ -50,9 +51,18 @@ var gatewayPort = GetRequiredPort(
 var advertisedAddress = ResolveAddress(
     advertisedHost,
     "Orleans:AdvertisedHost");
-var primarySiloAddress = ResolveAddress(
-    primarySiloHost,
-    "Orleans:PrimarySiloHost");
+var primarySiloAddress = useRedisClustering
+    ? null
+    : ResolveAddress(
+        GetRequiredValue(
+            builder.Configuration,
+            "Orleans:PrimarySiloHost"),
+        "Orleans:PrimarySiloHost");
+var redisConnectionString = useRedisClustering
+    ? GetRequiredConnectionString(
+        builder.Configuration,
+        "OrleansRedis")
+    : null;
 var connectionString = GetRequiredValue(
     builder.Configuration,
     "ConnectionStrings:Default");
@@ -86,14 +96,23 @@ builder.UseOrleans(siloBuilder =>
         .Configure<SiloOptions>(options =>
         {
             options.SiloName = siloName;
-        })
-        .UseDevelopmentClustering(
-            new IPEndPoint(primarySiloAddress, siloPort))
-        .ConfigureEndpoints(
-            advertisedIP: advertisedAddress,
-            siloPort: siloPort,
-            gatewayPort: gatewayPort,
-            listenOnAnyHostAddress: true)
+        });
+
+    if (useRedisClustering)
+    {
+        siloBuilder.UseRedisClustering(redisConnectionString!);
+    }
+    else
+    {
+        siloBuilder.UseDevelopmentClustering(
+            new IPEndPoint(primarySiloAddress!, siloPort));
+    }
+
+    siloBuilder.ConfigureEndpoints(
+        advertisedIP: advertisedAddress,
+        siloPort: siloPort,
+        gatewayPort: gatewayPort,
+        listenOnAnyHostAddress: true)
         .AddActivityPropagation();
 });
 
@@ -112,6 +131,37 @@ static string GetRequiredValue(
     }
 
     return value;
+}
+
+static string GetRequiredConnectionString(
+    IConfiguration configuration,
+    string name)
+{
+    var value = configuration.GetConnectionString(name);
+
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        throw new InvalidOperationException(
+            $"Connection string '{name}' is required when Orleans Redis clustering is enabled.");
+    }
+
+    return value;
+}
+
+static bool GetUseRedisClustering(string value)
+{
+    if (value.Equals("Redis", StringComparison.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    if (value.Equals("Development", StringComparison.OrdinalIgnoreCase))
+    {
+        return false;
+    }
+
+    throw new InvalidOperationException(
+        "Configuration value 'Orleans:ClusteringMode' must be 'Development' or 'Redis'.");
 }
 
 static int GetRequiredPort(
