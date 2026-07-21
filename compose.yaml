@@ -18,6 +18,9 @@ x-orleans-cluster-environment: &orleans-cluster-environment
 x-orleans-client-environment: &orleans-client-environment
   Orleans__Enabled: "${ORLEANS_ENABLED:-true}"
 
+x-orleans-silo-environment: &orleans-silo-environment
+  Orleans__HostingMode: ${ORLEANS_HOSTING_MODE:-Manual}
+
 x-jwt-environment: &jwt-environment
   Jwt__Key: ${JWT_KEY:?JWT_KEY is required}
   Jwt__Issuer: ${JWT_ISSUER:-blueServer}
@@ -85,6 +88,7 @@ services:
         - *dotnet-environment
         - *database-environment
         - *orleans-cluster-environment
+        - *orleans-silo-environment
       Orleans__SiloName: blue-server-silo-1
       Orleans__AdvertisedHost: silo-1
       Orleans__SiloPort: ${ORLEANS_SILO_PORT:-11111}
@@ -118,6 +122,7 @@ services:
         - *dotnet-environment
         - *database-environment
         - *orleans-cluster-environment
+        - *orleans-silo-environment
       Orleans__SiloName: blue-server-silo-2
       Orleans__AdvertisedHost: silo-2
       Orleans__SiloPort: ${ORLEANS_SILO_PORT:-11111}
