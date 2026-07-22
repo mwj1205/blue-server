@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Sockets;
+using blueServer.Game.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace blueServer.Game;
 
@@ -14,24 +16,27 @@ public class TcpListenerService : BackgroundService
     private readonly SessionTaskTracker _sessionTaskTracker;
     private readonly ILogger<TcpListenerService> _logger;
     private readonly TcpListener _listener;
+    private readonly int _port;
 
     public TcpListenerService(
         SessionFactory factory,
         SessionManager sessionManager,
         SessionTaskTracker sessionTaskTracker,
+        IOptions<GameServerOptions> options,
         ILogger<TcpListenerService> logger)
     {
         _factory = factory;
         _sessionManager = sessionManager;
         _sessionTaskTracker = sessionTaskTracker;
         _logger = logger;
-        _listener = new TcpListener(IPAddress.Any, 7777);
+        _port = options.Value.Port;
+        _listener = new TcpListener(IPAddress.Any, _port);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _listener.Start();
-        _logger.LogInformation("TCP server listener started on port {Port}.", 7777);
+        _logger.LogInformation("TCP server listener started on port {Port}.", _port);
 
         try
         {
