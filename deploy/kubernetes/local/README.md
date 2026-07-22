@@ -1,6 +1,6 @@
-# 로컬 Kubernetes 데이터 계층
+# 로컬 Kubernetes 배포
 
-PostgreSQL과 Redis를 로컬 Kubernetes 클러스터에서 실행하기 위한 매니페스트다. 운영 Azure 환경에서는 관리형 PostgreSQL과 Redis로 교체한다.
+PostgreSQL, Redis, EF Core Migration, Orleans Silo를 로컬 Kubernetes 클러스터에서 실행하기 위한 매니페스트다. 운영 Azure 환경에서는 PostgreSQL과 Redis를 관리형 서비스로 교체한다.
 
 ## 사전 조건
 
@@ -62,6 +62,51 @@ kubectl --namespace blue-server logs job/database-migration
 ```
 
 로그에 `Database migrations completed.`가 출력되어야 한다. Migration Job이 실패하면 애플리케이션 Pod를 배포하지 않고 원인을 먼저 해결한다.
+
+Orleans Silo 이미지를 빌드한다.
+
+```powershell
+docker build `
+    --file src/Orleans/blueServer.Silo/Dockerfile `
+    --tag blue-server-silo:local `
+    .
+
+.\deploy\kubernetes\local\import-kind-image.ps1 `
+    -Image blue-server-silo:local
+```
+
+Silo 전용 RBAC과 Deployment를 배포한다.
+
+```powershell
+kubectl apply `
+    -f deploy/kubernetes/local/configmap.yaml `
+    -f deploy/kubernetes/local/silo-rbac.yaml `
+    -f deploy/kubernetes/local/silo.yaml
+
+kubectl --namespace blue-server rollout restart `
+    deployment/blue-server-silo
+
+kubectl --namespace blue-server rollout status `
+    deployment/blue-server-silo `
+    --timeout=180s
+```
+
+Docker Desktop의 kind 노드는 고정된 로컬 태그를 다시 빌드해도 이전 이미지를 재사용할 수 있다. `import-kind-image.ps1`로 새 이미지를 노드에 넣은 뒤 Deployment를 재시작한다. 운영 배포에서는 이 스크립트 대신 registry와 Git commit SHA 등 변경되지 않는 이미지 태그를 사용한다.
+
+Silo Pod와 로그를 확인한다.
+
+```powershell
+kubectl --namespace blue-server get pods `
+    --selector app.kubernetes.io/name=blue-server-silo `
+    --output=wide
+
+kubectl --namespace blue-server logs `
+    --selector app.kubernetes.io/name=blue-server-silo `
+    --prefix `
+    --tail=100
+```
+
+Silo Pod 2개가 모두 `Running`과 `Ready` 상태이고, 로그에 Orleans가 동일한 ClusterId와 ServiceId로 시작된 기록이 있어야 한다.
 
 ## 검증
 

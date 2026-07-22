@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: blue-server-silo
+  namespace: blue-server
+  labels:
+    app.kubernetes.io/name: blue-server-silo
+    app.kubernetes.io/instance: blue-server-local
+    app.kubernetes.io/component: silo
+    app.kubernetes.io/part-of: blue-server
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: blue-server-silo
+  namespace: blue-server
+  labels:
+    app.kubernetes.io/name: blue-server-silo
+    app.kubernetes.io/instance: blue-server-local
+    app.kubernetes.io/component: silo
+    app.kubernetes.io/part-of: blue-server
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+      - delete
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: blue-server-silo
+  namespace: blue-server
+  labels:
+    app.kubernetes.io/name: blue-server-silo
+    app.kubernetes.io/instance: blue-server-local
+    app.kubernetes.io/component: silo
+    app.kubernetes.io/part-of: blue-server
+subjects:
+  - kind: ServiceAccount
+    name: blue-server-silo
+    namespace: blue-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: blue-server-silo

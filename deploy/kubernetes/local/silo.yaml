@@ -1,0 +1,170 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blue-server-silo
+  namespace: blue-server
+  labels:
+    app.kubernetes.io/name: blue-server-silo
+    app.kubernetes.io/instance: blue-server-local
+    app.kubernetes.io/component: silo
+    app.kubernetes.io/part-of: blue-server
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+  minReadySeconds: 10
+  progressDeadlineSeconds: 180
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: blue-server-silo
+      app.kubernetes.io/instance: blue-server-local
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: blue-server-silo
+        app.kubernetes.io/instance: blue-server-local
+        app.kubernetes.io/component: silo
+        app.kubernetes.io/part-of: blue-server
+        orleans/serviceId: blue-server
+        orleans/clusterId: blue-server-local
+    spec:
+      serviceAccountName: blue-server-silo
+      automountServiceAccountToken: true
+      enableServiceLinks: true
+      terminationGracePeriodSeconds: 120
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: silo
+          image: blue-server-silo:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: silo
+              containerPort: 11111
+              protocol: TCP
+            - name: gateway
+              containerPort: 30000
+              protocol: TCP
+          env:
+            - name: DOTNET_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: APP_ENVIRONMENT
+            - name: DOTNET_SHUTDOWNTIMEOUTSECONDS
+              value: "110"
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: POSTGRES_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: POSTGRES_PORT
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: blue-server-secrets
+                  key: POSTGRES_PASSWORD
+            - name: ConnectionStrings__Default
+              value: Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD);GSS Encryption Mode=Disable
+            - name: ConnectionStrings__OrleansRedis
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: ORLEANS_REDIS_CONNECTION_STRING
+            - name: Orleans__HostingMode
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: ORLEANS_HOSTING_MODE
+            - name: Orleans__ClusteringMode
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: ORLEANS_CLUSTERING_MODE
+            - name: Orleans__SiloPort
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: ORLEANS_SILO_PORT
+            - name: Orleans__GatewayPort
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: ORLEANS_GATEWAY_PORT
+            - name: ORLEANS_SERVICE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['orleans/serviceId']
+            - name: ORLEANS_CLUSTER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['orleans/clusterId']
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          startupProbe:
+            tcpSocket:
+              port: gateway
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 24
+          readinessProbe:
+            tcpSocket:
+              port: gateway
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: gateway
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: temporary-files
+              mountPath: /tmp
+      volumes:
+        - name: temporary-files
+          emptyDir:
+            sizeLimit: 64Mi
