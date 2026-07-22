@@ -39,6 +39,30 @@ kubectl apply `
     -f deploy/kubernetes/local/redis.yaml
 ```
 
+Migration 실행 이미지를 빌드한다.
+
+```powershell
+docker build `
+    --file src/blueServer.Migrations/Dockerfile `
+    --tag blue-server-migrations:local `
+    .
+```
+
+완료된 Job이 남아 있으면 삭제하고 새 Migration Job을 실행한다.
+
+```powershell
+kubectl --namespace blue-server delete job database-migration `
+    --ignore-not-found
+kubectl apply -f deploy/kubernetes/local/migration.yaml
+kubectl --namespace blue-server wait `
+    --for=condition=complete `
+    job/database-migration `
+    --timeout=180s
+kubectl --namespace blue-server logs job/database-migration
+```
+
+로그에 `Database migrations completed.`가 출력되어야 한다. Migration Job이 실패하면 애플리케이션 Pod를 배포하지 않고 원인을 먼저 해결한다.
+
 ## 검증
 
 Pod와 PVC가 준비될 때까지 기다린다.
