@@ -1,0 +1,34 @@
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  environment: Production
+  environmentName: local
+
+database:
+  host: postgres
+  port: 5432
+  name: bluearchive
+  user: postgres
+
+redis:
+  host: redis
+  port: 6379
+
+game:
+  port: 7777
+
+orleans:
+  enabled: true
+  hostingMode: Kubernetes
+  clusteringMode: Redis
+  clusterId: blue-server-local
+  serviceId: blue-server
+  redisConnectionString: redis:6379,abortConnect=false
+  siloPort: 11111
+  gatewayPort: 30000
+
+jwt:
+  issuer: blueServer
+  audience: blueServer
+  accessTokenDays: 7
