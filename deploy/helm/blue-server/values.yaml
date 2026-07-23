@@ -11,6 +11,10 @@ images:
     repository: blue-server-silo
     tag: local
     pullPolicy: IfNotPresent
+  api:
+    repository: blue-server-api
+    tag: local
+    pullPolicy: IfNotPresent
 
 secrets:
   existingName: blue-server-secrets
@@ -24,6 +28,20 @@ database:
 redis:
   host: redis
   port: 6379
+
+api:
+  enabled: true
+  replicas: 1
+  containerPort: 8080
+  service:
+    port: 80
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  temporaryStorageLimit: 64Mi
 
 game:
   port: 7777

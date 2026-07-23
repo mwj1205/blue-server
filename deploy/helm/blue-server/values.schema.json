@@ -8,6 +8,7 @@
     "secrets",
     "database",
     "redis",
+    "api",
     "game",
     "silo",
     "orleans",
@@ -45,10 +46,14 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "silo"
+        "silo",
+        "api"
       ],
       "properties": {
         "silo": {
+          "$ref": "#/$defs/image"
+        },
+        "api": {
           "$ref": "#/$defs/image"
         }
       }
@@ -108,6 +113,49 @@
         },
         "port": {
           "$ref": "#/$defs/port"
+        }
+      }
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "replicas",
+        "containerPort",
+        "service",
+        "resources",
+        "temporaryStorageLimit"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "containerPort": {
+          "$ref": "#/$defs/port"
+        },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "port"
+          ],
+          "properties": {
+            "port": {
+              "$ref": "#/$defs/port"
+            }
+          }
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        },
+        "temporaryStorageLimit": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },

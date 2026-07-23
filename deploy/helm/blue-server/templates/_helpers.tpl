@@ -69,3 +69,21 @@ app.kubernetes.io/component: silo
 {{- define "blue-server.siloServiceAccountName" -}}
 {{- default (include "blue-server.siloName" .) .Values.silo.serviceAccountName | trunc 63 | trimSuffix "-" }}
 {{- end }}
+
+{{/* API resource 이름 */}}
+{{- define "blue-server.apiName" -}}
+{{- printf "%s-api" (include "blue-server.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/* API selector label */}}
+{{- define "blue-server.apiSelectorLabels" -}}
+app.kubernetes.io/name: {{ include "blue-server.apiName" . }}
+app.kubernetes.io/instance: {{ default .Release.Name .Values.global.instanceName }}
+{{- end }}
+
+{{/* API 공통 label */}}
+{{- define "blue-server.apiLabels" -}}
+{{ include "blue-server.commonLabels" . }}
+{{ include "blue-server.apiSelectorLabels" . }}
+app.kubernetes.io/component: api
+{{- end }}
