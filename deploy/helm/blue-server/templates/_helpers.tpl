@@ -105,3 +105,16 @@ app.kubernetes.io/instance: {{ default .Release.Name .Values.global.instanceName
 {{ include "blue-server.gameSelectorLabels" . }}
 app.kubernetes.io/component: game-server
 {{- end }}
+
+{{/* Database Migration Job resource 이름 */}}
+{{- define "blue-server.migrationName" -}}
+{{- printf "%s-migration" (include "blue-server.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/* Database Migration Job 공통 label */}}
+{{- define "blue-server.migrationLabels" -}}
+{{ include "blue-server.commonLabels" . }}
+app.kubernetes.io/name: {{ include "blue-server.migrationName" . }}
+app.kubernetes.io/instance: {{ default .Release.Name .Values.global.instanceName }}
+app.kubernetes.io/component: migration
+{{- end }}

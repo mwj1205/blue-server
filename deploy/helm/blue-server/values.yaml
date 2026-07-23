@@ -19,6 +19,10 @@ images:
     repository: blue-server-game
     tag: local
     pullPolicy: IfNotPresent
+  migration:
+    repository: blue-server-migrations
+    tag: local
+    pullPolicy: IfNotPresent
 
 secrets:
   existingName: blue-server-secrets
@@ -32,6 +36,18 @@ database:
 redis:
   host: redis
   port: 6379
+
+migration:
+  enabled: true
+  backoffLimit: 1
+  activeDeadlineSeconds: 180
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
 
 api:
   enabled: true
