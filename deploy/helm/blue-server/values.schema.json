@@ -4,9 +4,12 @@
   "additionalProperties": false,
   "required": [
     "global",
+    "images",
+    "secrets",
     "database",
     "redis",
     "game",
+    "silo",
     "orleans",
     "jwt"
   ],
@@ -22,7 +25,8 @@
       "additionalProperties": false,
       "required": [
         "environment",
-        "environmentName"
+        "environmentName",
+        "instanceName"
       ],
       "properties": {
         "environment": {
@@ -30,8 +34,36 @@
           "minLength": 1
         },
         "environmentName": {
+          "$ref": "#/$defs/labelValue"
+        },
+        "instanceName": {
+          "$ref": "#/$defs/labelValue"
+        }
+      }
+    },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "silo"
+      ],
+      "properties": {
+        "silo": {
+          "$ref": "#/$defs/image"
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "existingName"
+      ],
+      "properties": {
+        "existingName": {
           "type": "string",
-          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 253
         }
       }
     },
@@ -91,6 +123,34 @@
         }
       }
     },
+    "silo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replicas",
+        "serviceAccountName",
+        "resources",
+        "temporaryStorageLimit"
+      ],
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "serviceAccountName": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 63
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        },
+        "temporaryStorageLimit": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
     "orleans": {
       "type": "object",
       "additionalProperties": false,
@@ -117,12 +177,10 @@
           "const": "Redis"
         },
         "clusterId": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/labelValue"
         },
         "serviceId": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/labelValue"
         },
         "redisConnectionString": {
           "type": "string",
@@ -161,10 +219,66 @@
     }
   },
   "$defs": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "tag",
+        "pullPolicy"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "labelValue": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$",
+      "maxLength": 63
+    },
     "port": {
       "type": "integer",
       "minimum": 1,
       "maximum": 65535
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requests",
+        "limits"
+      ],
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
     }
   }
 }

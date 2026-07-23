@@ -1,15 +1,9 @@
-{{/*
-Expand the name of the chart.
-*/}}
+{{/* Chart 이름 확장 */}}
 {{- define "blue-server.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{/*
-Create a default fully qualified app name.
-We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
-If release name contains chart name it will be used as a full name.
-*/}}
+{{/* Kubernetes 이름 길이를 고려한 전체 application 이름 생성 */}}
 {{- define "blue-server.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
@@ -23,28 +17,55 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 {{- end }}
 
-{{/*
-Create chart name and version as used by the chart label.
-*/}}
+{{/* Chart label용 이름과 버전 생성 */}}
 {{- define "blue-server.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{/*
-Common labels
-*/}}
-{{- define "blue-server.labels" -}}
+{{/* 공통 metadata label */}}
+{{- define "blue-server.commonLabels" -}}
 helm.sh/chart: {{ include "blue-server.chart" . }}
-{{ include "blue-server.selectorLabels" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: blue-server
 {{- end }}
 
-{{/*
-Selector labels
-*/}}
+{{/* Application 공통 label */}}
+{{- define "blue-server.labels" -}}
+{{ include "blue-server.commonLabels" . }}
+{{ include "blue-server.selectorLabels" . }}
+{{- end }}
+
+{{/* Application 공통 selector label */}}
 {{- define "blue-server.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "blue-server.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/instance: {{ default .Release.Name .Values.global.instanceName }}
+{{- end }}
+
+{{/* 공통 ConfigMap 이름 */}}
+{{- define "blue-server.configMapName" -}}
+{{- printf "%s-config" (include "blue-server.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/* Orleans Silo resource 이름 */}}
+{{- define "blue-server.siloName" -}}
+{{- printf "%s-silo" (include "blue-server.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/* Orleans Silo selector label */}}
+{{- define "blue-server.siloSelectorLabels" -}}
+app.kubernetes.io/name: {{ include "blue-server.siloName" . }}
+app.kubernetes.io/instance: {{ default .Release.Name .Values.global.instanceName }}
+{{- end }}
+
+{{/* Orleans Silo 공통 label */}}
+{{- define "blue-server.siloLabels" -}}
+{{ include "blue-server.commonLabels" . }}
+{{ include "blue-server.siloSelectorLabels" . }}
+app.kubernetes.io/component: silo
+{{- end }}
+
+{{/* Orleans Silo ServiceAccount 이름 */}}
+{{- define "blue-server.siloServiceAccountName" -}}
+{{- default (include "blue-server.siloName" .) .Values.silo.serviceAccountName | trunc 63 | trimSuffix "-" }}
 {{- end }}

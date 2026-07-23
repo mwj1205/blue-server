@@ -4,6 +4,16 @@ fullnameOverride: ""
 global:
   environment: Production
   environmentName: local
+  instanceName: blue-server-local
+
+images:
+  silo:
+    repository: blue-server-silo
+    tag: local
+    pullPolicy: IfNotPresent
+
+secrets:
+  existingName: blue-server-secrets
 
 database:
   host: postgres
@@ -17,6 +27,17 @@ redis:
 
 game:
   port: 7777
+
+silo:
+  replicas: 2
+  serviceAccountName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  temporaryStorageLimit: 64Mi
 
 orleans:
   enabled: true
