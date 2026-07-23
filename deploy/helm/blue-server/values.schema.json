@@ -47,13 +47,17 @@
       "additionalProperties": false,
       "required": [
         "silo",
-        "api"
+        "api",
+        "game"
       ],
       "properties": {
         "silo": {
           "$ref": "#/$defs/image"
         },
         "api": {
+          "$ref": "#/$defs/image"
+        },
+        "game": {
           "$ref": "#/$defs/image"
         }
       }
@@ -163,11 +167,42 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "port"
+        "enabled",
+        "replicas",
+        "containerPort",
+        "service",
+        "resources",
+        "temporaryStorageLimit"
       ],
       "properties": {
-        "port": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "containerPort": {
           "$ref": "#/$defs/port"
+        },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "port"
+          ],
+          "properties": {
+            "port": {
+              "$ref": "#/$defs/port"
+            }
+          }
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        },
+        "temporaryStorageLimit": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },

@@ -87,3 +87,21 @@ app.kubernetes.io/instance: {{ default .Release.Name .Values.global.instanceName
 {{ include "blue-server.apiSelectorLabels" . }}
 app.kubernetes.io/component: api
 {{- end }}
+
+{{/* Game TCP server resource 이름 */}}
+{{- define "blue-server.gameName" -}}
+{{- printf "%s-game" (include "blue-server.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/* Game TCP server selector label */}}
+{{- define "blue-server.gameSelectorLabels" -}}
+app.kubernetes.io/name: {{ include "blue-server.gameName" . }}
+app.kubernetes.io/instance: {{ default .Release.Name .Values.global.instanceName }}
+{{- end }}
+
+{{/* Game TCP server 공통 label */}}
+{{- define "blue-server.gameLabels" -}}
+{{ include "blue-server.commonLabels" . }}
+{{ include "blue-server.gameSelectorLabels" . }}
+app.kubernetes.io/component: game-server
+{{- end }}

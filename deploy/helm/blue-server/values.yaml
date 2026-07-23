@@ -15,6 +15,10 @@ images:
     repository: blue-server-api
     tag: local
     pullPolicy: IfNotPresent
+  game:
+    repository: blue-server-game
+    tag: local
+    pullPolicy: IfNotPresent
 
 secrets:
   existingName: blue-server-secrets
@@ -44,7 +48,18 @@ api:
   temporaryStorageLimit: 64Mi
 
 game:
-  port: 7777
+  enabled: true
+  replicas: 1
+  containerPort: 7777
+  service:
+    port: 7777
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  temporaryStorageLimit: 64Mi
 
 silo:
   replicas: 2
