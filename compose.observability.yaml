@@ -1,47 +1,35 @@
-services:
-  silo-primary:
-    environment:
-      Observability__ElasticApmEnabled: "true"
-      ELASTIC_APM_SERVER_URL: http://apm-server:8200
-      ELASTIC_APM_SERVICE_NAME: blue-server-silo
-      ELASTIC_APM_SERVICE_NODE_NAME: blue-server-silo-primary
-      ELASTIC_APM_ENVIRONMENT: ${ELASTIC_APM_ENVIRONMENT:-local}
-      ELASTIC_APM_TRANSACTION_SAMPLE_RATE: ${ELASTIC_APM_TRANSACTION_SAMPLE_RATE:-1.0}
-      ELASTIC_APM_CENTRAL_CONFIG: "false"
-      ELASTIC_APM_OPENTELEMETRY_BRIDGE_ENABLED: "true"
+x-elastic-apm-environment: &elastic-apm-environment
+  Observability__ElasticApmEnabled: "true"
+  ELASTIC_APM_SERVER_URL: http://apm-server:8200
+  ELASTIC_APM_ENVIRONMENT: ${ELASTIC_APM_ENVIRONMENT:-local}
+  ELASTIC_APM_TRANSACTION_SAMPLE_RATE: ${ELASTIC_APM_TRANSACTION_SAMPLE_RATE:-1.0}
+  ELASTIC_APM_CENTRAL_CONFIG: "false"
+  ELASTIC_APM_OPENTELEMETRY_BRIDGE_ENABLED: "true"
 
-  silo-secondary:
+services:
+  silo-1:
     environment:
-      Observability__ElasticApmEnabled: "true"
-      ELASTIC_APM_SERVER_URL: http://apm-server:8200
+      <<: *elastic-apm-environment
       ELASTIC_APM_SERVICE_NAME: blue-server-silo
-      ELASTIC_APM_SERVICE_NODE_NAME: blue-server-silo-secondary
-      ELASTIC_APM_ENVIRONMENT: ${ELASTIC_APM_ENVIRONMENT:-local}
-      ELASTIC_APM_TRANSACTION_SAMPLE_RATE: ${ELASTIC_APM_TRANSACTION_SAMPLE_RATE:-1.0}
-      ELASTIC_APM_CENTRAL_CONFIG: "false"
-      ELASTIC_APM_OPENTELEMETRY_BRIDGE_ENABLED: "true"
+      ELASTIC_APM_SERVICE_NODE_NAME: blue-server-silo-1
+
+  silo-2:
+    environment:
+      <<: *elastic-apm-environment
+      ELASTIC_APM_SERVICE_NAME: blue-server-silo
+      ELASTIC_APM_SERVICE_NODE_NAME: blue-server-silo-2
 
   api:
     environment:
-      Observability__ElasticApmEnabled: "true"
-      ELASTIC_APM_SERVER_URL: http://apm-server:8200
+      <<: *elastic-apm-environment
       ELASTIC_APM_SERVICE_NAME: blue-server-api
-      ELASTIC_APM_ENVIRONMENT: ${ELASTIC_APM_ENVIRONMENT:-local}
-      ELASTIC_APM_TRANSACTION_SAMPLE_RATE: ${ELASTIC_APM_TRANSACTION_SAMPLE_RATE:-1.0}
       ELASTIC_APM_CAPTURE_BODY: "off"
-      ELASTIC_APM_CENTRAL_CONFIG: "false"
-      ELASTIC_APM_OPENTELEMETRY_BRIDGE_ENABLED: "true"
 
   game:
     environment:
-      Observability__ElasticApmEnabled: "true"
-      ELASTIC_APM_SERVER_URL: http://apm-server:8200
+      <<: *elastic-apm-environment
       ELASTIC_APM_SERVICE_NAME: blue-server-game
-      ELASTIC_APM_ENVIRONMENT: ${ELASTIC_APM_ENVIRONMENT:-local}
-      ELASTIC_APM_TRANSACTION_SAMPLE_RATE: ${ELASTIC_APM_TRANSACTION_SAMPLE_RATE:-1.0}
       ELASTIC_APM_CAPTURE_BODY: "off"
-      ELASTIC_APM_CENTRAL_CONFIG: "false"
-      ELASTIC_APM_OPENTELEMETRY_BRIDGE_ENABLED: "true"
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-9.4.2}

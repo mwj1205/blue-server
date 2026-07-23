@@ -1,0 +1,166 @@
+{{- if .Values.orleans.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "blue-server.siloName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "blue-server.siloLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.silo.replicas }}
+  revisionHistoryLimit: 2
+  minReadySeconds: 10
+  progressDeadlineSeconds: 180
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "blue-server.siloSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "blue-server.siloLabels" . | nindent 8 }}
+        orleans/serviceId: {{ .Values.orleans.serviceId | quote }}
+        orleans/clusterId: {{ .Values.orleans.clusterId | quote }}
+    spec:
+      serviceAccountName: {{ include "blue-server.siloServiceAccountName" . }}
+      automountServiceAccountToken: true
+      enableServiceLinks: true
+      terminationGracePeriodSeconds: 120
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: silo
+          image: "{{ .Values.images.silo.repository }}:{{ .Values.images.silo.tag }}"
+          imagePullPolicy: {{ .Values.images.silo.pullPolicy }}
+          ports:
+            - name: silo
+              containerPort: {{ .Values.orleans.siloPort }}
+              protocol: TCP
+            - name: gateway
+              containerPort: {{ .Values.orleans.gatewayPort }}
+              protocol: TCP
+          env:
+            # .NET host 종료 제한 설정
+            - name: DOTNET_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: APP_ENVIRONMENT
+            - name: DOTNET_SHUTDOWNTIMEOUTSECONDS
+              value: "110"
+            # PostgreSQL 연결 설정
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: POSTGRES_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: POSTGRES_PORT
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingName }}
+                  key: POSTGRES_PASSWORD
+            - name: ConnectionStrings__Default
+              value: Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD);GSS Encryption Mode=Disable
+            # Redis membership 기반 Orleans clustering 설정
+            - name: ConnectionStrings__OrleansRedis
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: ORLEANS_REDIS_CONNECTION_STRING
+            - name: Orleans__HostingMode
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: ORLEANS_HOSTING_MODE
+            - name: Orleans__ClusteringMode
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: ORLEANS_CLUSTERING_MODE
+            - name: Orleans__SiloPort
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: ORLEANS_SILO_PORT
+            - name: Orleans__GatewayPort
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: ORLEANS_GATEWAY_PORT
+            # Kubernetes Pod identity 기반 Orleans endpoint 설정
+            - name: ORLEANS_SERVICE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['orleans/serviceId']
+            - name: ORLEANS_CLUSTER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['orleans/clusterId']
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          # Silo gateway listener 상태 확인
+          startupProbe:
+            tcpSocket:
+              port: gateway
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 24
+          readinessProbe:
+            tcpSocket:
+              port: gateway
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: gateway
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.silo.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: temporary-files
+              mountPath: /tmp
+      volumes:
+        - name: temporary-files
+          emptyDir:
+            sizeLimit: {{ .Values.silo.temporaryStorageLimit | quote }}
+{{- end }}

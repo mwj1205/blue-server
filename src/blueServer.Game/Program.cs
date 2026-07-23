@@ -1,4 +1,5 @@
 using blueServer.Game;
+using blueServer.Game.Configuration;
 using blueServer.Game.Extensions;
 using blueServer.Game.Handlers;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,6 +42,14 @@ if (builder.Configuration.GetValue<bool>(
 
 builder.Services.Configure<JwtOptions>(
     builder.Configuration.GetSection(JwtOptions.SectionName));
+
+builder.Services
+    .AddOptions<GameServerOptions>()
+    .BindConfiguration(GameServerOptions.SectionName)
+    .Validate(
+        options => options.Port is >= 1 and <= 65_535,
+        "GameServer:Port must be between 1 and 65535.")
+    .ValidateOnStart();
 
 builder.Services.AddDbContext<GameDbContext>(options =>
 {

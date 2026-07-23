@@ -1,0 +1,104 @@
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  environment: Production
+  environmentName: local
+  instanceName: blue-server-local
+
+images:
+  silo:
+    repository: blue-server-silo
+    tag: local
+    pullPolicy: IfNotPresent
+  api:
+    repository: blue-server-api
+    tag: local
+    pullPolicy: IfNotPresent
+  game:
+    repository: blue-server-game
+    tag: local
+    pullPolicy: IfNotPresent
+  migration:
+    repository: blue-server-migrations
+    tag: local
+    pullPolicy: IfNotPresent
+
+secrets:
+  existingName: blue-server-secrets
+
+database:
+  host: postgres
+  port: 5432
+  name: bluearchive
+  user: postgres
+
+redis:
+  host: redis
+  port: 6379
+
+migration:
+  enabled: true
+  backoffLimit: 1
+  activeDeadlineSeconds: 180
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+api:
+  enabled: true
+  replicas: 1
+  containerPort: 8080
+  service:
+    port: 80
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  temporaryStorageLimit: 64Mi
+
+game:
+  enabled: true
+  replicas: 1
+  containerPort: 7777
+  service:
+    port: 7777
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  temporaryStorageLimit: 64Mi
+
+silo:
+  replicas: 2
+  serviceAccountName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  temporaryStorageLimit: 64Mi
+
+orleans:
+  enabled: true
+  hostingMode: Kubernetes
+  clusteringMode: Redis
+  clusterId: blue-server-local
+  serviceId: blue-server
+  redisConnectionString: redis:6379,abortConnect=false
+  siloPort: 11111
+  gatewayPort: 30000
+
+jwt:
+  issuer: blueServer
+  audience: blueServer
+  accessTokenDays: 7

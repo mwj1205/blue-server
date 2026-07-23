@@ -19,6 +19,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Orleans.Clustering.Redis" Version="10.2.1" />
     <PackageReference Include="Microsoft.Orleans.Client" Version="10.2.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.1" />

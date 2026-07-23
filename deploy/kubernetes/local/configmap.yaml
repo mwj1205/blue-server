@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blue-server-config
+  namespace: blue-server
+  labels:
+    app.kubernetes.io/part-of: blue-server
+    app.kubernetes.io/environment: local
+data:
+  APP_ENVIRONMENT: Production
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: bluearchive
+  POSTGRES_USER: postgres
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  GAME_PORT: "7777"
+  ORLEANS_ENABLED: "true"
+  ORLEANS_HOSTING_MODE: Kubernetes
+  ORLEANS_CLUSTERING_MODE: Redis
+  ORLEANS_CLUSTER_ID: blue-server-local
+  ORLEANS_SERVICE_ID: blue-server
+  ORLEANS_REDIS_CONNECTION_STRING: redis:6379,abortConnect=false
+  ORLEANS_SILO_PORT: "11111"
+  ORLEANS_GATEWAY_PORT: "30000"
+  JWT_ISSUER: blueServer
+  JWT_AUDIENCE: blueServer
+  JWT_ACCESS_TOKEN_DAYS: "7"

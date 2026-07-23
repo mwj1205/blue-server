@@ -26,33 +26,64 @@ builder.Logging.AddJsonConsole(options =>
     };
 });
 
-var clusterId = GetRequiredValue(
+var clusteringMode = GetRequiredValue(
     builder.Configuration,
-    "Orleans:ClusterId");
-var serviceId = GetRequiredValue(
+    "Orleans:ClusteringMode");
+var useRedisClustering = GetUseRedisClustering(clusteringMode);
+var hostingMode = GetRequiredValue(
     builder.Configuration,
-    "Orleans:ServiceId");
-var siloName = GetRequiredValue(
-    builder.Configuration,
-    "Orleans:SiloName");
-var advertisedHost = GetRequiredValue(
-    builder.Configuration,
-    "Orleans:AdvertisedHost");
-var primarySiloHost = GetRequiredValue(
-    builder.Configuration,
-    "Orleans:PrimarySiloHost");
+    "Orleans:HostingMode");
+var useKubernetesHosting = GetUseKubernetesHosting(hostingMode);
+
+if (useKubernetesHosting && !useRedisClustering)
+{
+    throw new InvalidOperationException(
+        "Orleans Kubernetes hosting currently requires Redis clustering.");
+}
+
+var clusterId = useKubernetesHosting
+    ? null
+    : GetRequiredValue(
+        builder.Configuration,
+        "Orleans:ClusterId");
+var serviceId = useKubernetesHosting
+    ? null
+    : GetRequiredValue(
+        builder.Configuration,
+        "Orleans:ServiceId");
+var siloName = useKubernetesHosting
+    ? null
+    : GetRequiredValue(
+        builder.Configuration,
+        "Orleans:SiloName");
+var advertisedHost = useKubernetesHosting
+    ? null
+    : GetRequiredValue(
+        builder.Configuration,
+        "Orleans:AdvertisedHost");
 var siloPort = GetRequiredPort(
     builder.Configuration,
     "Orleans:SiloPort");
 var gatewayPort = GetRequiredPort(
     builder.Configuration,
     "Orleans:GatewayPort");
-var advertisedAddress = ResolveAddress(
-    advertisedHost,
-    "Orleans:AdvertisedHost");
-var primarySiloAddress = ResolveAddress(
-    primarySiloHost,
-    "Orleans:PrimarySiloHost");
+var advertisedAddress = useKubernetesHosting
+    ? null
+    : ResolveAddress(
+        advertisedHost!,
+        "Orleans:AdvertisedHost");
+var primarySiloAddress = useRedisClustering
+    ? null
+    : ResolveAddress(
+        GetRequiredValue(
+            builder.Configuration,
+            "Orleans:PrimarySiloHost"),
+        "Orleans:PrimarySiloHost");
+var redisConnectionString = useRedisClustering
+    ? GetRequiredConnectionString(
+        builder.Configuration,
+        "OrleansRedis")
+    : null;
 var connectionString = GetRequiredValue(
     builder.Configuration,
     "ConnectionStrings:Default");
@@ -77,24 +108,46 @@ if (builder.Configuration.GetValue<bool>(
 
 builder.UseOrleans(siloBuilder =>
 {
-    siloBuilder
-        .Configure<ClusterOptions>(options =>
-        {
-            options.ClusterId = clusterId;
-            options.ServiceId = serviceId;
-        })
-        .Configure<SiloOptions>(options =>
-        {
-            options.SiloName = siloName;
-        })
-        .UseDevelopmentClustering(
-            new IPEndPoint(primarySiloAddress, siloPort))
-        .ConfigureEndpoints(
-            advertisedIP: advertisedAddress,
-            siloPort: siloPort,
-            gatewayPort: gatewayPort,
-            listenOnAnyHostAddress: true)
-        .AddActivityPropagation();
+    if (useKubernetesHosting)
+    {
+        siloBuilder
+            .Configure<EndpointOptions>(options =>
+            {
+                options.SiloPort = siloPort;
+                options.GatewayPort = gatewayPort;
+            })
+            .UseKubernetesHosting();
+    }
+    else
+    {
+        siloBuilder
+            .Configure<ClusterOptions>(options =>
+            {
+                options.ClusterId = clusterId!;
+                options.ServiceId = serviceId!;
+            })
+            .Configure<SiloOptions>(options =>
+            {
+                options.SiloName = siloName!;
+            })
+            .ConfigureEndpoints(
+                advertisedIP: advertisedAddress!,
+                siloPort: siloPort,
+                gatewayPort: gatewayPort,
+                listenOnAnyHostAddress: true);
+    }
+
+    if (useRedisClustering)
+    {
+        siloBuilder.UseRedisClustering(redisConnectionString!);
+    }
+    else
+    {
+        siloBuilder.UseDevelopmentClustering(
+            new IPEndPoint(primarySiloAddress!, siloPort));
+    }
+
+    siloBuilder.AddActivityPropagation();
 });
 
 await builder.Build().RunAsync();
@@ -112,6 +165,53 @@ static string GetRequiredValue(
     }
 
     return value;
+}
+
+static string GetRequiredConnectionString(
+    IConfiguration configuration,
+    string name)
+{
+    var value = configuration.GetConnectionString(name);
+
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        throw new InvalidOperationException(
+            $"Connection string '{name}' is required when Orleans Redis clustering is enabled.");
+    }
+
+    return value;
+}
+
+static bool GetUseRedisClustering(string value)
+{
+    if (value.Equals("Redis", StringComparison.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    if (value.Equals("Development", StringComparison.OrdinalIgnoreCase))
+    {
+        return false;
+    }
+
+    throw new InvalidOperationException(
+        "Configuration value 'Orleans:ClusteringMode' must be 'Development' or 'Redis'.");
+}
+
+static bool GetUseKubernetesHosting(string value)
+{
+    if (value.Equals("Kubernetes", StringComparison.OrdinalIgnoreCase))
+    {
+        return true;
+    }
+
+    if (value.Equals("Manual", StringComparison.OrdinalIgnoreCase))
+    {
+        return false;
+    }
+
+    throw new InvalidOperationException(
+        "Configuration value 'Orleans:HostingMode' must be 'Manual' or 'Kubernetes'.");
 }
 
 static int GetRequiredPort(

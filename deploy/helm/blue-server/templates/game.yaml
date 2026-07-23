@@ -1,0 +1,190 @@
+{{- if .Values.game.enabled }}
+# Cluster 내부 Game TCP 접근을 위한 Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "blue-server.gameName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "blue-server.gameLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "blue-server.gameSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: game-tcp
+      port: {{ .Values.game.service.port }}
+      targetPort: game-tcp
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "blue-server.gameName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "blue-server.gameLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.game.replicas }}
+  revisionHistoryLimit: 2
+  minReadySeconds: 5
+  progressDeadlineSeconds: 180
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "blue-server.gameSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "blue-server.gameLabels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: game
+          image: "{{ .Values.images.game.repository }}:{{ .Values.images.game.tag }}"
+          imagePullPolicy: {{ .Values.images.game.pullPolicy }}
+          ports:
+            - name: game-tcp
+              containerPort: {{ .Values.game.containerPort }}
+              protocol: TCP
+          env:
+            # Game TCP listener 설정
+            - name: DOTNET_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: APP_ENVIRONMENT
+            - name: GameServer__Port
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: GAME_PORT
+            # PostgreSQL 연결 설정
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: POSTGRES_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: POSTGRES_PORT
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingName }}
+                  key: POSTGRES_PASSWORD
+            - name: ConnectionStrings__Default
+              value: Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD);GSS Encryption Mode=Disable
+            # Redis 기반 Orleans Client 연결 설정
+            - name: ConnectionStrings__OrleansRedis
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: ORLEANS_REDIS_CONNECTION_STRING
+            - name: Orleans__Enabled
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: ORLEANS_ENABLED
+            - name: Orleans__ClusteringMode
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: ORLEANS_CLUSTERING_MODE
+            - name: Orleans__ClusterId
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: ORLEANS_CLUSTER_ID
+            - name: Orleans__ServiceId
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: ORLEANS_SERVICE_ID
+            # JWT 인증 설정
+            - name: Jwt__Key
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingName }}
+                  key: JWT_KEY
+            - name: Jwt__Issuer
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: JWT_ISSUER
+            - name: Jwt__Audience
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: JWT_AUDIENCE
+            - name: Jwt__AccessTokenDays
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: JWT_ACCESS_TOKEN_DAYS
+          # 실제 Session 생성을 방지하는 TCP listener 상태 확인
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - port_hex=$(printf '%04X' "$GameServer__Port") && grep -q "00000000:${port_hex}.*00000000:0000.*0A" /proc/net/tcp
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 24
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - port_hex=$(printf '%04X' "$GameServer__Port") && grep -q "00000000:${port_hex}.*00000000:0000.*0A" /proc/net/tcp
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - port_hex=$(printf '%04X' "$GameServer__Port") && grep -q "00000000:${port_hex}.*00000000:0000.*0A" /proc/net/tcp
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.game.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: temporary-files
+              mountPath: /tmp
+      volumes:
+        - name: temporary-files
+          emptyDir:
+            sizeLimit: {{ .Values.game.temporaryStorageLimit | quote }}
+{{- end }}

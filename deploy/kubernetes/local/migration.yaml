@@ -1,0 +1,75 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: database-migration
+  namespace: blue-server
+  labels:
+    app.kubernetes.io/name: database-migration
+    app.kubernetes.io/instance: blue-server-local
+    app.kubernetes.io/component: migration
+    app.kubernetes.io/part-of: blue-server
+spec:
+  completions: 1
+  parallelism: 1
+  backoffLimit: 1
+  activeDeadlineSeconds: 180
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: database-migration
+        app.kubernetes.io/instance: blue-server-local
+        app.kubernetes.io/component: migration
+        app.kubernetes.io/part-of: blue-server
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migration
+          image: blue-server-migrations:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: POSTGRES_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: POSTGRES_PORT
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: blue-server-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: blue-server-secrets
+                  key: POSTGRES_PASSWORD
+            - name: ConnectionStrings__Default
+              value: Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD);GSS Encryption Mode=Disable
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true

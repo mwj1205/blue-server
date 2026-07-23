@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "blue-server.configMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "blue-server.labels" . | nindent 4 }}
+    app.kubernetes.io/environment: {{ .Values.global.environmentName }}
+data:
+  APP_ENVIRONMENT: {{ .Values.global.environment | quote }}
+  POSTGRES_HOST: {{ .Values.database.host | quote }}
+  POSTGRES_PORT: {{ .Values.database.port | quote }}
+  POSTGRES_DB: {{ .Values.database.name | quote }}
+  POSTGRES_USER: {{ .Values.database.user | quote }}
+  REDIS_HOST: {{ .Values.redis.host | quote }}
+  REDIS_PORT: {{ .Values.redis.port | quote }}
+  GAME_PORT: {{ .Values.game.containerPort | quote }}
+  ORLEANS_ENABLED: {{ .Values.orleans.enabled | quote }}
+  ORLEANS_HOSTING_MODE: {{ .Values.orleans.hostingMode | quote }}
+  ORLEANS_CLUSTERING_MODE: {{ .Values.orleans.clusteringMode | quote }}
+  ORLEANS_CLUSTER_ID: {{ .Values.orleans.clusterId | quote }}
+  ORLEANS_SERVICE_ID: {{ .Values.orleans.serviceId | quote }}
+  ORLEANS_REDIS_CONNECTION_STRING: {{ .Values.orleans.redisConnectionString | quote }}
+  ORLEANS_SILO_PORT: {{ .Values.orleans.siloPort | quote }}
+  ORLEANS_GATEWAY_PORT: {{ .Values.orleans.gatewayPort | quote }}
+  JWT_ISSUER: {{ .Values.jwt.issuer | quote }}
+  JWT_AUDIENCE: {{ .Values.jwt.audience | quote }}
+  JWT_ACCESS_TOKEN_DAYS: {{ .Values.jwt.accessTokenDays | quote }}

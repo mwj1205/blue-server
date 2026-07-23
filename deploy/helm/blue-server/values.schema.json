@@ -1,0 +1,398 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "global",
+    "images",
+    "secrets",
+    "database",
+    "redis",
+    "migration",
+    "api",
+    "game",
+    "silo",
+    "orleans",
+    "jwt"
+  ],
+  "properties": {
+    "nameOverride": {
+      "type": "string"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    },
+    "global": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environment",
+        "environmentName",
+        "instanceName"
+      ],
+      "properties": {
+        "environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "environmentName": {
+          "$ref": "#/$defs/labelValue"
+        },
+        "instanceName": {
+          "$ref": "#/$defs/labelValue"
+        }
+      }
+    },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "silo",
+        "api",
+        "game",
+        "migration"
+      ],
+      "properties": {
+        "silo": {
+          "$ref": "#/$defs/image"
+        },
+        "api": {
+          "$ref": "#/$defs/image"
+        },
+        "game": {
+          "$ref": "#/$defs/image"
+        },
+        "migration": {
+          "$ref": "#/$defs/image"
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "existingName"
+      ],
+      "properties": {
+        "existingName": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 253
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "port",
+        "name",
+        "user"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port": {
+          "$ref": "#/$defs/port"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "user": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "redis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "port"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port": {
+          "$ref": "#/$defs/port"
+        }
+      }
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "backoffLimit",
+        "activeDeadlineSeconds",
+        "resources"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "activeDeadlineSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        }
+      }
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "replicas",
+        "containerPort",
+        "service",
+        "resources",
+        "temporaryStorageLimit"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "containerPort": {
+          "$ref": "#/$defs/port"
+        },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "port"
+          ],
+          "properties": {
+            "port": {
+              "$ref": "#/$defs/port"
+            }
+          }
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        },
+        "temporaryStorageLimit": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "game": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "replicas",
+        "containerPort",
+        "service",
+        "resources",
+        "temporaryStorageLimit"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "containerPort": {
+          "$ref": "#/$defs/port"
+        },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "port"
+          ],
+          "properties": {
+            "port": {
+              "$ref": "#/$defs/port"
+            }
+          }
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        },
+        "temporaryStorageLimit": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "silo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replicas",
+        "serviceAccountName",
+        "resources",
+        "temporaryStorageLimit"
+      ],
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "serviceAccountName": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 63
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        },
+        "temporaryStorageLimit": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "orleans": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "hostingMode",
+        "clusteringMode",
+        "clusterId",
+        "serviceId",
+        "redisConnectionString",
+        "siloPort",
+        "gatewayPort"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "hostingMode": {
+          "type": "string",
+          "const": "Kubernetes"
+        },
+        "clusteringMode": {
+          "type": "string",
+          "const": "Redis"
+        },
+        "clusterId": {
+          "$ref": "#/$defs/labelValue"
+        },
+        "serviceId": {
+          "$ref": "#/$defs/labelValue"
+        },
+        "redisConnectionString": {
+          "type": "string",
+          "minLength": 1
+        },
+        "siloPort": {
+          "$ref": "#/$defs/port"
+        },
+        "gatewayPort": {
+          "$ref": "#/$defs/port"
+        }
+      }
+    },
+    "jwt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issuer",
+        "audience",
+        "accessTokenDays"
+      ],
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "audience": {
+          "type": "string",
+          "minLength": 1
+        },
+        "accessTokenDays": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  "$defs": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "tag",
+        "pullPolicy"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "labelValue": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$",
+      "maxLength": 63
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requests",
+        "limits"
+      ],
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

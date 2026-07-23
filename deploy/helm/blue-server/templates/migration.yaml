@@ -1,0 +1,60 @@
+{{- if .Values.migration.enabled }}
+# Application resource 배포 전 Database Migration 실행
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "blue-server.migrationName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "blue-server.migrationLabels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  completions: 1
+  parallelism: 1
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "blue-server.migrationLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migration
+          image: "{{ .Values.images.migration.repository }}:{{ .Values.images.migration.tag }}"
+          imagePullPolicy: {{ .Values.images.migration.pullPolicy }}
+          env:
+            # Hook 실행 시점의 PostgreSQL 연결 설정
+            - name: POSTGRES_HOST
+              value: {{ .Values.database.host | quote }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.database.port | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.database.name | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.database.user | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingName }}
+                  key: POSTGRES_PASSWORD
+            - name: ConnectionStrings__Default
+              value: Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD);GSS Encryption Mode=Disable
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+{{- end }}
