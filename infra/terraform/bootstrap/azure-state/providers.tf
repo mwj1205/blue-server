@@ -1,4 +1,4 @@
-# AzureRM 4.x에서 Plan 대상 Subscription 명시
+# Backend Resource를 생성할 Azure Subscription 명시
 provider "azurerm" {
   subscription_id                 = var.subscription_id
   resource_provider_registrations = "none"
