@@ -1,0 +1,27 @@
+# Terraform 작업 디렉터리
+.terraform/
+
+# 로컬 State와 백업
+*.tfstate
+*.tfstate.*
+
+# 환경별 입력값
+terraform.tfvars
+*.auto.tfvars
+
+# 저장된 Plan
+*.tfplan
+
+# Crash 로그
+crash.log
+crash.*.log
+
+# 로컬 Override
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# 사용자별 CLI 설정
+.terraformrc
+terraform.rc
