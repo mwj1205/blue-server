@@ -5,8 +5,6 @@ on:
   push:
     branches:
       - main
-      # main Merge 전 OIDC 검증을 위한 임시 Feature Branch Trigger
-      - terraform-azure-infrastructure
     paths:
       - .github/workflows/azure-oidc.yml
       - infra/terraform/azure/github-actions-identity.tf
@@ -17,7 +15,7 @@ permissions:
 jobs:
   verify-azure-login:
     name: Verify Azure login
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/terraform-azure-infrastructure'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
