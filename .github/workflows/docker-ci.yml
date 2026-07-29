@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+      # main Merge 전 ACR Push 검증을 위한 임시 Feature Branch Trigger
+      - terraform-azure-infrastructure
 
 permissions:
   contents: read
@@ -14,8 +16,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate-helm:
+    name: Validate Helm chart
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v4.2.3
+
+      # Cluster 적용 전 Chart 구조와 Kubernetes YAML 렌더링 검증
+      - name: Lint and render chart
+        shell: bash
+        run: |
+          helm lint ./deploy/helm/blue-server
+          helm template blue-server \
+            ./deploy/helm/blue-server \
+            --namespace blue-server \
+            > "$RUNNER_TEMP/blue-server.yaml"
+
   build-images:
     name: Build ${{ matrix.name }} image
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -43,6 +70,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      # Pull Request에서는 Registry 인증 없이 Image Build만 검증
       - name: Build image
         uses: docker/build-push-action@v7
         with:
@@ -51,5 +79,89 @@ jobs:
           platforms: linux/amd64
           push: false
           tags: ${{ matrix.image }}:ci
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  publish-images:
+    name: Push ${{ matrix.name }} image
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/terraform-azure-infrastructure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # ACR Push Job에만 GitHub OIDC Token 발급 권한 부여
+    permissions:
+      contents: read
+      id-token: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: API
+            image: blue-server-api
+            dockerfile: src/blueServer.Api/Dockerfile
+          - name: Game
+            image: blue-server-game
+            dockerfile: src/blueServer.Game/Dockerfile
+          - name: Migrations
+            image: blue-server-migrations
+            dockerfile: src/blueServer.Migrations/Dockerfile
+          - name: Silo
+            image: blue-server-silo
+            dockerfile: src/Orleans/blueServer.Silo/Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Login to Azure with OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Resource Group의 단일 ACR을 찾아 Docker 인증과 Image 경로 구성
+      - name: Login to Azure Container Registry
+        id: acr
+        shell: bash
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: |
+          mapfile -t registry_names < <(
+            az acr list \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --query '[].name' \
+              --output tsv
+          )
+
+          if [ "${#registry_names[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one ACR in $AZURE_RESOURCE_GROUP, found ${#registry_names[@]}."
+            exit 1
+          fi
+
+          registry_name="${registry_names[0]}"
+          login_server="$(
+            az acr show \
+              --name "$registry_name" \
+              --query loginServer \
+              --output tsv
+          )"
+
+          az acr login --name "$registry_name"
+          echo "login-server=$login_server" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Commit과 배포 Image를 일대일로 추적할 수 있는 Git SHA Tag 사용
+      - name: Build and push image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.acr.outputs.login-server }}/${{ matrix.image }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}

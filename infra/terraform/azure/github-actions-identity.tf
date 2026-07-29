@@ -22,3 +22,11 @@ resource "azurerm_role_assignment" "github_actions_resource_group_reader" {
   principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
   principal_type       = "ServicePrincipal"
 }
+
+# Application Image를 ACR에 Push하기 위한 Registry 범위 권한
+resource "azurerm_role_assignment" "github_actions_acr_push" {
+  scope                = azurerm_container_registry.main.id
+  role_definition_name = "AcrPush"
+  principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
+  principal_type       = "ServicePrincipal"
+}

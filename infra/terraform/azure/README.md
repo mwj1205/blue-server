@@ -122,6 +122,18 @@ Federated Credential은 `mwj1205/blue-server` Repository의 `main` Branch에서 
 
 `.github/workflows/azure-oidc.yml`은 `main` 반영 후 자동 실행되며, 수동 실행도 지원합니다. Azure Login 이후 `rg-blue-server-dev` 조회가 성공하면 OIDC 인증과 Reader 권한이 모두 검증된 것입니다.
 
+## GitHub Actions ACR Push
+
+GitHub Actions용 Managed Identity에는 Resource Group 조회를 위한 `Reader`와 ACR Image Push를 위한 Registry 범위 `AcrPush` 역할을 각각 부여합니다. `AcrPush`는 다른 Azure Resource를 생성하거나 변경할 수 있는 권한을 포함하지 않습니다.
+
+Docker Workflow는 Pull Request와 `main` Push를 분리합니다.
+
+- Pull Request: API, Game, Migrations, Silo Image Build와 Helm Chart 정적 검증
+- `main` Push: GitHub OIDC 인증 후 네 Image를 ACR에 Push
+- Image Tag: Workflow를 실행한 전체 Git Commit SHA
+
+ACR 이름과 Login Server는 Workflow에 하드코딩하지 않습니다. `AZURE_RESOURCE_GROUP` Repository Variable을 기준으로 대상 Resource Group의 단일 ACR을 조회하며, ACR이 없거나 두 개 이상이면 Push를 중단합니다.
+
 ## 예상 Plan 결과
 
 현재 구성의 Plan에는 다음 Resource가 포함되어야 합니다.
@@ -132,6 +144,7 @@ azurerm_container_registry.main
 azurerm_user_assigned_identity.github_actions
 azurerm_federated_identity_credential.github_actions_main
 azurerm_role_assignment.github_actions_resource_group_reader
+azurerm_role_assignment.github_actions_acr_push
 ```
 
 AKS, PostgreSQL, Redis는 이후 Jira 작업에서 각각 추가합니다.
