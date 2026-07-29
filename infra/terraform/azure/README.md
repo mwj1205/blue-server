@@ -58,6 +58,51 @@ terraform plan -out blue-server.tfplan
 
 Backend 설정에는 Access Key나 SAS Token을 사용하지 않습니다. 로컬에서는 Azure CLI의 Microsoft Entra ID 인증을 사용하고, GitHub Actions에서는 후속 OIDC 작업에서 같은 Backend에 접근합니다.
 
+## ACR 이미지 Push와 Pull 수동 검증
+
+GitHub Actions로 자동화하기 전에 Azure CLI 인증과 Docker Registry 경로가 정상적으로 동작하는지 API 이미지 하나로 검증합니다.
+
+저장소 루트에서 다음 명령을 실행합니다.
+
+```powershell
+Push-Location infra/terraform/azure
+
+$registryName = terraform output `
+    -raw container_registry_name
+
+$loginServer = terraform output `
+    -raw container_registry_login_server
+
+Pop-Location
+
+$imageTag = git rev-parse --short HEAD
+$image = "$loginServer/blue-server-api:manual-$imageTag"
+
+az acr login `
+    --name $registryName
+
+docker build `
+    --file src/blueServer.Api/Dockerfile `
+    --tag $image `
+    .
+
+docker push $image
+
+# 로컬 이미지 제거 후 ACR에서 다시 내려받아 Registry 왕복 검증
+docker image rm $image
+docker pull $image
+
+az acr repository show-tags `
+    --name $registryName `
+    --repository blue-server-api `
+    --detail `
+    --output table
+```
+
+`az acr login`은 ACR Admin 계정을 활성화하지 않고 현재 Azure CLI의 Microsoft Entra ID 인증을 Docker에 전달합니다.
+
+Push와 Pull 결과의 Digest가 같고 `az acr repository show-tags`에서 `manual-<Git SHA>` 태그가 조회되면 검증에 성공한 것입니다.
+
 ## 예상 Plan 결과
 
 현재 구성의 Plan에는 다음 Resource 두 개가 포함되어야 합니다.
