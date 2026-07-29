@@ -103,13 +103,35 @@ az acr repository show-tags `
 
 Push와 Pull 결과의 Digest가 같고 `az acr repository show-tags`에서 `manual-<Git SHA>` 태그가 조회되면 검증에 성공한 것입니다.
 
+## GitHub Actions Azure OIDC 인증
+
+GitHub Actions는 Client Secret 대신 User Assigned Managed Identity와 Federated Credential을 사용하여 Azure에 로그인합니다.
+
+Terraform 적용 후 다음 Output을 GitHub Repository의 `Settings > Secrets and variables > Actions`에 등록합니다.
+
+| 구분     | 이름                    | 값                                               |
+| -------- | ----------------------- | ------------------------------------------------ |
+| Secret   | `AZURE_CLIENT_ID`       | `terraform output -raw github_actions_client_id` |
+| Secret   | `AZURE_TENANT_ID`       | `terraform output -raw github_actions_tenant_id` |
+| Secret   | `AZURE_SUBSCRIPTION_ID` | `az account show --query id --output tsv`        |
+| Variable | `AZURE_RESOURCE_GROUP`  | `terraform output -raw resource_group_name`      |
+
+등록되는 세 ID는 인증서나 Password가 아니지만 Workflow 설정값의 노출 범위를 줄이기 위해 Secret으로 관리합니다.
+
+Federated Credential은 `mwj1205/blue-server` Repository의 `main` Branch에서 발급된 OIDC Token만 허용합니다. Pull Request나 다른 Branch의 Workflow는 이 Identity로 Azure에 로그인할 수 없습니다.
+
+`.github/workflows/azure-oidc.yml`은 `main` 반영 후 자동 실행되며, 수동 실행도 지원합니다. Azure Login 이후 `rg-blue-server-dev` 조회가 성공하면 OIDC 인증과 Reader 권한이 모두 검증된 것입니다.
+
 ## 예상 Plan 결과
 
-현재 구성의 Plan에는 다음 Resource 두 개가 포함되어야 합니다.
+현재 구성의 Plan에는 다음 Resource가 포함되어야 합니다.
 
 ```text
 azurerm_resource_group.main
 azurerm_container_registry.main
+azurerm_user_assigned_identity.github_actions
+azurerm_federated_identity_credential.github_actions_main
+azurerm_role_assignment.github_actions_resource_group_reader
 ```
 
 AKS, PostgreSQL, Redis는 이후 Jira 작업에서 각각 추가합니다.

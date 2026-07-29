@@ -56,6 +56,28 @@ variable "container_registry_sku" {
   }
 }
 
+variable "github_repository" {
+  description = "Azure Federated Credential이 신뢰할 GitHub Repository의 owner/name"
+  type        = string
+  default     = "mwj1205/blue-server"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", var.github_repository))
+    error_message = "github_repository는 owner/repository 형식이어야 합니다."
+  }
+}
+
+variable "github_branch" {
+  description = "Azure Federated Credential이 신뢰할 GitHub Branch"
+  type        = string
+  default     = "main"
+
+  validation {
+    condition     = length(trimspace(var.github_branch)) > 0
+    error_message = "github_branch는 비어 있을 수 없습니다."
+  }
+}
+
 variable "tags" {
   description = "모든 Azure Resource에 추가할 사용자 정의 Tag"
   type        = map(string)
