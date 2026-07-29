@@ -2,7 +2,7 @@
 
 Blue Server의 Azure 인프라를 Terraform으로 관리하는 Root Module입니다.
 
-현재 단계에서는 Application Resource Group을 정의하고 Azure Blob Backend에 State를 저장합니다.
+현재 단계에서는 Application Resource Group과 Azure Container Registry를 정의하고 Azure Blob Backend에 State를 저장합니다.
 
 ## 필요 도구
 
@@ -60,10 +60,11 @@ Backend 설정에는 Access Key나 SAS Token을 사용하지 않습니다. 로�
 
 ## 예상 Plan 결과
 
-현재 구성의 Plan에는 다음 Resource 하나만 포함되어야 합니다.
+현재 구성의 Plan에는 다음 Resource 두 개가 포함되어야 합니다.
 
 ```text
 azurerm_resource_group.main
+azurerm_container_registry.main
 ```
 
-ACR, AKS, PostgreSQL, Redis는 이후 Jira 작업에서 각각 추가합니다.
+AKS, PostgreSQL, Redis는 이후 Jira 작업에서 각각 추가합니다.

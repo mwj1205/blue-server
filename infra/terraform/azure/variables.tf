@@ -45,6 +45,17 @@ variable "location" {
   }
 }
 
+variable "container_registry_sku" {
+  description = "Azure Container Registry의 SKU"
+  type        = string
+  default     = "Basic"
+
+  validation {
+    condition     = contains(["Basic", "Standard", "Premium"], var.container_registry_sku)
+    error_message = "container_registry_sku는 Basic, Standard, Premium 중 하나여야 합니다."
+  }
+}
+
 variable "tags" {
   description = "모든 Azure Resource에 추가할 사용자 정의 Tag"
   type        = map(string)
