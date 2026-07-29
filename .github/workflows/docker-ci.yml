@@ -5,8 +5,6 @@ on:
   push:
     branches:
       - main
-      # main Merge 전 ACR Push 검증을 위한 임시 Feature Branch Trigger
-      - terraform-azure-infrastructure
 
 permissions:
   contents: read
@@ -84,7 +82,7 @@ jobs:
 
   publish-images:
     name: Push ${{ matrix.name }} image
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/terraform-azure-infrastructure')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
