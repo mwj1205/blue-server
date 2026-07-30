@@ -23,6 +23,36 @@ output "container_registry_login_server" {
   value       = azurerm_container_registry.main.login_server
 }
 
+output "aks_cluster_id" {
+  description = "생성된 Azure Kubernetes Service Resource ID"
+  value       = azurerm_kubernetes_cluster.main.id
+}
+
+output "aks_cluster_name" {
+  description = "생성된 Azure Kubernetes Service 이름"
+  value       = azurerm_kubernetes_cluster.main.name
+}
+
+output "aks_kubernetes_version" {
+  description = "Azure Kubernetes Service에 적용된 Kubernetes Version"
+  value       = azurerm_kubernetes_cluster.main.kubernetes_version
+}
+
+output "aks_node_resource_group" {
+  description = "AKS Node와 Network Resource가 생성되는 Managed Resource Group 이름"
+  value       = azurerm_kubernetes_cluster.main.node_resource_group
+}
+
+output "aks_control_plane_principal_id" {
+  description = "AKS Control Plane System Assigned Managed Identity Principal ID"
+  value       = azurerm_kubernetes_cluster.main.identity[0].principal_id
+}
+
+output "aks_get_credentials_command" {
+  description = "현재 Azure CLI 계정으로 AKS kubeconfig를 가져오는 명령"
+  value       = "az aks get-credentials --resource-group ${azurerm_resource_group.main.name} --name ${azurerm_kubernetes_cluster.main.name} --overwrite-existing"
+}
+
 output "github_actions_identity_name" {
   description = "GitHub Actions OIDC 인증에 사용할 User Assigned Managed Identity 이름"
   value       = azurerm_user_assigned_identity.github_actions.name

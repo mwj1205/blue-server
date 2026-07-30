@@ -2,7 +2,7 @@
 
 Blue Server의 Azure 인프라를 Terraform으로 관리하는 Root Module입니다.
 
-현재 단계에서는 Application Resource Group과 Azure Container Registry를 정의하고 Azure Blob Backend에 State를 저장합니다.
+현재 단계에서는 Application Resource Group, Azure Container Registry, 학습용 Azure Kubernetes Service를 정의하고 Azure Blob Backend에 State를 저장합니다.
 
 ## 필요 도구
 
@@ -134,6 +134,38 @@ Docker Workflow는 Pull Request와 `main` Push를 분리합니다.
 
 ACR 이름과 Login Server는 Workflow에 하드코딩하지 않습니다. `AZURE_RESOURCE_GROUP` Repository Variable을 기준으로 대상 Resource Group의 단일 ACR을 조회하며, ACR이 없거나 두 개 이상이면 Push를 중단합니다.
 
+## 학습용 AKS 구성
+
+AKS는 `Free` Tier Control Plane과 `Standard_D4s_v5` System Node 2개로 구성합니다. `Free` Tier는 Control Plane의 Uptime SLA를 제공하지 않으며 Node VM, Managed Disk, Load Balancer, Public IP 등 Cluster가 사용하는 Azure Resource에는 비용이 발생할 수 있습니다.
+
+Kubernetes Version은 로컬 Kubernetes와 Minor Version을 맞추기 위해 Korea Central에서 지원되는 `1.36`으로 고정합니다. 특정 Patch를 고정하지 않아 Azure가 지원하는 최신 `1.36.x` Patch를 선택할 수 있도록 합니다. System Node OS는 `AzureLinux3`, Network는 Azure CNI Overlay를 사용합니다. Cluster는 System Assigned Managed Identity를 사용하므로 Service Principal의 Client Secret을 저장하지 않습니다.
+
+System Node Pool의 최소 Node 수와 VM 요구사항을 만족하려면 DSv5 Family vCPU Quota가 최소 8이어야 합니다. 현재 Subscription의 Korea Central Quota는 4이므로 Quota 증액 전에는 Apply하지 않습니다. 운영 환경에서는 System Node를 3개 이상으로 늘리고 Application을 별도 User Node Pool로 분리해야 합니다.
+
+다음 명령으로 AKS 생성 계획만 검토합니다. 사용자 승인 전에는 `terraform apply`를 실행하지 않습니다.
+
+```powershell
+terraform plan -out blue-server.tfplan
+terraform show blue-server.tfplan
+```
+
+적용 후에는 Terraform Output으로 Azure CLI 접속 명령을 확인할 수 있습니다. Kubeconfig 원문은 별도 Terraform Output이나 Git 추적 파일로 노출하지 않습니다. AzureRM Provider가 State에 저장하는 민감한 Cluster 속성은 기존 Azure Blob 원격 State의 Microsoft Entra ID 인증으로 보호합니다.
+
+```powershell
+terraform output -raw aks_get_credentials_command
+```
+
+학습 종료 후 AKS만 먼저 제거할 때는 Target Plan을 저장하고 내용을 확인한 뒤 적용합니다. Target 제거 후 일반 `terraform plan`은 코드에 남아 있는 AKS를 다시 생성 대상으로 표시합니다.
+
+```powershell
+terraform plan -destroy `
+    -target=azurerm_kubernetes_cluster.main `
+    -out aks-destroy.tfplan
+
+terraform show aks-destroy.tfplan
+terraform apply aks-destroy.tfplan
+```
+
 ## 예상 Plan 결과
 
 현재 구성의 Plan에는 다음 Resource가 포함되어야 합니다.
@@ -145,6 +177,7 @@ azurerm_user_assigned_identity.github_actions
 azurerm_federated_identity_credential.github_actions_main
 azurerm_role_assignment.github_actions_resource_group_reader
 azurerm_role_assignment.github_actions_acr_push
+azurerm_kubernetes_cluster.main
 ```
 
-AKS, PostgreSQL, Redis는 이후 Jira 작업에서 각각 추가합니다.
+AKS의 ACR Pull 권한, PostgreSQL, Redis는 이후 Jira 작업에서 각각 추가합니다.
