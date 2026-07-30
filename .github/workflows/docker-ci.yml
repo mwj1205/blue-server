@@ -28,7 +28,7 @@ jobs:
         with:
           version: v4.2.3
 
-      # Cluster 적용 전 Chart 구조와 Kubernetes YAML 렌더링 검증
+      # Local 및 Azure 환경의 Chart 구조와 Kubernetes YAML 렌더링 검증
       - name: Lint and render chart
         shell: bash
         run: |
@@ -37,6 +37,14 @@ jobs:
             ./deploy/helm/blue-server \
             --namespace blue-server \
             > "$RUNNER_TEMP/blue-server.yaml"
+
+          helm lint ./deploy/helm/blue-server \
+            --values ./deploy/helm/blue-server/values-azure.yaml
+          helm template blue-server \
+            ./deploy/helm/blue-server \
+            --namespace blue-dev \
+            --values ./deploy/helm/blue-server/values-azure.yaml \
+            > "$RUNNER_TEMP/blue-server-azure.yaml"
 
   build-images:
     name: Build ${{ matrix.name }} image

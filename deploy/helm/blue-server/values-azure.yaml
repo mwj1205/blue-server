@@ -1,0 +1,28 @@
+# Azure 개발 환경 식별자 분리
+global:
+  environment: Production
+  environmentName: azure-dev
+  instanceName: blue-server-azure-dev
+
+# ACR에 게시된 동일 Git SHA 기반 Application Image 고정
+images:
+  silo:
+    repository: acrblueserverdevad7bd252.azurecr.io/blue-server-silo
+    tag: ca5ab0fafb5d7f8bf9f3411333069f04ca44322e
+    pullPolicy: IfNotPresent
+  api:
+    repository: acrblueserverdevad7bd252.azurecr.io/blue-server-api
+    tag: ca5ab0fafb5d7f8bf9f3411333069f04ca44322e
+    pullPolicy: IfNotPresent
+  game:
+    repository: acrblueserverdevad7bd252.azurecr.io/blue-server-game
+    tag: ca5ab0fafb5d7f8bf9f3411333069f04ca44322e
+    pullPolicy: IfNotPresent
+  migration:
+    repository: acrblueserverdevad7bd252.azurecr.io/blue-server-migrations
+    tag: ca5ab0fafb5d7f8bf9f3411333069f04ca44322e
+    pullPolicy: IfNotPresent
+
+# Azure 개발 환경 전용 Orleans Cluster 분리
+orleans:
+  clusterId: blue-server-azure-dev
