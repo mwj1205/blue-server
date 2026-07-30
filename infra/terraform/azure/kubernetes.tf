@@ -21,6 +21,13 @@ resource "azurerm_kubernetes_cluster" "main" {
     type                   = "VirtualMachineScaleSets"
     node_public_ip_enabled = false
     tags                   = local.common_tags
+
+    # Azure 기본 Rolling Upgrade 설정과 Terraform State의 일치
+    upgrade_settings {
+      drain_timeout_in_minutes      = 0
+      max_surge                     = "10%"
+      node_soak_duration_in_minutes = 0
+    }
   }
 
   # Client Secret을 저장하지 않는 AKS Control Plane Identity
@@ -37,4 +44,12 @@ resource "azurerm_kubernetes_cluster" "main" {
   }
 
   tags = local.common_tags
+}
+
+# ACR Image Pull을 수행하는 AKS Kubelet Identity 권한
+resource "azurerm_role_assignment" "aks_acr_pull" {
+  scope                = azurerm_container_registry.main.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_kubernetes_cluster.main.kubelet_identity[0].object_id
+  principal_type       = "ServicePrincipal"
 }

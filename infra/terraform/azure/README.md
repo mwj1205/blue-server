@@ -140,7 +140,9 @@ AKS는 `Free` Tier Control Plane과 `Standard_D4s_v5` System Node 2개로 구성
 
 Kubernetes Version은 로컬 Kubernetes와 Minor Version을 맞추기 위해 Korea Central에서 지원되는 `1.36`으로 고정합니다. 특정 Patch를 고정하지 않아 Azure가 지원하는 최신 `1.36.x` Patch를 선택할 수 있도록 합니다. System Node OS는 `AzureLinux3`, Network는 Azure CNI Overlay를 사용합니다. Cluster는 System Assigned Managed Identity를 사용하므로 Service Principal의 Client Secret을 저장하지 않습니다.
 
-System Node Pool의 최소 Node 수와 VM 요구사항을 만족하려면 DSv5 Family vCPU Quota가 최소 8이어야 합니다. 현재 Subscription의 Korea Central Quota는 4이므로 Quota 증액 전에는 Apply하지 않습니다. 운영 환경에서는 System Node를 3개 이상으로 늘리고 Application을 별도 User Node Pool로 분리해야 합니다.
+Node Pool의 `upgrade_settings`는 Azure가 생성 시 적용한 기본값과 Terraform 구성을 일치시킵니다. 이를 생략하면 IAM처럼 Cluster 외부 Resource만 추가하는 Plan에서도 Provider가 기존 Upgrade 설정 제거를 AKS Update로 제안할 수 있습니다.
+
+System Node Pool의 최소 Node 수와 VM 요구사항을 만족하려면 DSv5 Family vCPU Quota가 최소 8이어야 합니다. 현재 Subscription의 Korea Central Quota 8을 모두 사용하므로 Node 추가나 Kubernetes Upgrade의 Surge Node가 필요하면 먼저 Quota를 늘려야 합니다. 운영 환경에서는 System Node를 3개 이상으로 늘리고 Application을 별도 User Node Pool로 분리해야 합니다.
 
 다음 명령으로 AKS 생성 계획만 검토합니다. 사용자 승인 전에는 `terraform apply`를 실행하지 않습니다.
 
@@ -153,6 +155,32 @@ terraform show blue-server.tfplan
 
 ```powershell
 terraform output -raw aks_get_credentials_command
+```
+
+## AKS와 ACR 연결
+
+Private ACR의 Admin 계정을 활성화하지 않고 AKS의 Kubelet Managed Identity에 Registry 범위의 `AcrPull` 역할을 부여합니다. Control Plane Identity는 Cluster Resource 관리에 사용되고, 실제 Container Image Pull은 각 Node의 Kubelet이 수행하므로 `kubelet_identity.object_id`를 Role Assignment의 Principal로 사용합니다.
+
+Cluster가 중지된 상태에서도 Role Assignment를 생성하고 IAM 설정을 확인할 수 있습니다.
+
+```powershell
+$kubeletObjectId = terraform output -raw aks_kubelet_identity_object_id
+$acrId = terraform output -raw container_registry_id
+
+az role assignment list `
+    --assignee $kubeletObjectId `
+    --scope $acrId `
+    --query "[?roleDefinitionName=='AcrPull'].{Role:roleDefinitionName, PrincipalId:principalId, Scope:scope}" `
+    --output table
+```
+
+실제 Image Pull 경로 검증은 Cluster를 시작한 뒤 실행합니다.
+
+```powershell
+az aks check-acr `
+    --resource-group rg-blue-server-dev `
+    --name aks-blue-server-dev `
+    --acr $(terraform output -raw container_registry_login_server)
 ```
 
 학습 종료 후 AKS만 먼저 제거할 때는 Target Plan을 저장하고 내용을 확인한 뒤 적용합니다. Target 제거 후 일반 `terraform plan`은 코드에 남아 있는 AKS를 다시 생성 대상으로 표시합니다.
@@ -178,6 +206,7 @@ azurerm_federated_identity_credential.github_actions_main
 azurerm_role_assignment.github_actions_resource_group_reader
 azurerm_role_assignment.github_actions_acr_push
 azurerm_kubernetes_cluster.main
+azurerm_role_assignment.aks_acr_pull
 ```
 
-AKS의 ACR Pull 권한, PostgreSQL, Redis는 이후 Jira 작업에서 각각 추가합니다.
+PostgreSQL과 Redis는 이후 Jira 작업에서 각각 추가합니다.

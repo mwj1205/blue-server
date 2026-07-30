@@ -23,6 +23,11 @@ output "container_registry_login_server" {
   value       = azurerm_container_registry.main.login_server
 }
 
+output "container_registry_id" {
+  description = "Azure Container Registry Resource ID"
+  value       = azurerm_container_registry.main.id
+}
+
 output "aks_cluster_id" {
   description = "생성된 Azure Kubernetes Service Resource ID"
   value       = azurerm_kubernetes_cluster.main.id
@@ -46,6 +51,11 @@ output "aks_node_resource_group" {
 output "aks_control_plane_principal_id" {
   description = "AKS Control Plane System Assigned Managed Identity Principal ID"
   value       = azurerm_kubernetes_cluster.main.identity[0].principal_id
+}
+
+output "aks_kubelet_identity_object_id" {
+  description = "ACR Image Pull을 수행하는 AKS Kubelet Managed Identity Object ID"
+  value       = azurerm_kubernetes_cluster.main.kubelet_identity[0].object_id
 }
 
 output "aks_get_credentials_command" {
