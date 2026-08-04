@@ -2,7 +2,7 @@
 
 Blue Server의 Azure 인프라를 Terraform으로 관리하는 Root Module입니다.
 
-현재 단계에서는 Application Resource Group, Azure Container Registry, 학습용 Azure Kubernetes Service를 정의하고 Azure Blob Backend에 State를 저장합니다.
+현재 단계에서는 Application Resource Group, Azure Container Registry, 학습용 Azure Kubernetes Service와 Azure Database for PostgreSQL Flexible Server를 정의하고 Azure Blob Backend에 State를 저장합니다.
 
 ## 필요 도구
 
@@ -194,6 +194,43 @@ terraform show aks-destroy.tfplan
 terraform apply aks-destroy.tfplan
 ```
 
+## Azure Database for PostgreSQL
+
+Application Database를 AKS Pod 수명에서 분리하기 위해 Azure Database for PostgreSQL Flexible Server를 사용합니다. 학습용 개발 환경은 Korea Central에서 지원되는 PostgreSQL 18, Burstable `B_Standard_B1ms`, 32GiB Storage, 7일 Backup으로 구성합니다. 고가용성과 Geo-redundant Backup은 활성화하지 않으며 Storage Auto-grow도 비용 상한을 예측할 수 있도록 비활성화합니다.
+
+현재 AKS는 Managed Load Balancer의 Static Outbound Public IP 하나를 사용합니다. PostgreSQL은 Public Endpoint를 사용하지만 Firewall에는 해당 AKS Outbound IP만 등록합니다. `0.0.0.0`으로 모든 Azure Service를 허용하거나 로컬 Public IP를 기본 허용하지 않습니다.
+
+관리자 Password는 Terraform의 Ephemeral Variable과 AzureRM Provider의 Write-only Argument를 사용합니다. Git, Plan, Terraform State에는 저장하지 않으며 현재 PowerShell Process의 환경 변수로만 전달합니다.
+
+```powershell
+$securePassword = Read-Host `
+    "PostgreSQL administrator password" `
+    -AsSecureString
+
+$env:TF_VAR_postgresql_administrator_password = `
+    [System.Net.NetworkCredential]::new("", $securePassword).Password
+
+terraform fmt -check
+terraform validate
+terraform plan -out postgresql.tfplan
+terraform show postgresql.tfplan
+
+Remove-Item Env:TF_VAR_postgresql_administrator_password
+```
+
+Password를 회전할 때는 새 값을 외부에서 주입하고 `postgresql_administrator_password_version`을 증가시킵니다. Version이 바뀌어야 Terraform이 Write-only Password 변경을 Azure에 다시 전달합니다.
+
+PostgreSQL 생성 후 다음 Output을 Helm의 Azure Values와 Kubernetes Secret 구성에 사용합니다. Password는 Output으로 제공하지 않습니다.
+
+```powershell
+terraform output -raw postgresql_server_fqdn
+terraform output -raw postgresql_database_name
+terraform output -raw postgresql_administrator_login
+terraform output -raw postgresql_aks_firewall_ip
+```
+
+개발 환경은 학습 후 Resource를 제거해야 하므로 Terraform `prevent_destroy`를 설정하지 않습니다. 실제 운영 Database에는 별도 환경에서 삭제 보호와 장기 Backup 정책을 적용해야 합니다.
+
 ## 예상 Plan 결과
 
 현재 구성의 Plan에는 다음 Resource가 포함되어야 합니다.
@@ -207,6 +244,9 @@ azurerm_role_assignment.github_actions_resource_group_reader
 azurerm_role_assignment.github_actions_acr_push
 azurerm_kubernetes_cluster.main
 azurerm_role_assignment.aks_acr_pull
+azurerm_postgresql_flexible_server.main
+azurerm_postgresql_flexible_server_database.main
+azurerm_postgresql_flexible_server_firewall_rule.aks
 ```
 
-PostgreSQL과 Redis는 이후 Jira 작업에서 각각 추가합니다.
+Redis는 이후 Jira 작업에서 추가합니다.

@@ -93,6 +93,96 @@ variable "aks_system_node_count" {
   }
 }
 
+variable "postgresql_version" {
+  description = "Azure Database for PostgreSQL Flexible Server Major Version"
+  type        = string
+  default     = "18"
+
+  validation {
+    condition     = contains(["16", "17", "18"], var.postgresql_version)
+    error_message = "postgresql_version은 지원되는 16, 17, 18 중 하나여야 합니다."
+  }
+}
+
+variable "postgresql_sku_name" {
+  description = "Azure Database for PostgreSQL Flexible Server에 사용할 개발용 SKU"
+  type        = string
+  default     = "B_Standard_B1ms"
+
+  validation {
+    condition     = can(regex("^(B|GP|MO)_Standard_[A-Za-z0-9_]+$", var.postgresql_sku_name))
+    error_message = "postgresql_sku_name은 B_Standard_B1ms와 같은 Azure PostgreSQL SKU 형식이어야 합니다."
+  }
+}
+
+variable "postgresql_storage_mb" {
+  description = "Azure Database for PostgreSQL Flexible Server Storage 크기(MiB)"
+  type        = number
+  default     = 32768
+
+  validation {
+    condition     = contains([32768, 65536, 131072, 262144, 524288, 1048576], var.postgresql_storage_mb)
+    error_message = "postgresql_storage_mb는 Azure PostgreSQL이 지원하는 32GiB 이상 Storage 크기여야 합니다."
+  }
+}
+
+variable "postgresql_database_name" {
+  description = "Blue Server Application Database 이름"
+  type        = string
+  default     = "bluearchive"
+
+  validation {
+    condition     = can(regex("^[A-Za-z][A-Za-z0-9_-]{0,62}$", var.postgresql_database_name))
+    error_message = "postgresql_database_name은 영문자로 시작하는 1~63자의 영문자, 숫자, 밑줄, 하이픈이어야 합니다."
+  }
+}
+
+variable "postgresql_administrator_login" {
+  description = "Azure Database for PostgreSQL 관리자 Login 이름"
+  type        = string
+  default     = "blueadmin"
+
+  validation {
+    condition     = can(regex("^[A-Za-z][A-Za-z0-9_]{0,62}$", var.postgresql_administrator_login))
+    error_message = "postgresql_administrator_login은 영문자로 시작하는 1~63자의 영문자, 숫자, 밑줄이어야 합니다."
+  }
+}
+
+variable "postgresql_administrator_password" {
+  description = "Azure Database for PostgreSQL 관리자 Password"
+  type        = string
+  sensitive   = true
+  ephemeral   = true
+
+  validation {
+    condition = (
+      length(var.postgresql_administrator_password) >= 8 &&
+      length(var.postgresql_administrator_password) <= 128 &&
+      (
+        (length(regexall("[A-Z]", var.postgresql_administrator_password)) > 0 ? 1 : 0) +
+        (length(regexall("[a-z]", var.postgresql_administrator_password)) > 0 ? 1 : 0) +
+        (length(regexall("[0-9]", var.postgresql_administrator_password)) > 0 ? 1 : 0) +
+        (length(regexall("[^A-Za-z0-9]", var.postgresql_administrator_password)) > 0 ? 1 : 0)
+      ) >= 3
+    )
+    error_message = "postgresql_administrator_password는 8~128자이며 영문 대문자, 소문자, 숫자, 특수문자 중 3종 이상을 포함해야 합니다."
+  }
+}
+
+variable "postgresql_administrator_password_version" {
+  description = "Write-only PostgreSQL 관리자 Password 회전 Version"
+  type        = number
+  default     = 1
+
+  validation {
+    condition = (
+      floor(var.postgresql_administrator_password_version) == var.postgresql_administrator_password_version &&
+      var.postgresql_administrator_password_version >= 1
+    )
+    error_message = "postgresql_administrator_password_version은 1 이상의 정수여야 합니다."
+  }
+}
+
 variable "github_repository" {
   description = "Azure Federated Credential이 신뢰할 GitHub Repository의 owner/name"
   type        = string

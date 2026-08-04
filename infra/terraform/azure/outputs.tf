@@ -63,6 +63,31 @@ output "aks_get_credentials_command" {
   value       = "az aks get-credentials --resource-group ${azurerm_resource_group.main.name} --name ${azurerm_kubernetes_cluster.main.name} --overwrite-existing"
 }
 
+output "postgresql_server_name" {
+  description = "생성된 Azure Database for PostgreSQL Flexible Server 이름"
+  value       = azurerm_postgresql_flexible_server.main.name
+}
+
+output "postgresql_server_fqdn" {
+  description = "Application에서 PostgreSQL Host로 사용할 FQDN"
+  value       = azurerm_postgresql_flexible_server.main.fqdn
+}
+
+output "postgresql_database_name" {
+  description = "EF Core Migration을 적용할 PostgreSQL Database 이름"
+  value       = azurerm_postgresql_flexible_server_database.main.name
+}
+
+output "postgresql_administrator_login" {
+  description = "Kubernetes Secret과 Helm Values에서 사용할 PostgreSQL 관리자 Login"
+  value       = azurerm_postgresql_flexible_server.main.administrator_login
+}
+
+output "postgresql_aks_firewall_ip" {
+  description = "PostgreSQL Firewall에서 허용한 AKS Outbound Public IP"
+  value       = data.azurerm_public_ip.aks_outbound.ip_address
+}
+
 output "github_actions_identity_name" {
   description = "GitHub Actions OIDC 인증에 사용할 User Assigned Managed Identity 이름"
   value       = azurerm_user_assigned_identity.github_actions.name
