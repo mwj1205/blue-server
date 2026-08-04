@@ -23,6 +23,14 @@ images:
     tag: ca5ab0fafb5d7f8bf9f3411333069f04ca44322e
     pullPolicy: IfNotPresent
 
+# AKS에서 접근할 Azure Managed PostgreSQL 연결 설정
+database:
+  host: psql-blue-server-dev-ad7bd252.postgres.database.azure.com
+  port: 5432
+  name: bluearchive
+  user: blueadmin
+  sslMode: VerifyFull
+
 # Azure 개발 환경 전용 Orleans Cluster 분리
 orleans:
   clusterId: blue-server-azure-dev

@@ -47,6 +47,11 @@ app.kubernetes.io/instance: {{ default .Release.Name .Values.global.instanceName
 {{- printf "%s-config" (include "blue-server.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{/* 모든 Application에서 공유할 PostgreSQL 연결 문자열 생성 */}}
+{{- define "blue-server.databaseConnectionString" -}}
+Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD);SSL Mode=$(POSTGRES_SSL_MODE);GSS Encryption Mode=Disable
+{{- end }}
+
 {{/* Orleans Silo resource 이름 */}}
 {{- define "blue-server.siloName" -}}
 {{- printf "%s-silo" (include "blue-server.fullname" .) | trunc 63 | trimSuffix "-" }}

@@ -32,6 +32,7 @@ database:
   port: 5432
   name: bluearchive
   user: postgres
+  sslMode: Prefer
 
 redis:
   host: redis

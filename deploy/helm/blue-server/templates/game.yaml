@@ -90,13 +90,18 @@ spec:
                 configMapKeyRef:
                   name: {{ include "blue-server.configMapName" . }}
                   key: POSTGRES_USER
+            - name: POSTGRES_SSL_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: POSTGRES_SSL_MODE
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingName }}
                   key: POSTGRES_PASSWORD
             - name: ConnectionStrings__Default
-              value: Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD);GSS Encryption Mode=Disable
+              value: {{ include "blue-server.databaseConnectionString" . | quote }}
             # Redis 기반 Orleans Client 연결 설정
             - name: ConnectionStrings__OrleansRedis
               valueFrom:

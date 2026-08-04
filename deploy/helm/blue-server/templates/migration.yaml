@@ -42,13 +42,15 @@ spec:
               value: {{ .Values.database.name | quote }}
             - name: POSTGRES_USER
               value: {{ .Values.database.user | quote }}
+            - name: POSTGRES_SSL_MODE
+              value: {{ .Values.database.sslMode | quote }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingName }}
                   key: POSTGRES_PASSWORD
             - name: ConnectionStrings__Default
-              value: Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD);GSS Encryption Mode=Disable
+              value: {{ include "blue-server.databaseConnectionString" . | quote }}
           resources:
             {{- toYaml .Values.migration.resources | nindent 12 }}
           securityContext:

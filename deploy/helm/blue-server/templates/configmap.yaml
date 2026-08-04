@@ -12,6 +12,7 @@ data:
   POSTGRES_PORT: {{ .Values.database.port | quote }}
   POSTGRES_DB: {{ .Values.database.name | quote }}
   POSTGRES_USER: {{ .Values.database.user | quote }}
+  POSTGRES_SSL_MODE: {{ .Values.database.sslMode | quote }}
   REDIS_HOST: {{ .Values.redis.host | quote }}
   REDIS_PORT: {{ .Values.redis.port | quote }}
   GAME_PORT: {{ .Values.game.containerPort | quote }}
