@@ -104,6 +104,17 @@ variable "postgresql_version" {
   }
 }
 
+variable "postgresql_zone" {
+  description = "Azure Database for PostgreSQL Flexible Server Availability Zone"
+  type        = string
+  default     = "1"
+
+  validation {
+    condition     = contains(["1", "2", "3"], var.postgresql_zone)
+    error_message = "postgresql_zone은 1, 2, 3 중 하나여야 합니다."
+  }
+}
+
 variable "postgresql_sku_name" {
   description = "Azure Database for PostgreSQL Flexible Server에 사용할 개발용 SKU"
   type        = string
@@ -180,6 +191,34 @@ variable "postgresql_administrator_password_version" {
       var.postgresql_administrator_password_version >= 1
     )
     error_message = "postgresql_administrator_password_version은 1 이상의 정수여야 합니다."
+  }
+}
+
+variable "managed_redis_sku_name" {
+  description = "Azure Managed Redis에 사용할 개발용 SKU"
+  type        = string
+  default     = "Balanced_B0"
+
+  validation {
+    condition     = can(regex("^(Balanced_B|ComputeOptimized_X|MemoryOptimized_M|FlashOptimized_A)[0-9]+$", var.managed_redis_sku_name))
+    error_message = "managed_redis_sku_name은 Balanced_B0과 같은 Azure Managed Redis SKU 형식이어야 합니다."
+  }
+}
+
+variable "managed_redis_high_availability_enabled" {
+  description = "Azure Managed Redis High Availability 활성화 여부"
+  type        = bool
+  default     = false
+}
+
+variable "managed_redis_public_network_access" {
+  description = "Azure Managed Redis Public Endpoint 접근 설정"
+  type        = string
+  default     = "Enabled"
+
+  validation {
+    condition     = contains(["Enabled", "Disabled"], var.managed_redis_public_network_access)
+    error_message = "managed_redis_public_network_access는 Enabled 또는 Disabled여야 합니다."
   }
 }
 

@@ -231,6 +231,26 @@ terraform output -raw postgresql_aks_firewall_ip
 
 개발 환경은 학습 후 Resource를 제거해야 하므로 Terraform `prevent_destroy`를 설정하지 않습니다. 실제 운영 Database에는 별도 환경에서 삭제 보호와 장기 Backup 정책을 적용해야 합니다.
 
+## Azure Managed Redis
+
+Application Cache와 Orleans membership을 Pod 수명에서 분리하기 위해 Azure Managed Redis를 사용합니다. 학습용 개발 환경은 가장 작은 `Balanced_B0` SKU와 High Availability 비활성화를 사용합니다.
+
+현재 AKS Network를 Terraform이 직접 소유하지 않으므로 첫 연결 검증은 Public Endpoint로 진행합니다. Redis Database는 TLS 전용 `Encrypted` Protocol과 Access Key 인증을 사용합니다. Public Endpoint는 모든 Network에서 접근 가능한 개발용 임시 구성이고, 실제 운영 환경에서는 별도 VNet과 Private Endpoint를 구성한 뒤 Public Network Access를 비활성화해야 합니다.
+
+기존 단일 Redis 동작과 Orleans membership 호환성을 우선하여 `NoCluster` Policy를 사용합니다. Eviction은 membership Key가 메모리 압박으로 조용히 제거되지 않도록 `NoEviction`으로 설정합니다.
+
+```powershell
+terraform plan -out managed-redis.tfplan
+terraform show managed-redis.tfplan
+```
+
+생성 후 Host와 TLS Port는 다음 Output으로 확인합니다. Access Key는 민감정보이므로 Terraform Output으로 노출하지 않습니다.
+
+```powershell
+terraform output -raw managed_redis_hostname
+terraform output -raw managed_redis_port
+```
+
 ## 예상 Plan 결과
 
 현재 구성의 Plan에는 다음 Resource가 포함되어야 합니다.
@@ -247,6 +267,7 @@ azurerm_role_assignment.aks_acr_pull
 azurerm_postgresql_flexible_server.main
 azurerm_postgresql_flexible_server_database.main
 azurerm_postgresql_flexible_server_firewall_rule.aks
+azurerm_managed_redis.main
 ```
 
-Redis는 이후 Jira 작업에서 추가합니다.
+Managed Redis 생성 후에는 Azure Host·TLS Port·Access Key를 Helm과 Kubernetes Secret에 연결합니다.

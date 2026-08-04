@@ -88,6 +88,26 @@ output "postgresql_aks_firewall_ip" {
   value       = data.azurerm_public_ip.aks_outbound.ip_address
 }
 
+output "managed_redis_name" {
+  description = "생성한 Azure Managed Redis 이름"
+  value       = azurerm_managed_redis.main.name
+}
+
+output "managed_redis_hostname" {
+  description = "Application에서 Redis Host로 사용할 TLS Endpoint Hostname"
+  value       = azurerm_managed_redis.main.hostname
+}
+
+output "managed_redis_port" {
+  description = "Application에서 Redis TLS 연결에 사용할 Port"
+  value       = azurerm_managed_redis.main.default_database[0].port
+}
+
+output "managed_redis_database_id" {
+  description = "Access Policy와 운영 설정에서 사용할 Managed Redis Database ID"
+  value       = azurerm_managed_redis.main.default_database[0].id
+}
+
 output "github_actions_identity_name" {
   description = "GitHub Actions OIDC 인증에 사용할 User Assigned Managed Identity 이름"
   value       = azurerm_user_assigned_identity.github_actions.name

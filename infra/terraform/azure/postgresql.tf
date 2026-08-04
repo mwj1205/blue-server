@@ -16,6 +16,7 @@ resource "azurerm_postgresql_flexible_server" "main" {
   name                = local.postgresql_server_name
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
+  zone                = var.postgresql_zone
 
   version                           = var.postgresql_version
   administrator_login               = var.postgresql_administrator_login
