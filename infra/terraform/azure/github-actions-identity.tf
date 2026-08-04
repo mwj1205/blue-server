@@ -30,3 +30,12 @@ resource "azurerm_role_assignment" "github_actions_acr_push" {
   principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
   principal_type       = "ServicePrincipal"
 }
+
+# GitHub Actions의 AKS clusterUser kubeconfig 발급을 위한 Cluster 범위 권한
+# Entra 미통합 학습용 Cluster에서 clusterUser Credential이 관리자 권한과 동일한 현재 제한
+resource "azurerm_role_assignment" "github_actions_aks_cluster_user" {
+  scope                = azurerm_kubernetes_cluster.main.id
+  role_definition_name = "Azure Kubernetes Service Cluster User Role"
+  principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
+  principal_type       = "ServicePrincipal"
+}
