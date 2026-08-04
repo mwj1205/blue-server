@@ -15,13 +15,13 @@ data:
   POSTGRES_SSL_MODE: {{ .Values.database.sslMode | quote }}
   REDIS_HOST: {{ .Values.redis.host | quote }}
   REDIS_PORT: {{ .Values.redis.port | quote }}
+  REDIS_SSL: {{ .Values.redis.ssl | quote }}
   GAME_PORT: {{ .Values.game.containerPort | quote }}
   ORLEANS_ENABLED: {{ .Values.orleans.enabled | quote }}
   ORLEANS_HOSTING_MODE: {{ .Values.orleans.hostingMode | quote }}
   ORLEANS_CLUSTERING_MODE: {{ .Values.orleans.clusteringMode | quote }}
   ORLEANS_CLUSTER_ID: {{ .Values.orleans.clusterId | quote }}
   ORLEANS_SERVICE_ID: {{ .Values.orleans.serviceId | quote }}
-  ORLEANS_REDIS_CONNECTION_STRING: {{ .Values.orleans.redisConnectionString | quote }}
   ORLEANS_SILO_PORT: {{ .Values.orleans.siloPort | quote }}
   ORLEANS_GATEWAY_PORT: {{ .Values.orleans.gatewayPort | quote }}
   JWT_ISSUER: {{ .Values.jwt.issuer | quote }}

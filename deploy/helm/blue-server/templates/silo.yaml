@@ -88,11 +88,30 @@ spec:
             - name: ConnectionStrings__Default
               value: {{ include "blue-server.databaseConnectionString" . | quote }}
             # Redis membership 기반 Orleans clustering 설정
-            - name: ConnectionStrings__OrleansRedis
+            - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
                   name: {{ include "blue-server.configMapName" . }}
-                  key: ORLEANS_REDIS_CONNECTION_STRING
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: REDIS_PORT
+            - name: REDIS_SSL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: REDIS_SSL
+            {{- if .Values.redis.authentication.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingName }}
+                  key: {{ .Values.redis.authentication.secretKey }}
+            {{- end }}
+            - name: ConnectionStrings__OrleansRedis
+              value: {{ include "blue-server.redisConnectionString" . | quote }}
             - name: Orleans__HostingMode
               valueFrom:
                 configMapKeyRef:

@@ -37,6 +37,10 @@ database:
 redis:
   host: redis
   port: 6379
+  ssl: false
+  authentication:
+    enabled: false
+    secretKey: REDIS_PASSWORD
 
 migration:
   enabled: true
@@ -95,7 +99,6 @@ orleans:
   clusteringMode: Redis
   clusterId: blue-server-local
   serviceId: blue-server
-  redisConnectionString: redis:6379,abortConnect=false
   siloPort: 11111
   gatewayPort: 30000
 

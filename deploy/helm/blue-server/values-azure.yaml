@@ -31,6 +31,15 @@ database:
   user: blueadmin
   sslMode: VerifyFull
 
+# Azure Managed Redis TLS와 Access Key 인증 설정
+redis:
+  host: redis-blue-server-dev-ad7bd252.koreacentral.redis.azure.net
+  port: 10000
+  ssl: true
+  authentication:
+    enabled: true
+    secretKey: REDIS_PASSWORD
+
 # Azure 개발 환경 전용 Orleans Cluster 분리
 orleans:
   clusterId: blue-server-azure-dev

@@ -125,7 +125,9 @@
       "additionalProperties": false,
       "required": [
         "host",
-        "port"
+        "port",
+        "ssl",
+        "authentication"
       ],
       "properties": {
         "host": {
@@ -134,6 +136,26 @@
         },
         "port": {
           "$ref": "#/$defs/port"
+        },
+        "ssl": {
+          "type": "boolean"
+        },
+        "authentication": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "secretKey"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "secretKey": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
+          }
         }
       }
     },
@@ -286,7 +308,6 @@
         "clusteringMode",
         "clusterId",
         "serviceId",
-        "redisConnectionString",
         "siloPort",
         "gatewayPort"
       ],
@@ -307,10 +328,6 @@
         },
         "serviceId": {
           "$ref": "#/$defs/labelValue"
-        },
-        "redisConnectionString": {
-          "type": "string",
-          "minLength": 1
         },
         "siloPort": {
           "$ref": "#/$defs/port"

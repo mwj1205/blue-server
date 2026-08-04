@@ -110,13 +110,22 @@ spec:
                 configMapKeyRef:
                   name: {{ include "blue-server.configMapName" . }}
                   key: REDIS_PORT
-            - name: ConnectionStrings__Redis
-              value: $(REDIS_HOST):$(REDIS_PORT),abortConnect=false
-            - name: ConnectionStrings__OrleansRedis
+            - name: REDIS_SSL
               valueFrom:
                 configMapKeyRef:
                   name: {{ include "blue-server.configMapName" . }}
-                  key: ORLEANS_REDIS_CONNECTION_STRING
+                  key: REDIS_SSL
+            {{- if .Values.redis.authentication.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingName }}
+                  key: {{ .Values.redis.authentication.secretKey }}
+            {{- end }}
+            - name: ConnectionStrings__Redis
+              value: {{ include "blue-server.redisConnectionString" . | quote }}
+            - name: ConnectionStrings__OrleansRedis
+              value: {{ include "blue-server.redisConnectionString" . | quote }}
             - name: Orleans__Enabled
               valueFrom:
                 configMapKeyRef:
