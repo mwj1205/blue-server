@@ -1,0 +1,155 @@
+name: Azure CD
+
+on:
+  workflow_run:
+    workflows:
+      - Docker CI
+    types:
+      - completed
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: azure-cd-${{ github.event.workflow_run.head_branch }}
+  # 진행 중인 Helm 배포의 중도 취소 방지
+  cancel-in-progress: false
+
+jobs:
+  deploy-azure:
+    name: Deploy to Azure Kubernetes Service
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      RELEASE_NAME: blue-server
+      NAMESPACE: blue-dev
+      CHART_PATH: ./deploy/helm/blue-server
+      VALUES_FILE: ./deploy/helm/blue-server/values-azure.yaml
+      SECRET_NAME: blue-server-secrets
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+
+    steps:
+      # Docker CI가 검증하고 게시한 정확한 Commit 기준 배포
+      - name: Checkout published commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.IMAGE_TAG }}
+
+      - name: Login to Azure with OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Resource Group의 단일 AKS Cluster를 배포 대상으로 선택
+      - name: Discover AKS cluster
+        id: aks
+        shell: bash
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: |
+          mapfile -t cluster_names < <(
+            az aks list \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --query '[].name' \
+              --output tsv
+          )
+
+          if [ "${#cluster_names[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one AKS cluster in $AZURE_RESOURCE_GROUP, found ${#cluster_names[@]}."
+            exit 1
+          fi
+
+          echo "cluster-name=${cluster_names[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.36.2
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v5
+        with:
+          resource-group: ${{ vars.AZURE_RESOURCE_GROUP }}
+          cluster-name: ${{ steps.aks.outputs.cluster-name }}
+          admin: "false"
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v4.2.3
+
+      # GitHub에 비밀값을 복제하지 않고 사전 생성된 Kubernetes Secret 사용
+      - name: Verify deployment secret
+        shell: bash
+        run: |
+          if ! kubectl get namespace "$NAMESPACE" > /dev/null; then
+            echo "::error::Namespace $NAMESPACE does not exist."
+            exit 1
+          fi
+
+          if ! kubectl get secret "$SECRET_NAME" \
+            --namespace "$NAMESPACE" \
+            > /dev/null; then
+            echo "::error::Secret $SECRET_NAME does not exist in namespace $NAMESPACE."
+            exit 1
+          fi
+
+          for key in POSTGRES_PASSWORD JWT_KEY REDIS_PASSWORD; do
+            encoded_value="$(
+              kubectl get secret "$SECRET_NAME" \
+                --namespace "$NAMESPACE" \
+                --output "jsonpath={.data.$key}"
+            )"
+
+            if [ -z "$encoded_value" ]; then
+              echo "::error::Secret $SECRET_NAME does not contain a value for $key."
+              exit 1
+            fi
+          done
+
+      # Migration Hook 성공 후 동일 Git SHA Image로 Application 배포
+      - name: Upgrade Helm release
+        shell: bash
+        run: |
+          helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
+            --install \
+            --namespace "$NAMESPACE" \
+            --values "$VALUES_FILE" \
+            --set-string "images.silo.tag=$IMAGE_TAG" \
+            --set-string "images.api.tag=$IMAGE_TAG" \
+            --set-string "images.game.tag=$IMAGE_TAG" \
+            --set-string "images.migration.tag=$IMAGE_TAG" \
+            --atomic \
+            --wait \
+            --wait-for-jobs \
+            --timeout 10m
+
+      - name: Verify deployed image tags
+        shell: bash
+        run: |
+          helm status "$RELEASE_NAME" --namespace "$NAMESPACE"
+
+          for component in silo api game; do
+            deployment="$RELEASE_NAME-$component"
+            image="$(
+              kubectl get deployment "$deployment" \
+                --namespace "$NAMESPACE" \
+                --output jsonpath='{.spec.template.spec.containers[0].image}'
+            )"
+
+            if [[ "$image" != *":$IMAGE_TAG" ]]; then
+              echo "::error::$deployment uses unexpected image $image."
+              exit 1
+            fi
+
+            kubectl rollout status "deployment/$deployment" \
+              --namespace "$NAMESPACE" \
+              --timeout 2m
+          done

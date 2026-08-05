@@ -47,6 +47,16 @@ app.kubernetes.io/instance: {{ default .Release.Name .Values.global.instanceName
 {{- printf "%s-config" (include "blue-server.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{/* 모든 Application에서 공유할 PostgreSQL 연결 문자열 생성 */}}
+{{- define "blue-server.databaseConnectionString" -}}
+Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD);SSL Mode=$(POSTGRES_SSL_MODE);GSS Encryption Mode=Disable
+{{- end }}
+
+{{/* Cache와 Orleans clustering에서 공유할 Redis 연결 문자열 생성 */}}
+{{- define "blue-server.redisConnectionString" -}}
+$(REDIS_HOST):$(REDIS_PORT),ssl=$(REDIS_SSL),abortConnect=false{{- if .Values.redis.authentication.enabled }},password=$(REDIS_PASSWORD){{- end }}
+{{- end }}
+
 {{/* Orleans Silo resource 이름 */}}
 {{- define "blue-server.siloName" -}}
 {{- printf "%s-silo" (include "blue-server.fullname" .) | trunc 63 | trimSuffix "-" }}

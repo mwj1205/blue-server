@@ -1,0 +1,124 @@
+output "resource_group_id" {
+  description = "생성된 Resource Group ID"
+  value       = azurerm_resource_group.main.id
+}
+
+output "resource_group_name" {
+  description = "생성된 Resource Group 이름"
+  value       = azurerm_resource_group.main.name
+}
+
+output "resource_group_location" {
+  description = "생성된 Resource Group Region"
+  value       = azurerm_resource_group.main.location
+}
+
+output "container_registry_name" {
+  description = "생성된 Azure Container Registry 이름"
+  value       = azurerm_container_registry.main.name
+}
+
+output "container_registry_login_server" {
+  description = "Docker Login과 Image 경로에 사용할 Azure Container Registry 주소"
+  value       = azurerm_container_registry.main.login_server
+}
+
+output "container_registry_id" {
+  description = "Azure Container Registry Resource ID"
+  value       = azurerm_container_registry.main.id
+}
+
+output "aks_cluster_id" {
+  description = "생성된 Azure Kubernetes Service Resource ID"
+  value       = azurerm_kubernetes_cluster.main.id
+}
+
+output "aks_cluster_name" {
+  description = "생성된 Azure Kubernetes Service 이름"
+  value       = azurerm_kubernetes_cluster.main.name
+}
+
+output "aks_kubernetes_version" {
+  description = "Azure Kubernetes Service에 적용된 Kubernetes Version"
+  value       = azurerm_kubernetes_cluster.main.kubernetes_version
+}
+
+output "aks_node_resource_group" {
+  description = "AKS Node와 Network Resource가 생성되는 Managed Resource Group 이름"
+  value       = azurerm_kubernetes_cluster.main.node_resource_group
+}
+
+output "aks_control_plane_principal_id" {
+  description = "AKS Control Plane System Assigned Managed Identity Principal ID"
+  value       = azurerm_kubernetes_cluster.main.identity[0].principal_id
+}
+
+output "aks_kubelet_identity_object_id" {
+  description = "ACR Image Pull을 수행하는 AKS Kubelet Managed Identity Object ID"
+  value       = azurerm_kubernetes_cluster.main.kubelet_identity[0].object_id
+}
+
+output "aks_get_credentials_command" {
+  description = "현재 Azure CLI 계정으로 AKS kubeconfig를 가져오는 명령"
+  value       = "az aks get-credentials --resource-group ${azurerm_resource_group.main.name} --name ${azurerm_kubernetes_cluster.main.name} --overwrite-existing"
+}
+
+output "postgresql_server_name" {
+  description = "생성된 Azure Database for PostgreSQL Flexible Server 이름"
+  value       = azurerm_postgresql_flexible_server.main.name
+}
+
+output "postgresql_server_fqdn" {
+  description = "Application에서 PostgreSQL Host로 사용할 FQDN"
+  value       = azurerm_postgresql_flexible_server.main.fqdn
+}
+
+output "postgresql_database_name" {
+  description = "EF Core Migration을 적용할 PostgreSQL Database 이름"
+  value       = azurerm_postgresql_flexible_server_database.main.name
+}
+
+output "postgresql_administrator_login" {
+  description = "Kubernetes Secret과 Helm Values에서 사용할 PostgreSQL 관리자 Login"
+  value       = azurerm_postgresql_flexible_server.main.administrator_login
+}
+
+output "postgresql_aks_firewall_ip" {
+  description = "PostgreSQL Firewall에서 허용한 AKS Outbound Public IP"
+  value       = data.azurerm_public_ip.aks_outbound.ip_address
+}
+
+output "managed_redis_name" {
+  description = "생성한 Azure Managed Redis 이름"
+  value       = azurerm_managed_redis.main.name
+}
+
+output "managed_redis_hostname" {
+  description = "Application에서 Redis Host로 사용할 TLS Endpoint Hostname"
+  value       = azurerm_managed_redis.main.hostname
+}
+
+output "managed_redis_port" {
+  description = "Application에서 Redis TLS 연결에 사용할 Port"
+  value       = azurerm_managed_redis.main.default_database[0].port
+}
+
+output "managed_redis_database_id" {
+  description = "Access Policy와 운영 설정에서 사용할 Managed Redis Database ID"
+  value       = azurerm_managed_redis.main.default_database[0].id
+}
+
+output "github_actions_identity_name" {
+  description = "GitHub Actions OIDC 인증에 사용할 User Assigned Managed Identity 이름"
+  value       = azurerm_user_assigned_identity.github_actions.name
+}
+
+output "github_actions_client_id" {
+  description = "GitHub Actions의 AZURE_CLIENT_ID에 등록할 Managed Identity Client ID"
+  value       = azurerm_user_assigned_identity.github_actions.client_id
+}
+
+output "github_actions_tenant_id" {
+  description = "GitHub Actions의 AZURE_TENANT_ID에 등록할 Tenant ID"
+  value       = azurerm_user_assigned_identity.github_actions.tenant_id
+}

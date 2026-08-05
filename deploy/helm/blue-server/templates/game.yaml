@@ -90,19 +90,43 @@ spec:
                 configMapKeyRef:
                   name: {{ include "blue-server.configMapName" . }}
                   key: POSTGRES_USER
+            - name: POSTGRES_SSL_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: POSTGRES_SSL_MODE
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingName }}
                   key: POSTGRES_PASSWORD
             - name: ConnectionStrings__Default
-              value: Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD);GSS Encryption Mode=Disable
+              value: {{ include "blue-server.databaseConnectionString" . | quote }}
             # Redis 기반 Orleans Client 연결 설정
-            - name: ConnectionStrings__OrleansRedis
+            - name: REDIS_HOST
               valueFrom:
                 configMapKeyRef:
                   name: {{ include "blue-server.configMapName" . }}
-                  key: ORLEANS_REDIS_CONNECTION_STRING
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: REDIS_PORT
+            - name: REDIS_SSL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "blue-server.configMapName" . }}
+                  key: REDIS_SSL
+            {{- if .Values.redis.authentication.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingName }}
+                  key: {{ .Values.redis.authentication.secretKey }}
+            {{- end }}
+            - name: ConnectionStrings__OrleansRedis
+              value: {{ include "blue-server.redisConnectionString" . | quote }}
             - name: Orleans__Enabled
               valueFrom:
                 configMapKeyRef:
