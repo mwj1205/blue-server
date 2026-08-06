@@ -15,6 +15,15 @@ resource "azurerm_federated_identity_credential" "github_actions_main" {
   subject                   = "repo:${var.github_repository}:ref:refs/heads/${var.github_branch}"
 }
 
+# azure-dev Environment가 지정된 Azure CD Job만 신뢰하는 Federated Credential
+resource "azurerm_federated_identity_credential" "github_actions_azure_environment" {
+  name                      = "github-environment-${var.github_environment_name}"
+  audience                  = ["api://AzureADTokenExchange"]
+  issuer                    = "https://token.actions.githubusercontent.com"
+  user_assigned_identity_id = azurerm_user_assigned_identity.github_actions.id
+  subject                   = "repo:${var.github_repository}:environment:${var.github_environment_name}"
+}
+
 # OIDC 인증과 Resource 조회 검증을 위한 최소 권한
 resource "azurerm_role_assignment" "github_actions_resource_group_reader" {
   scope                = azurerm_resource_group.main.id
