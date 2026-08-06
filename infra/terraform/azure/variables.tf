@@ -244,6 +244,17 @@ variable "github_branch" {
   }
 }
 
+variable "github_environment_name" {
+  description = "Azure CD Federated Credential이 신뢰할 GitHub Environment 이름"
+  type        = string
+  default     = "azure-dev"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_.-]+$", var.github_environment_name))
+    error_message = "github_environment_name은 영문, 숫자, 점, 밑줄, 하이픈만 사용할 수 있습니다."
+  }
+}
+
 variable "tags" {
   description = "모든 Azure Resource에 추가할 사용자 정의 Tag"
   type        = map(string)
