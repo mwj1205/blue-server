@@ -1082,7 +1082,7 @@ function Get-AzureSmokePodLogText {
     if ($null -ne $SinceTime) {
         $arguments += @(
             "--since-time",
-            $SinceTime.Value.ToUniversalTime().ToString("o")
+            $SinceTime.ToUniversalTime().ToString("o")
         )
     }
 
