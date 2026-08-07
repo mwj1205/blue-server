@@ -108,6 +108,39 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 - 성공과 실패 모두에서 `finally`를 통해 인증 값 참조와 Port Forward Process를 정리합니다.
 - 검증 실패 시 Script는 실패 단계와 원인을 출력하고 0이 아닌 Exit Code로 종료합니다.
 
+### Silo Pod 장애 복구 검증
+
+`azure-silo-recovery-smoke.ps1`은 신규 PlayerProfile Grain을 활성화한 Silo Pod를 정확히 식별해 삭제하고, Kubernetes의 Pod 교체와 Orleans Grain 재활성화를 검증합니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\azure-silo-recovery-smoke.ps1 `
+  -KubernetesContext aks-blue-server-dev `
+  -Namespace blue-dev `
+  -ReleaseName blue-server
+```
+
+실제 Pod 삭제 직전에 PowerShell 확인 Prompt가 표시됩니다. 대상 Context·Namespace·Pod 이름을 확인한 뒤에만 실행을 승인합니다.
+
+다음 흐름을 검증합니다.
+
+1. 신규 Player의 HTTP·TCP PlayerProfile과 Grain Activation Pod 확인
+2. 장애 전 API·Game·Silo Log의 민감정보 미노출 확인
+3. 활성 Grain을 소유한 Silo Pod 삭제
+4. 기존 2개 Silo Replica와 새 Pod의 Ready 상태 복구 확인
+5. 같은 Player와 JWT로 HTTP·TCP Profile 재조회
+6. 장애 전후 Profile 전체 필드 일치 확인
+7. 삭제되지 않은 Silo에서 Grain 재활성화 확인
+
+마지막에 다음 메시지와 삭제·교체·재활성화 Pod 요약이 출력되면 성공입니다.
+
+```text
+[azure-smoke] Success: Azure Silo recovery Smoke Test completed
+[azure-smoke] HelmRevision=..., ImageTag=..., PlayerId=..., DeletedSiloPod=..., ReplacementSiloPod=..., ReactivatedGrainPod=..., RecoveryAttempts=...
+```
+
+`-WhatIf`를 사용하면 Silo Pod는 삭제하지 않습니다. 단, 삭제 대상 Grain을 식별하는 사전 검증 과정에서 임시 Player는 생성됩니다. 다른 Deployment나 Rollout이 진행 중일 때는 Pod 교체 결과를 정확히 판단할 수 없으므로 실행하지 않습니다.
+
 ## ELK·Elastic APM 통합 smoke test
 
 `observability-smoke.ps1`은 컨테이너가 실행 중인지만 검사하지 않고 다음 전체 경로를 확인합니다.

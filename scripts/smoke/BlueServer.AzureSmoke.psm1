@@ -1062,6 +1062,132 @@ function Get-AzureSmokeDeploymentPods {
     return $podItems
 }
 
+function Test-AzureSmokePodReady {
+    param([object]$Pod)
+
+    $deletionTimestampProperty =
+        $Pod.metadata.psobject.Properties["deletionTimestamp"]
+
+    if ($null -ne $deletionTimestampProperty -and
+        -not [string]::IsNullOrWhiteSpace(
+            [string]$deletionTimestampProperty.Value)) {
+        return $false
+    }
+
+    $readyConditions = @($Pod.status.conditions |
+        Where-Object { [string]$_.type -eq "Ready" })
+
+    return $readyConditions.Count -eq 1 -and
+        [string]$readyConditions[0].status -eq "True"
+}
+
+function Remove-AzureSmokeSiloPodAndWaitForReplacement {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
+    param(
+        [object]$Context,
+        [ValidatePattern("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")]
+        [string]$PodName,
+        [ValidateRange(1, 600)]
+        [int]$TimeoutSeconds
+    )
+
+    $deploymentName = "$($Context.ReleaseName)-silo"
+    Confirm-DeploymentReady `
+        -Context $Context `
+        -DeploymentName $deploymentName | Out-Null
+    $initialPods = @(Get-AzureSmokeDeploymentPods `
+            -Context $Context `
+            -DeploymentName $deploymentName)
+
+    if ($initialPods.Count -ne 2 -or
+        @($initialPods | Where-Object {
+                Test-AzureSmokePodReady -Pod $_
+            }).Count -ne 2) {
+        throw "Silo recovery test requires two Ready Pods. Deployment=$deploymentName, Pods=$($initialPods.Count)"
+    }
+
+    $initialPodNames = @($initialPods |
+        ForEach-Object { [string]$_.metadata.name })
+    $targetPods = @($initialPods |
+        Where-Object { [string]$_.metadata.name -eq $PodName })
+
+    if ($targetPods.Count -ne 1) {
+        throw "Grain activation Pod does not belong to the Silo deployment. Pod=$PodName, Deployment=$deploymentName"
+    }
+
+    if (-not $PSCmdlet.ShouldProcess(
+            "pod/$PodName in namespace $($Context.Namespace)",
+            "Delete the Silo Pod and wait for its replacement")) {
+        return $null
+    }
+
+    Write-AzureSmokeStep "Deleting active Grain Silo Pod. Pod=$PodName"
+    Invoke-AzureSmokeKubectl `
+        -Context $Context `
+        -Arguments @(
+            "delete",
+            "pod/$PodName",
+            "--namespace",
+            $Context.Namespace,
+            "--wait=false"
+        ) | Out-Null
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    $lastObservation = "Replacement Pod has not been observed."
+
+    do {
+        try {
+            $currentPods = @(Get-AzureSmokeDeploymentPods `
+                    -Context $Context `
+                    -DeploymentName $deploymentName)
+            $activePods = @($currentPods | Where-Object {
+                    $deletionTimestampProperty =
+                        $_.metadata.psobject.Properties["deletionTimestamp"]
+
+                    $null -eq $deletionTimestampProperty -or
+                    [string]::IsNullOrWhiteSpace(
+                        [string]$deletionTimestampProperty.Value)
+                })
+            $readyPods = @($activePods | Where-Object {
+                    Test-AzureSmokePodReady -Pod $_
+                })
+            $replacementPods = @($readyPods | Where-Object {
+                    [string]$_.metadata.name -notin $initialPodNames
+                })
+            $deletedPodStillActive = @($activePods | Where-Object {
+                    [string]$_.metadata.name -eq $PodName
+                }).Count -gt 0
+
+            $lastObservation =
+                "Active=$($activePods.Count), Ready=$($readyPods.Count), Replacement=$($replacementPods.Count), DeletedPodStillActive=$deletedPodStillActive"
+
+            if (-not $deletedPodStillActive -and
+                $activePods.Count -eq $initialPods.Count -and
+                $readyPods.Count -eq $initialPods.Count -and
+                $replacementPods.Count -eq 1) {
+                Confirm-DeploymentReady `
+                    -Context $Context `
+                    -DeploymentName $deploymentName | Out-Null
+
+                return [pscustomobject]@{
+                    DeletedPodName = $PodName
+                    ReplacementPodName =
+                        [string]$replacementPods[0].metadata.name
+                    ReadyReplicas = $readyPods.Count
+                }
+            }
+        }
+        catch {
+            $lastObservation = $_.Exception.Message
+        }
+
+        Start-Sleep -Seconds 2
+    }
+    while ([DateTimeOffset]::UtcNow -lt $deadline)
+
+    throw "Silo replacement Pod did not become ready. DeletedPod=$PodName, TimeoutSeconds=$TimeoutSeconds, LastObservation=$lastObservation"
+}
+
 function Get-AzureSmokePodLogText {
     param(
         [object]$Context,
@@ -1347,5 +1473,6 @@ Export-ModuleMember -Function @(
     "Confirm-AzureSmokeProfileMatch",
     "Confirm-AzureSmokeRedisClusteringLog",
     "Wait-AzureSmokePlayerGrainActivation",
-    "Confirm-AzureSmokeSensitiveValuesNotLogged"
+    "Confirm-AzureSmokeSensitiveValuesNotLogged",
+    "Remove-AzureSmokeSiloPodAndWaitForReplacement"
 )
