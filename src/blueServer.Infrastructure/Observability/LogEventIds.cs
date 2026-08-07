@@ -37,8 +37,5 @@ public static class LogEventIds
     {
         public static readonly EventId PlayerProfileGrainActivated =
             new(3000, nameof(PlayerProfileGrainActivated));
-
-        public static readonly EventId SiloConfigurationResolved =
-            new(3001, nameof(SiloConfigurationResolved));
     }
 }

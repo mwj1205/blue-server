@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 using blueServer.Infrastructure;
-using blueServer.Infrastructure.Observability;
 using Elastic.Apm.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Orleans.Configuration;
@@ -151,19 +150,7 @@ builder.UseOrleans(siloBuilder =>
     siloBuilder.AddActivityPropagation();
 });
 
-var host = builder.Build();
-var startupLogger = host.Services
-    .GetRequiredService<ILoggerFactory>()
-    .CreateLogger("blueServer.Silo.Hosting");
-
-// 실제 적용된 Orleans hosting 및 clustering 모드 기록
-startupLogger.LogInformation(
-    LogEventIds.Orleans.SiloConfigurationResolved,
-    "Orleans Silo configuration resolved. HostingMode={HostingMode}, ClusteringMode={ClusteringMode}",
-    hostingMode,
-    clusteringMode);
-
-await host.RunAsync();
+await builder.Build().RunAsync();
 
 static string GetRequiredValue(
     IConfiguration configuration,
