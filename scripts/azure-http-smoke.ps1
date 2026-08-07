@@ -64,9 +64,7 @@ try {
 }
 finally {
     # 인증 값과 Background Process 정리
-    if ($null -ne $playerSession) {
-        $playerSession.AccessToken = $null
-    }
+    Clear-AzureSmokePlayerSession -Session $playerSession
 
     Stop-AzureSmokePortForward -Process $apiPortForward
 }

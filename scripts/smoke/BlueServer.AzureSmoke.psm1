@@ -460,6 +460,8 @@ function New-AzureSmokePlayerSession {
     $nickname = "smoke-$([DateTimeOffset]::UtcNow.ToString('yyyyMMddHHmmss'))-$([Guid]::NewGuid().ToString('N').Substring(0, 6))"
     $password = "$([Guid]::NewGuid().ToString('N'))aA1!"
     $loginResponse = $null
+    $accessToken = $null
+    $refreshToken = $null
 
     try {
         Write-AzureSmokeStep "Registering a temporary Player"
@@ -480,20 +482,51 @@ function New-AzureSmokePlayerSession {
                 password = $password
             }
         $accessToken = [string]$loginResponse.accessToken
+        $refreshToken = [string]$loginResponse.refreshToken
 
         if ([string]::IsNullOrWhiteSpace($accessToken)) {
             throw "Login response does not contain an access token."
         }
 
+        if ([string]::IsNullOrWhiteSpace($refreshToken)) {
+            throw "Login response does not contain a refresh token."
+        }
+
         return [pscustomobject]@{
             PSTypeName = "BlueServer.AzureSmokePlayerSession"
             Nickname = $nickname
+            Password = $password
             AccessToken = $accessToken
+            RefreshToken = $refreshToken
         }
     }
     finally {
         $loginResponse = $null
         $password = $null
+        $accessToken = $null
+        $refreshToken = $null
+    }
+}
+
+function Clear-AzureSmokePlayerSession {
+    param(
+        [AllowNull()]
+        [object]$Session
+    )
+
+    if ($null -eq $Session) {
+        return
+    }
+
+    # Script 종료 전에 Process Memory의 인증 값 참조 제거
+    foreach ($propertyName in @(
+        "Password",
+        "AccessToken",
+        "RefreshToken"
+    )) {
+        if ($null -ne $Session.psobject.Properties[$propertyName]) {
+            $Session.$propertyName = $null
+        }
     }
 }
 
@@ -976,6 +1009,305 @@ function Invoke-AzureSmokeGameTcpScenario {
     }
 }
 
+function Get-AzureSmokeDeploymentPods {
+    param(
+        [object]$Context,
+        [string]$DeploymentName
+    )
+
+    $deploymentJson = Invoke-AzureSmokeKubectl `
+        -Context $Context `
+        -Arguments @(
+            "get",
+            "deployment/$DeploymentName",
+            "--namespace",
+            $Context.Namespace,
+            "--output",
+            "json"
+        )
+    $deployment = ConvertFrom-CommandJson `
+        -Name "Deployment $DeploymentName" `
+        -Json $deploymentJson
+    $selectorLabels = @(
+        $deployment.spec.selector.matchLabels.psobject.Properties)
+
+    if ($selectorLabels.Count -eq 0) {
+        throw "Deployment does not contain selector labels. Deployment=$DeploymentName"
+    }
+
+    $selector = ($selectorLabels |
+        Sort-Object Name |
+        ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ","
+    $podsJson = Invoke-AzureSmokeKubectl `
+        -Context $Context `
+        -Arguments @(
+            "get",
+            "pods",
+            "--namespace",
+            $Context.Namespace,
+            "--selector",
+            $selector,
+            "--output",
+            "json"
+        )
+    $pods = ConvertFrom-CommandJson `
+        -Name "Pods for deployment $DeploymentName" `
+        -Json $podsJson
+    $podItems = @($pods.items)
+
+    if ($podItems.Count -eq 0) {
+        throw "Deployment does not have any Pods. Deployment=$DeploymentName"
+    }
+
+    return $podItems
+}
+
+function Get-AzureSmokePodLogText {
+    param(
+        [object]$Context,
+        [string]$PodName,
+        [string]$ContainerName,
+        [Nullable[DateTimeOffset]]$SinceTime = $null
+    )
+
+    $arguments = @(
+        "logs",
+        "pod/$PodName",
+        "--namespace",
+        $Context.Namespace,
+        "--container",
+        $ContainerName
+    )
+
+    if ($null -ne $SinceTime) {
+        $arguments += @(
+            "--since-time",
+            $SinceTime.Value.ToUniversalTime().ToString("o")
+        )
+    }
+
+    $kubectlArguments = @(
+        "--context",
+        $Context.KubernetesContext
+    ) + $arguments
+    $output = @(& $Context.KubectlPath @kubectlArguments 2>&1)
+    $exitCode = $LASTEXITCODE
+
+    if ($exitCode -ne 0) {
+        # 실패 출력에 인증 값이 포함될 가능성을 차단한 진단 정보 제한
+        throw "kubectl logs failed. Pod=$PodName, Container=$ContainerName, ExitCode=$exitCode"
+    }
+
+    return ($output |
+        ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+}
+
+function Get-AzureSmokePodLogEntries {
+    param(
+        [object]$Context,
+        [string]$PodName,
+        [Nullable[DateTimeOffset]]$SinceTime = $null
+    )
+
+    $logText = Get-AzureSmokePodLogText `
+        -Context $Context `
+        -PodName $PodName `
+        -ContainerName "silo" `
+        -SinceTime $SinceTime
+
+    foreach ($line in ($logText -split "\r?\n")) {
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+
+        try {
+            $entry = $line | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch {
+            throw "Silo log is not structured JSON. Pod=$PodName, Error=$($_.Exception.Message)"
+        }
+
+        [pscustomobject]@{
+            PodName = $PodName
+            Entry = $entry
+        }
+    }
+}
+
+function Confirm-AzureSmokeRedisClusteringLog {
+    param([object]$Context)
+
+    $deploymentName = "$($Context.ReleaseName)-silo"
+    $pods = @(Get-AzureSmokeDeploymentPods `
+            -Context $Context `
+            -DeploymentName $deploymentName)
+
+    foreach ($pod in $pods) {
+        $podName = [string]$pod.metadata.name
+        $entries = @(Get-AzureSmokePodLogEntries `
+                -Context $Context `
+                -PodName $podName)
+        $matchingEntries = @($entries | Where-Object {
+                [int]$_.Entry.EventId -eq 3001 -and
+                [string]$_.Entry.State.HostingMode -eq "Kubernetes" -and
+                [string]$_.Entry.State.ClusteringMode -eq "Redis"
+            })
+
+        if ($matchingEntries.Count -eq 0) {
+            throw "Silo did not log the expected Orleans configuration. Pod=$podName, HostingMode=Kubernetes, ClusteringMode=Redis"
+        }
+    }
+
+    Write-AzureSmokeStep "Confirmed Kubernetes hosting and Redis clustering on $($pods.Count) Silo Pods"
+}
+
+function Wait-AzureSmokePlayerGrainActivation {
+    param(
+        [object]$Context,
+        [long]$PlayerId,
+        [DateTimeOffset]$SinceTime,
+        [int]$TimeoutSeconds
+    )
+
+    $deploymentName = "$($Context.ReleaseName)-silo"
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+
+    do {
+        $activationEntries = @()
+        $pods = @(Get-AzureSmokeDeploymentPods `
+                -Context $Context `
+                -DeploymentName $deploymentName)
+
+        foreach ($pod in $pods) {
+            $podName = [string]$pod.metadata.name
+            $entries = @(Get-AzureSmokePodLogEntries `
+                    -Context $Context `
+                    -PodName $podName `
+                    -SinceTime $SinceTime)
+            $activationEntries += @($entries | Where-Object {
+                    [int]$_.Entry.EventId -eq 3000 -and
+                    [long]$_.Entry.State.PlayerId -eq $PlayerId
+                })
+        }
+
+        if ($activationEntries.Count -eq 1) {
+            return [pscustomobject]@{
+                PlayerId = $PlayerId
+                PodName = $activationEntries[0].PodName
+                ActivationCount = 1
+            }
+        }
+
+        if ($activationEntries.Count -gt 1) {
+            throw "PlayerProfile Grain was activated more than once during the scenario. PlayerId=$PlayerId, ActivationCount=$($activationEntries.Count)"
+        }
+
+        Start-Sleep -Milliseconds 500
+    }
+    while ([DateTimeOffset]::UtcNow -lt $deadline)
+
+    throw "PlayerProfile Grain activation log was not found. PlayerId=$PlayerId, TimeoutSeconds=$TimeoutSeconds"
+}
+
+function Get-AzureSmokeSensitiveLogFindings {
+    param(
+        [string]$LogText,
+        [string]$WorkloadName,
+        [string]$PodName,
+        [System.Collections.IDictionary]$SensitiveValues
+    )
+
+    foreach ($sensitiveValue in $SensitiveValues.GetEnumerator()) {
+        $value = [string]$sensitiveValue.Value
+
+        if ($LogText.IndexOf(
+                $value,
+                [StringComparison]::Ordinal) -ge 0) {
+            [pscustomobject]@{
+                WorkloadName = $WorkloadName
+                PodName = $PodName
+                SecretKind = [string]$sensitiveValue.Key
+            }
+        }
+    }
+}
+
+function Confirm-AzureSmokeSensitiveValuesNotLogged {
+    param(
+        [object]$Context,
+        [DateTimeOffset]$SinceTime,
+        [System.Collections.IDictionary]$SensitiveValues
+    )
+
+    foreach ($sensitiveValue in $SensitiveValues.GetEnumerator()) {
+        if ([string]::IsNullOrWhiteSpace(
+                [string]$sensitiveValue.Value)) {
+            throw "Sensitive value is missing. SecretKind=$($sensitiveValue.Key)"
+        }
+    }
+
+    $workloads = @(
+        [pscustomobject]@{
+            Name = "API"
+            DeploymentName = "$($Context.ReleaseName)-api"
+            ContainerName = "api"
+        },
+        [pscustomobject]@{
+            Name = "Game"
+            DeploymentName = "$($Context.ReleaseName)-game"
+            ContainerName = "game"
+        },
+        [pscustomobject]@{
+            Name = "Silo"
+            DeploymentName = "$($Context.ReleaseName)-silo"
+            ContainerName = "silo"
+        }
+    )
+    $findings = @()
+
+    foreach ($workload in $workloads) {
+        $workloadLogCount = 0
+        $pods = @(Get-AzureSmokeDeploymentPods `
+                -Context $Context `
+                -DeploymentName $workload.DeploymentName)
+
+        foreach ($pod in $pods) {
+            $podName = [string]$pod.metadata.name
+            $logText = Get-AzureSmokePodLogText `
+                -Context $Context `
+                -PodName $podName `
+                -ContainerName $workload.ContainerName `
+                -SinceTime $SinceTime
+
+            if ([string]::IsNullOrWhiteSpace($logText)) {
+                continue
+            }
+
+            $workloadLogCount++
+            $findings += @(Get-AzureSmokeSensitiveLogFindings `
+                    -LogText $logText `
+                    -WorkloadName $workload.Name `
+                    -PodName $podName `
+                    -SensitiveValues $SensitiveValues)
+            $logText = $null
+        }
+
+        if ($workloadLogCount -eq 0) {
+            throw "No logs were found for the Smoke Test time range. Workload=$($workload.Name)"
+        }
+    }
+
+    if ($findings.Count -gt 0) {
+        $locations = ($findings | ForEach-Object {
+                "$($_.WorkloadName)/$($_.PodName):$($_.SecretKind)"
+            }) -join ", "
+
+        throw "Sensitive values were found in application logs. Locations=$locations"
+    }
+
+    Write-AzureSmokeStep "Confirmed Password and token values are absent from API, Game, and Silo logs"
+}
+
 function Confirm-AzureSmokeProfileMatch {
     param(
         [object]$HttpProfile,
@@ -1008,8 +1340,12 @@ Export-ModuleMember -Function @(
     "Wait-AzureSmokePortForward",
     "Stop-AzureSmokePortForward",
     "New-AzureSmokePlayerSession",
+    "Clear-AzureSmokePlayerSession",
     "Get-AzureSmokePlayerProfile",
     "Confirm-AzureSmokePlayerProfile",
     "Invoke-AzureSmokeGameTcpScenario",
-    "Confirm-AzureSmokeProfileMatch"
+    "Confirm-AzureSmokeProfileMatch",
+    "Confirm-AzureSmokeRedisClusteringLog",
+    "Wait-AzureSmokePlayerGrainActivation",
+    "Confirm-AzureSmokeSensitiveValuesNotLogged"
 )
