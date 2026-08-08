@@ -174,6 +174,40 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 실제 Pod 삭제 직전에 PowerShell 확인 Prompt가 표시됩니다. 현재 검증은 요청을 처리한 Pod를 명확히 특정하기 위해 API Replica가 하나일 때만 실행됩니다. `-WhatIf`를 사용하면 임시 Player 생성과 사전 검증까지만 수행하고 API Pod 삭제는 생략합니다.
 
+### Game Pod 장애와 TCP 재접속 검증
+
+`azure-game-recovery-smoke.ps1`은 단일 Game Pod를 삭제하고 기존 TCP 경로의 종료와 교체 Pod를 향한 재접속을 검증합니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\azure-game-recovery-smoke.ps1 `
+  -KubernetesContext aks-blue-server-dev `
+  -Namespace blue-dev `
+  -ReleaseName blue-server
+```
+
+다음 흐름을 검증합니다.
+
+1. 신규 Player의 장애 전 HTTP·TCP PlayerProfile 비교
+2. Game Port Forward를 통한 유휴 TCP 연결 유지
+3. Game Pod 삭제와 교체 Pod Ready 확인
+4. 기존 TCP 연결 종료와 기존 Port Forward Process 상태 확인
+5. 기존 Port Forward를 명시적으로 정리하고 교체 Pod를 향해 재연결
+6. 동일 JWT를 사용한 TCP Login·PlayerProfile 재요청
+7. 장애 전 HTTP Profile과 복구 후 TCP Profile 전체 필드 비교
+8. 교체 Game Pod Log의 인증 값 원문 미노출 확인
+
+Game 서버는 연결 상태를 가지고 있으므로 Pod가 종료될 때 기존 TCP 연결도 종료되는 것이 정상입니다. Kubernetes가 기존 Socket을 새 Pod로 이전하지 않으므로 클라이언트가 새 연결을 만들고 다시 인증해야 합니다. `kubectl port-forward service/...` Process는 대상 연결이 종료된 뒤에도 살아 있을 수 있으므로 Process 종료 여부는 장애 복구 성공 조건으로 사용하지 않고 Script가 명시적으로 정리합니다.
+
+마지막에 다음 메시지와 Game Pod 교체 요약이 출력되면 성공입니다.
+
+```text
+[azure-smoke] Success: Azure Game recovery Smoke Test completed
+[azure-smoke] HelmRevision=..., ImageTag=..., PlayerId=..., DeletedGamePod=..., ReplacementGamePod=..., ExistingConnectionClosed=True, PreviousPortForwardExited=..., RecoveryAttempts=...
+```
+
+실제 Pod 삭제 직전에 PowerShell 확인 Prompt가 표시됩니다. 현재 검증은 삭제 대상 Game Pod를 명확히 특정하기 위해 Game Replica가 하나일 때만 실행됩니다. `-WhatIf`를 사용하면 임시 Player 생성과 사전 검증까지만 수행하고 Game Pod 삭제는 생략합니다.
+
 ## ELK·Elastic APM 통합 smoke test
 
 `observability-smoke.ps1`은 컨테이너가 실행 중인지만 검사하지 않고 다음 전체 경로를 확인합니다.
