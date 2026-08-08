@@ -1081,47 +1081,67 @@ function Test-AzureSmokePodReady {
         [string]$readyConditions[0].status -eq "True"
 }
 
-function Remove-AzureSmokeSiloPodAndWaitForReplacement {
+function Remove-AzureSmokeDeploymentPodAndWaitForReplacement {
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
     param(
         [object]$Context,
         [ValidatePattern("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")]
-        [string]$PodName,
+        [string]$DeploymentName,
+        [string]$PodName = "",
+        [ValidateRange(1, 100)]
+        [int]$ExpectedReplicas,
         [ValidateRange(1, 600)]
         [int]$TimeoutSeconds
     )
 
-    $deploymentName = "$($Context.ReleaseName)-silo"
-    Confirm-DeploymentReady `
+    $deployment = Confirm-DeploymentReady `
         -Context $Context `
-        -DeploymentName $deploymentName | Out-Null
+        -DeploymentName $DeploymentName
+
+    if ($deployment.Replicas -ne $ExpectedReplicas) {
+        throw "Deployment replica count does not match the recovery test requirement. Deployment=$DeploymentName, Expected=$ExpectedReplicas, Actual=$($deployment.Replicas)"
+    }
+
     $initialPods = @(Get-AzureSmokeDeploymentPods `
             -Context $Context `
-            -DeploymentName $deploymentName)
+            -DeploymentName $DeploymentName)
 
-    if ($initialPods.Count -ne 2 -or
+    if ($initialPods.Count -ne $ExpectedReplicas -or
         @($initialPods | Where-Object {
                 Test-AzureSmokePodReady -Pod $_
-            }).Count -ne 2) {
-        throw "Silo recovery test requires two Ready Pods. Deployment=$deploymentName, Pods=$($initialPods.Count)"
+            }).Count -ne $ExpectedReplicas) {
+        throw "Recovery test requires every Deployment Pod to be Ready. Deployment=$DeploymentName, Expected=$ExpectedReplicas, Pods=$($initialPods.Count)"
     }
 
     $initialPodNames = @($initialPods |
         ForEach-Object { [string]$_.metadata.name })
+
+    if ([string]::IsNullOrWhiteSpace($PodName)) {
+        if ($ExpectedReplicas -ne 1) {
+            throw "PodName is required for a multi-replica Deployment recovery test. Deployment=$DeploymentName, Replicas=$ExpectedReplicas"
+        }
+
+        $PodName = $initialPodNames[0]
+    }
+    elseif ($PodName -notmatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$") {
+        throw "Recovery target Pod name is invalid. Pod=$PodName"
+    }
+
     $targetPods = @($initialPods |
         Where-Object { [string]$_.metadata.name -eq $PodName })
 
     if ($targetPods.Count -ne 1) {
-        throw "Grain activation Pod does not belong to the Silo deployment. Pod=$PodName, Deployment=$deploymentName"
+        throw "Recovery target Pod does not belong to the Deployment. Pod=$PodName, Deployment=$DeploymentName"
     }
 
     if (-not $PSCmdlet.ShouldProcess(
             "pod/$PodName in namespace $($Context.Namespace)",
-            "Delete the Silo Pod and wait for its replacement")) {
+            "Delete the Deployment Pod and wait for its replacement")) {
         return $null
     }
 
-    Write-AzureSmokeStep "Deleting active Grain Silo Pod. Pod=$PodName"
+    Write-AzureSmokeStep `
+        "Deleting Deployment Pod. Deployment=$DeploymentName, Pod=$PodName"
     Invoke-AzureSmokeKubectl `
         -Context $Context `
         -Arguments @(
@@ -1139,7 +1159,7 @@ function Remove-AzureSmokeSiloPodAndWaitForReplacement {
         try {
             $currentPods = @(Get-AzureSmokeDeploymentPods `
                     -Context $Context `
-                    -DeploymentName $deploymentName)
+                    -DeploymentName $DeploymentName)
             $activePods = @($currentPods | Where-Object {
                     $deletionTimestampProperty =
                         $_.metadata.psobject.Properties["deletionTimestamp"]
@@ -1162,14 +1182,15 @@ function Remove-AzureSmokeSiloPodAndWaitForReplacement {
                 "Active=$($activePods.Count), Ready=$($readyPods.Count), Replacement=$($replacementPods.Count), DeletedPodStillActive=$deletedPodStillActive"
 
             if (-not $deletedPodStillActive -and
-                $activePods.Count -eq $initialPods.Count -and
-                $readyPods.Count -eq $initialPods.Count -and
+                $activePods.Count -eq $ExpectedReplicas -and
+                $readyPods.Count -eq $ExpectedReplicas -and
                 $replacementPods.Count -eq 1) {
                 Confirm-DeploymentReady `
                     -Context $Context `
-                    -DeploymentName $deploymentName | Out-Null
+                    -DeploymentName $DeploymentName | Out-Null
 
                 return [pscustomobject]@{
+                    DeploymentName = $DeploymentName
                     DeletedPodName = $PodName
                     ReplacementPodName =
                         [string]$replacementPods[0].metadata.name
@@ -1185,7 +1206,34 @@ function Remove-AzureSmokeSiloPodAndWaitForReplacement {
     }
     while ([DateTimeOffset]::UtcNow -lt $deadline)
 
-    throw "Silo replacement Pod did not become ready. DeletedPod=$PodName, TimeoutSeconds=$TimeoutSeconds, LastObservation=$lastObservation"
+    throw "Replacement Pod did not become ready. Deployment=$DeploymentName, DeletedPod=$PodName, TimeoutSeconds=$TimeoutSeconds, LastObservation=$lastObservation"
+}
+
+function Remove-AzureSmokeSiloPodAndWaitForReplacement {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
+    param(
+        [object]$Context,
+        [ValidatePattern("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")]
+        [string]$PodName,
+        [ValidateRange(1, 600)]
+        [int]$TimeoutSeconds
+    )
+
+    $deploymentName = "$($Context.ReleaseName)-silo"
+    $target = "pod/$PodName in namespace $($Context.Namespace)"
+    $action = "Delete the Silo Pod and wait for its replacement"
+
+    if (-not $PSCmdlet.ShouldProcess($target, $action)) {
+        return $null
+    }
+
+    return Remove-AzureSmokeDeploymentPodAndWaitForReplacement `
+        -Context $Context `
+        -DeploymentName $deploymentName `
+        -PodName $PodName `
+        -ExpectedReplicas 2 `
+        -TimeoutSeconds $TimeoutSeconds `
+        -Confirm:$false
 }
 
 function Get-AzureSmokePodLogText {
@@ -1362,7 +1410,9 @@ function Confirm-AzureSmokeSensitiveValuesNotLogged {
     param(
         [object]$Context,
         [DateTimeOffset]$SinceTime,
-        [System.Collections.IDictionary]$SensitiveValues
+        [System.Collections.IDictionary]$SensitiveValues,
+        [ValidateSet("API", "Game", "Silo")]
+        [string[]]$WorkloadNames = @("API", "Game", "Silo")
     )
 
     foreach ($sensitiveValue in $SensitiveValues.GetEnumerator()) {
@@ -1372,7 +1422,7 @@ function Confirm-AzureSmokeSensitiveValuesNotLogged {
         }
     }
 
-    $workloads = @(
+    $availableWorkloads = @(
         [pscustomobject]@{
             Name = "API"
             DeploymentName = "$($Context.ReleaseName)-api"
@@ -1389,6 +1439,9 @@ function Confirm-AzureSmokeSensitiveValuesNotLogged {
             ContainerName = "silo"
         }
     )
+    $workloads = @($availableWorkloads | Where-Object {
+            $_.Name -in $WorkloadNames
+        })
     $findings = @()
 
     foreach ($workload in $workloads) {
@@ -1458,6 +1511,30 @@ function Confirm-AzureSmokeProfileMatch {
     }
 }
 
+function Confirm-AzureSmokeHttpProfilesMatch {
+    param(
+        [object]$ExpectedProfile,
+        [object]$ActualProfile
+    )
+
+    $comparisons = @(
+        @("PlayerId", [long]$ExpectedProfile.id, [long]$ActualProfile.id),
+        @("Nickname", [string]$ExpectedProfile.nickname, [string]$ActualProfile.nickname),
+        @("Gold", [int]$ExpectedProfile.gold, [int]$ActualProfile.gold),
+        @("Gem", [int]$ExpectedProfile.gem, [int]$ActualProfile.gem),
+        @("OwnedCharacterCount", [int]$ExpectedProfile.ownedCharacterCount, [int]$ActualProfile.ownedCharacterCount),
+        @("PartyCount", [int]$ExpectedProfile.partyCount, [int]$ActualProfile.partyCount),
+        @("ClearedStageCount", [int]$ExpectedProfile.clearedStageCount, [int]$ActualProfile.clearedStageCount),
+        @("TotalStageClearCount", [int]$ExpectedProfile.totalStageClearCount, [int]$ActualProfile.totalStageClearCount)
+    )
+
+    foreach ($comparison in $comparisons) {
+        if ($comparison[1] -ne $comparison[2]) {
+            throw "HTTP PlayerProfile values do not match. Field=$($comparison[0]), Expected=$($comparison[1]), Actual=$($comparison[2])"
+        }
+    }
+}
+
 Export-ModuleMember -Function @(
     "Write-AzureSmokeStep",
     "New-AzureSmokeContext",
@@ -1471,8 +1548,10 @@ Export-ModuleMember -Function @(
     "Confirm-AzureSmokePlayerProfile",
     "Invoke-AzureSmokeGameTcpScenario",
     "Confirm-AzureSmokeProfileMatch",
+    "Confirm-AzureSmokeHttpProfilesMatch",
     "Confirm-AzureSmokeRedisClusteringLog",
     "Wait-AzureSmokePlayerGrainActivation",
     "Confirm-AzureSmokeSensitiveValuesNotLogged",
+    "Remove-AzureSmokeDeploymentPodAndWaitForReplacement",
     "Remove-AzureSmokeSiloPodAndWaitForReplacement"
 )

@@ -141,6 +141,39 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 `-WhatIf`를 사용하면 Silo Pod는 삭제하지 않습니다. 단, 삭제 대상 Grain을 식별하는 사전 검증 과정에서 임시 Player는 생성됩니다. 다른 Deployment나 Rollout이 진행 중일 때는 Pod 교체 결과를 정확히 판단할 수 없으므로 실행하지 않습니다.
 
+### API Pod 장애 복구 검증
+
+`azure-api-recovery-smoke.ps1`은 단일 API Pod를 삭제하고, Kubernetes의 Pod 교체와 동일 JWT를 사용한 HTTP PlayerProfile 복구를 검증합니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\azure-api-recovery-smoke.ps1 `
+  -KubernetesContext aks-blue-server-dev `
+  -Namespace blue-dev `
+  -ReleaseName blue-server
+```
+
+다음 흐름을 검증합니다.
+
+1. 신규 Player 생성과 장애 전 HTTP PlayerProfile 조회
+2. API Log의 Password·Access Token·Refresh Token 원문 미노출 확인
+3. API Pod 삭제와 동일 Replica 수의 교체 Pod Ready 확인
+4. 교체 Pod를 대상으로 API Service Port Forward 재연결
+5. 동일 JWT를 사용한 HTTP PlayerProfile 재조회
+6. 장애 전후 Player ID·Nickname·재화·집계 필드 비교
+7. 교체 API Pod Log의 인증 값 원문 미노출 확인
+
+`kubectl port-forward service/...`는 연결을 시작할 때 선택된 Pod에 고정됩니다. 기존 API Pod가 삭제되면 연결도 종료되므로, Script는 교체 Pod가 Ready가 된 후 Port Forward를 새로 시작합니다.
+
+마지막에 다음 메시지와 API Pod 교체 요약이 출력되면 성공입니다.
+
+```text
+[azure-smoke] Success: Azure API recovery Smoke Test completed
+[azure-smoke] HelmRevision=..., ImageTag=..., PlayerId=..., DeletedApiPod=..., ReplacementApiPod=..., RecoveryAttempts=...
+```
+
+실제 Pod 삭제 직전에 PowerShell 확인 Prompt가 표시됩니다. 현재 검증은 요청을 처리한 Pod를 명확히 특정하기 위해 API Replica가 하나일 때만 실행됩니다. `-WhatIf`를 사용하면 임시 Player 생성과 사전 검증까지만 수행하고 API Pod 삭제는 생략합니다.
+
 ## ELK·Elastic APM 통합 smoke test
 
 `observability-smoke.ps1`은 컨테이너가 실행 중인지만 검사하지 않고 다음 전체 경로를 확인합니다.
