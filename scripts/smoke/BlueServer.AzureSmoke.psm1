@@ -1308,7 +1308,7 @@ function Get-AzureSmokePodLogEntries {
     }
 }
 
-function Confirm-AzureSmokeRedisClusteringLog {
+function Confirm-AzureSmokeOrleansConfiguration {
     param([object]$Context)
 
     $deploymentName = "$($Context.ReleaseName)-silo"
@@ -1318,21 +1318,56 @@ function Confirm-AzureSmokeRedisClusteringLog {
 
     foreach ($pod in $pods) {
         $podName = [string]$pod.metadata.name
-        $entries = @(Get-AzureSmokePodLogEntries `
-                -Context $Context `
-                -PodName $podName)
-        $matchingEntries = @($entries | Where-Object {
-                [int]$_.Entry.EventId -eq 3001 -and
-                [string]$_.Entry.State.HostingMode -eq "Kubernetes" -and
-                [string]$_.Entry.State.ClusteringMode -eq "Redis"
-            })
 
-        if ($matchingEntries.Count -eq 0) {
-            throw "Silo did not log the expected Orleans configuration. Pod=$podName, HostingMode=Kubernetes, ClusteringMode=Redis"
+        if (-not (Test-AzureSmokePodReady -Pod $pod)) {
+            throw "Silo Pod is not Ready during Orleans configuration verification. Pod=$podName"
+        }
+
+        $runtimeText = Invoke-AzureSmokeKubectl `
+            -Context $Context `
+            -Arguments @(
+                "exec",
+                "pod/$podName",
+                "--namespace",
+                $Context.Namespace,
+                "--container",
+                "silo",
+                "--",
+                "printenv",
+                "Orleans__HostingMode",
+                "Orleans__ClusteringMode"
+            )
+        $runtimeValues = @($runtimeText -split "\r?\n" |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            ForEach-Object { $_.Trim() })
+        $hostingMode = if ($runtimeValues.Count -ge 1) {
+            $runtimeValues[0]
+        }
+        else {
+            "<missing>"
+        }
+        $clusteringMode = if ($runtimeValues.Count -ge 2) {
+            $runtimeValues[1]
+        }
+        else {
+            "<missing>"
+        }
+
+        if ($runtimeValues.Count -ne 2 -or
+            $hostingMode -ne "Kubernetes" -or
+            $clusteringMode -ne "Redis") {
+            throw "Silo does not use the expected Orleans runtime configuration. Pod=$podName, HostingMode=$hostingMode, ClusteringMode=$clusteringMode"
         }
     }
 
-    Write-AzureSmokeStep "Confirmed Kubernetes hosting and Redis clustering on $($pods.Count) Silo Pods"
+    Write-AzureSmokeStep `
+        "Confirmed Kubernetes hosting and Redis clustering runtime configuration on $($pods.Count) Silo Pods"
+}
+
+function Confirm-AzureSmokeRedisClusteringLog {
+    param([object]$Context)
+
+    Confirm-AzureSmokeOrleansConfiguration -Context $Context
 }
 
 function Wait-AzureSmokePlayerGrainActivation {
@@ -1549,6 +1584,7 @@ Export-ModuleMember -Function @(
     "Invoke-AzureSmokeGameTcpScenario",
     "Confirm-AzureSmokeProfileMatch",
     "Confirm-AzureSmokeHttpProfilesMatch",
+    "Confirm-AzureSmokeOrleansConfiguration",
     "Confirm-AzureSmokeRedisClusteringLog",
     "Wait-AzureSmokePlayerGrainActivation",
     "Confirm-AzureSmokeSensitiveValuesNotLogged",

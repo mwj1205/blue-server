@@ -10,7 +10,7 @@ param(
     [string]$ReleaseName = "blue-server",
 
     [ValidateRange(1, 65535)]
-    [int]$ApiLocalPort = 5201,
+    [int]$ApiLocalPort = 15201,
 
     [ValidateRange(1, 300)]
     [int]$PortForwardStartupTimeoutSeconds = 30,
