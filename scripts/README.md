@@ -20,7 +20,7 @@ Azure smoke test는 AKS의 Pod가 Ready인지 확인하는 데서 끝나지 않�
 - 대상 Namespace에 Helm Release가 `deployed` 상태
 - API 1개, Game 1개, Silo 2개 Replica가 Ready 상태
 - API·Game·Silo가 동일한 40자리 Git SHA Image Tag를 사용하는 상태
-- 기본 로컬 Port `5201`, `7777`을 다른 Process가 사용하지 않는 상태
+- 기본 로컬 Port `15201`, `17777`을 다른 Process가 사용하지 않는 상태
 
 현재 기본 대상은 다음과 같습니다.
 
@@ -29,8 +29,8 @@ Azure smoke test는 AKS의 Pod가 Ready인지 확인하는 데서 끝나지 않�
 | Kubernetes Context | `aks-blue-server-dev` |
 | Namespace | `blue-dev` |
 | Helm Release | `blue-server` |
-| API Local Port | `5201` |
-| Game Local Port | `7777` |
+| API Local Port | `15201` |
+| Game Local Port | `17777` |
 
 ### HTTP 빠른 검증
 
@@ -70,12 +70,14 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 HTTP 검증에 더해 다음 흐름을 검증합니다.
 
-1. Silo 2개의 Kubernetes Hosting·Redis Clustering 설정 Log 확인
+1. Silo 2개 Container의 Kubernetes Hosting·Redis Clustering 실제 환경 변수 확인
 2. Game Service Port Forward
 3. JWT를 사용한 TCP Login·PlayerProfile Packet 요청
 4. HTTP와 TCP의 Player ID·Nickname·재화·집계 필드 비교
 5. 신규 PlayerProfile Grain Activation이 전체 Silo에서 한 건인지 확인
 6. API·Game·Silo Log에 Password·Access Token·Refresh Token 원문이 없는지 확인
+
+Orleans 설정 검증은 Silo 시작 시 한 번만 기록되는 Log에 의존하지 않습니다. 오래 실행된 Pod에서는 시작 Log가 회전될 수 있으므로 각 Ready Silo Container의 `Orleans__HostingMode`, `Orleans__ClusteringMode` 값을 직접 조회합니다.
 
 마지막에 다음 메시지와 실행 결과 요약이 출력되면 성공입니다.
 
@@ -94,8 +96,8 @@ powershell -NoProfile -ExecutionPolicy Bypass `
   -KubernetesContext aks-blue-server-dev `
   -Namespace blue-dev `
   -ReleaseName blue-server `
-  -ApiLocalPort 15201 `
-  -GameLocalPort 17777 `
+  -ApiLocalPort 25201 `
+  -GameLocalPort 27777 `
   -PortForwardStartupTimeoutSeconds 60 `
   -GrainActivationTimeoutSeconds 30
 ```
@@ -107,6 +109,141 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 - Password와 JWT는 Process Memory에서만 사용하며 성공 결과에 출력하지 않습니다.
 - 성공과 실패 모두에서 `finally`를 통해 인증 값 참조와 Port Forward Process를 정리합니다.
 - 검증 실패 시 Script는 실패 단계와 원인을 출력하고 0이 아닌 Exit Code로 종료합니다.
+
+### Silo Pod 장애 복구 검증
+
+`azure-silo-recovery-smoke.ps1`은 신규 PlayerProfile Grain을 활성화한 Silo Pod를 정확히 식별해 삭제하고, Kubernetes의 Pod 교체와 Orleans Grain 재활성화를 검증합니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\azure-silo-recovery-smoke.ps1 `
+  -KubernetesContext aks-blue-server-dev `
+  -Namespace blue-dev `
+  -ReleaseName blue-server
+```
+
+실제 Pod 삭제 직전에 PowerShell 확인 Prompt가 표시됩니다. 대상 Context·Namespace·Pod 이름을 확인한 뒤에만 실행을 승인합니다.
+
+다음 흐름을 검증합니다.
+
+1. 신규 Player의 HTTP·TCP PlayerProfile과 Grain Activation Pod 확인
+2. 장애 전 API·Game·Silo Log의 민감정보 미노출 확인
+3. 활성 Grain을 소유한 Silo Pod 삭제
+4. 기존 2개 Silo Replica와 새 Pod의 Ready 상태 복구 확인
+5. 같은 Player와 JWT로 HTTP·TCP Profile 재조회
+6. 장애 전후 Profile 전체 필드 일치 확인
+7. 삭제되지 않은 Silo에서 Grain 재활성화 확인
+
+마지막에 다음 메시지와 삭제·교체·재활성화 Pod 요약이 출력되면 성공입니다.
+
+```text
+[azure-smoke] Success: Azure Silo recovery Smoke Test completed
+[azure-smoke] HelmRevision=..., ImageTag=..., PlayerId=..., DeletedSiloPod=..., ReplacementSiloPod=..., ReactivatedGrainPod=..., RecoveryAttempts=...
+```
+
+`-WhatIf`를 사용하면 Silo Pod는 삭제하지 않습니다. 단, 삭제 대상 Grain을 식별하는 사전 검증 과정에서 임시 Player는 생성됩니다. 다른 Deployment나 Rollout이 진행 중일 때는 Pod 교체 결과를 정확히 판단할 수 없으므로 실행하지 않습니다.
+
+### API Pod 장애 복구 검증
+
+`azure-api-recovery-smoke.ps1`은 단일 API Pod를 삭제하고, Kubernetes의 Pod 교체와 동일 JWT를 사용한 HTTP PlayerProfile 복구를 검증합니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\azure-api-recovery-smoke.ps1 `
+  -KubernetesContext aks-blue-server-dev `
+  -Namespace blue-dev `
+  -ReleaseName blue-server
+```
+
+다음 흐름을 검증합니다.
+
+1. 신규 Player 생성과 장애 전 HTTP PlayerProfile 조회
+2. API Log의 Password·Access Token·Refresh Token 원문 미노출 확인
+3. API Pod 삭제와 동일 Replica 수의 교체 Pod Ready 확인
+4. 교체 Pod를 대상으로 API Service Port Forward 재연결
+5. 동일 JWT를 사용한 HTTP PlayerProfile 재조회
+6. 장애 전후 Player ID·Nickname·재화·집계 필드 비교
+7. 교체 API Pod Log의 인증 값 원문 미노출 확인
+
+`kubectl port-forward service/...`는 연결을 시작할 때 선택된 Pod에 고정됩니다. 기존 API Pod가 삭제되면 연결도 종료되므로, Script는 교체 Pod가 Ready가 된 후 Port Forward를 새로 시작합니다.
+
+마지막에 다음 메시지와 API Pod 교체 요약이 출력되면 성공입니다.
+
+```text
+[azure-smoke] Success: Azure API recovery Smoke Test completed
+[azure-smoke] HelmRevision=..., ImageTag=..., PlayerId=..., DeletedApiPod=..., ReplacementApiPod=..., RecoveryAttempts=...
+```
+
+실제 Pod 삭제 직전에 PowerShell 확인 Prompt가 표시됩니다. 현재 검증은 요청을 처리한 Pod를 명확히 특정하기 위해 API Replica가 하나일 때만 실행됩니다. `-WhatIf`를 사용하면 임시 Player 생성과 사전 검증까지만 수행하고 API Pod 삭제는 생략합니다.
+
+### Game Pod 장애와 TCP 재접속 검증
+
+`azure-game-recovery-smoke.ps1`은 단일 Game Pod를 삭제하고 기존 TCP 경로의 종료와 교체 Pod를 향한 재접속을 검증합니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\azure-game-recovery-smoke.ps1 `
+  -KubernetesContext aks-blue-server-dev `
+  -Namespace blue-dev `
+  -ReleaseName blue-server
+```
+
+다음 흐름을 검증합니다.
+
+1. 신규 Player의 장애 전 HTTP·TCP PlayerProfile 비교
+2. Game Port Forward를 통한 유휴 TCP 연결 유지
+3. Game Pod 삭제와 교체 Pod Ready 확인
+4. 기존 TCP 연결 종료와 기존 Port Forward Process 상태 확인
+5. 기존 Port Forward를 명시적으로 정리하고 교체 Pod를 향해 재연결
+6. 동일 JWT를 사용한 TCP Login·PlayerProfile 재요청
+7. 장애 전 HTTP Profile과 복구 후 TCP Profile 전체 필드 비교
+8. 교체 Game Pod Log의 인증 값 원문 미노출 확인
+
+Game 서버는 연결 상태를 가지고 있으므로 Pod가 종료될 때 기존 TCP 연결도 종료되는 것이 정상입니다. Kubernetes가 기존 Socket을 새 Pod로 이전하지 않으므로 클라이언트가 새 연결을 만들고 다시 인증해야 합니다. `kubectl port-forward service/...` Process는 대상 연결이 종료된 뒤에도 살아 있을 수 있으므로 Process 종료 여부는 장애 복구 성공 조건으로 사용하지 않고 Script가 명시적으로 정리합니다.
+
+마지막에 다음 메시지와 Game Pod 교체 요약이 출력되면 성공입니다.
+
+```text
+[azure-smoke] Success: Azure Game recovery Smoke Test completed
+[azure-smoke] HelmRevision=..., ImageTag=..., PlayerId=..., DeletedGamePod=..., ReplacementGamePod=..., ExistingConnectionClosed=True, PreviousPortForwardExited=..., RecoveryAttempts=...
+```
+
+실제 Pod 삭제 직전에 PowerShell 확인 Prompt가 표시됩니다. 현재 검증은 삭제 대상 Game Pod를 명확히 특정하기 위해 Game Replica가 하나일 때만 실행됩니다. `-WhatIf`를 사용하면 임시 Player 생성과 사전 검증까지만 수행하고 Game Pod 삭제는 생략합니다.
+
+### Helm Upgrade 실패와 Rollback 검증
+
+`azure-helm-rollback-smoke.ps1`은 존재하지 않는 API Image Tag로 Helm Upgrade를 실패시키고, 시작 시 기록한 정상 Revision으로 명시적으로 Rollback합니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\azure-helm-rollback-smoke.ps1 `
+  -KubernetesContext aks-blue-server-dev `
+  -Namespace blue-dev `
+  -ReleaseName blue-server
+```
+
+다음 흐름을 검증합니다.
+
+1. 현재 Helm Revision·Image Tag와 전체 Deployment Ready 상태 확인
+2. 변경 전 HTTP·TCP·Orleans 통합 Smoke Test 실행
+3. 고유한 존재하지 않는 API Image Tag로 Upgrade 실행
+4. 실패 Revision 기록과 기존 API Replica 가용성 확인
+5. 시작 시 기록한 정상 Revision으로 명시적 Rollback
+6. 새로운 Rollback Revision의 `deployed` 상태와 Image Tag 복구 확인
+7. Rollback 후 HTTP·TCP·Orleans 통합 Smoke Test 재실행
+
+Azure CD는 `--atomic`으로 실패한 배포를 자동 복구하지만, 이 Script는 실패 Revision과 수동 Rollback 흐름을 직접 확인하기 위해 의도적으로 `--atomic`을 사용하지 않습니다. Migration Image Tag는 기존 값을 유지하고 API Image Tag만 변경하므로 정상 Migration Hook 이후 API Rolling Update 단계에서 실패합니다.
+
+API Deployment는 `maxUnavailable: 0`, `maxSurge: 1`이므로 잘못된 Image를 사용하는 새 Pod가 Ready가 되지 않아도 기존 정상 API Pod를 유지해야 합니다. 이 조건이 깨지면 Script는 실패 처리하고 안전 Rollback을 시도합니다.
+
+마지막에 다음 메시지와 Revision 요약이 출력되면 성공입니다.
+
+```text
+[azure-smoke] Success: Azure Helm rollback Smoke Test completed
+[azure-smoke] BaselineRevision=..., FailedRevision=..., RollbackRevision=..., RestoredImageTag=..., FailedApiTag=...
+```
+
+실제 Helm Release를 변경하기 직전에 PowerShell 확인 Prompt가 표시됩니다. 기본적으로 이름에 `dev`가 포함된 Namespace에서만 실행할 수 있습니다. 실행 도중 오류가 발생하면 시작 시 기록한 정상 Revision으로 안전 Rollback을 시도하므로 Rollback 결과까지 확인한 뒤 종료합니다. `-WhatIf`는 Release 상태만 확인하고 Upgrade를 실행하지 않습니다.
 
 ## ELK·Elastic APM 통합 smoke test
 

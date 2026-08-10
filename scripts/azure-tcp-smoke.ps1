@@ -10,10 +10,10 @@ param(
     [string]$ReleaseName = "blue-server",
 
     [ValidateRange(1, 65535)]
-    [int]$ApiLocalPort = 5201,
+    [int]$ApiLocalPort = 15201,
 
     [ValidateRange(1, 65535)]
-    [int]$GameLocalPort = 7777,
+    [int]$GameLocalPort = 17777,
 
     [ValidateRange(1, 300)]
     [int]$PortForwardStartupTimeoutSeconds = 30,
@@ -47,8 +47,8 @@ try {
     $deployment = Confirm-AzureSmokeDeployment `
         -Context $context
 
-    Write-AzureSmokeStep "Checking Orleans Silo clustering configuration logs"
-    Confirm-AzureSmokeRedisClusteringLog -Context $context
+    Write-AzureSmokeStep "Checking Orleans Silo runtime configuration"
+    Confirm-AzureSmokeOrleansConfiguration -Context $context
 
     Write-AzureSmokeStep "Starting private API port-forward"
     $apiPortForward = Start-AzureSmokePortForward `
