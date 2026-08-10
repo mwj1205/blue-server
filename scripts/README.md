@@ -1,5 +1,113 @@
 # 로컬 검증 스크립트
 
+## Azure AKS HTTP·TCP·Orleans smoke test
+
+Azure smoke test는 AKS의 Pod가 Ready인지 확인하는 데서 끝나지 않고 실제 게임 요청 흐름을 검증합니다. API와 Game Service는 `ClusterIP`를 유지하며, Script가 실행되는 동안에만 `kubectl port-forward`로 로컬 Port를 연결합니다.
+
+### Script 선택
+
+- `azure-http-smoke.ps1`: Register·Login·JWT PlayerProfile HTTP 경로만 빠르게 검증
+- `azure-tcp-smoke.ps1`: HTTP와 TCP Profile 비교, Orleans Grain Activation, Redis Clustering, 민감정보 Log 미노출까지 통합 검증
+- `smoke/BlueServer.AzureSmoke.psm1`: 두 Entry Script가 공유하는 AKS·인증·Packet·Log 검증 기능
+
+배포 전체 흐름을 확인할 때는 `azure-tcp-smoke.ps1`을 사용합니다. 이 Script가 HTTP 검증도 포함하므로 두 Entry Script를 연속으로 실행할 필요는 없습니다.
+
+### 사전 조건
+
+- Azure AKS Cluster가 실행 중인 상태
+- `kubectl`, `helm` 명령 사용 가능
+- `az aks get-credentials` 등을 통해 대상 AKS Context가 로컬 kubeconfig에 등록된 상태
+- 대상 Namespace에 Helm Release가 `deployed` 상태
+- API 1개, Game 1개, Silo 2개 Replica가 Ready 상태
+- API·Game·Silo가 동일한 40자리 Git SHA Image Tag를 사용하는 상태
+- 기본 로컬 Port `5201`, `7777`을 다른 Process가 사용하지 않는 상태
+
+현재 기본 대상은 다음과 같습니다.
+
+| 항목 | 기본값 |
+|---|---|
+| Kubernetes Context | `aks-blue-server-dev` |
+| Namespace | `blue-dev` |
+| Helm Release | `blue-server` |
+| API Local Port | `5201` |
+| Game Local Port | `7777` |
+
+### HTTP 빠른 검증
+
+저장소 루트에서 다음 명령을 실행합니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\azure-http-smoke.ps1 `
+  -KubernetesContext aks-blue-server-dev `
+  -Namespace blue-dev `
+  -ReleaseName blue-server
+```
+
+다음 흐름을 검증합니다.
+
+1. AKS Context·Namespace·Helm Release 확인
+2. API·Game·Silo Deployment와 `ClusterIP` Service 확인
+3. API Service Port Forward
+4. 임시 Player Register·Login
+5. JWT를 사용한 HTTP PlayerProfile 조회
+
+마지막에 다음 메시지가 출력되면 성공입니다.
+
+```text
+[azure-smoke] Success: Azure HTTP Smoke Test completed
+```
+
+### HTTP·TCP·Orleans 통합 검증
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\azure-tcp-smoke.ps1 `
+  -KubernetesContext aks-blue-server-dev `
+  -Namespace blue-dev `
+  -ReleaseName blue-server
+```
+
+HTTP 검증에 더해 다음 흐름을 검증합니다.
+
+1. Silo 2개의 Kubernetes Hosting·Redis Clustering 설정 Log 확인
+2. Game Service Port Forward
+3. JWT를 사용한 TCP Login·PlayerProfile Packet 요청
+4. HTTP와 TCP의 Player ID·Nickname·재화·집계 필드 비교
+5. 신규 PlayerProfile Grain Activation이 전체 Silo에서 한 건인지 확인
+6. API·Game·Silo Log에 Password·Access Token·Refresh Token 원문이 없는지 확인
+
+마지막에 다음 메시지와 실행 결과 요약이 출력되면 성공입니다.
+
+```text
+[azure-smoke] Success: Azure HTTP, TCP, and Orleans Smoke Test completed
+[azure-smoke] HelmRevision=..., ImageTag=..., PlayerId=..., GrainPod=..., GrainActivations=1
+```
+
+### Port와 Timeout 변경
+
+기본 로컬 Port를 사용 중이거나 Grain Activation Log 반영을 더 기다려야 한다면 Parameter를 변경합니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\azure-tcp-smoke.ps1 `
+  -KubernetesContext aks-blue-server-dev `
+  -Namespace blue-dev `
+  -ReleaseName blue-server `
+  -ApiLocalPort 15201 `
+  -GameLocalPort 17777 `
+  -PortForwardStartupTimeoutSeconds 60 `
+  -GrainActivationTimeoutSeconds 30
+```
+
+### 실행 시 주의사항
+
+- Script는 매번 `smoke-<timestamp>-<random>` 형식의 임시 Player를 생성합니다.
+- 안전한 Player 삭제 API가 없으므로 생성된 Player Row는 Managed PostgreSQL에 남습니다.
+- Password와 JWT는 Process Memory에서만 사용하며 성공 결과에 출력하지 않습니다.
+- 성공과 실패 모두에서 `finally`를 통해 인증 값 참조와 Port Forward Process를 정리합니다.
+- 검증 실패 시 Script는 실패 단계와 원인을 출력하고 0이 아닌 Exit Code로 종료합니다.
+
 ## ELK·Elastic APM 통합 smoke test
 
 `observability-smoke.ps1`은 컨테이너가 실행 중인지만 검사하지 않고 다음 전체 경로를 확인합니다.
