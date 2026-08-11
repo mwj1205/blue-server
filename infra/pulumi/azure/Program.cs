@@ -9,10 +9,11 @@ return await Deployment.RunAsync(() =>
     var configuration = new Config();
 
     var projectName = configuration.Require("projectName");
+    var resourceNameQualifier = configuration.Require("resourceNameQualifier");
     var environment = configuration.Require("environment");
     var location = configuration.Require("location");
     var containerRegistrySku = configuration.Require("containerRegistrySku");
-    var namePrefix = $"{projectName}-{environment}";
+    var namePrefix = $"{projectName}-{resourceNameQualifier}-{environment}";
 
     var supportedContainerRegistrySkus = new[] { "Basic", "Standard", "Premium" };
     if (!supportedContainerRegistrySkus.Contains(
@@ -30,6 +31,8 @@ return await Deployment.RunAsync(() =>
     var containerRegistryName = clientConfiguration.Apply(client =>
     {
         var compactProjectName = projectName.Replace("-", string.Empty);
+        var compactResourceNameQualifier = resourceNameQualifier.Replace("-", string.Empty);
+        var compactEnvironment = environment.Replace("-", string.Empty);
         var projectNameSegment = compactProjectName[..Math.Min(compactProjectName.Length, 20)];
         var normalizedSubscriptionId = client.SubscriptionId.ToLowerInvariant();
         var subscriptionHashBytes = SHA1.HashData(
@@ -38,7 +41,7 @@ return await Deployment.RunAsync(() =>
             .ToHexString(subscriptionHashBytes)
             .ToLowerInvariant()[..8];
 
-        return $"acr{projectNameSegment}{environment}{subscriptionHash}";
+        return $"acr{projectNameSegment}{compactResourceNameQualifier}{compactEnvironment}{subscriptionHash}";
     });
 
     // Terraform 구성과 관리 주체를 구분하는 공통 Tag
@@ -77,6 +80,7 @@ return await Deployment.RunAsync(() =>
     return new Dictionary<string, object?>
     {
         ["projectName"] = projectName,
+        ["resourceNameQualifier"] = resourceNameQualifier,
         ["environment"] = environment,
         ["location"] = location,
         ["namePrefix"] = namePrefix,

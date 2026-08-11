@@ -9,7 +9,7 @@ Terraform으로 구성했던 Azure 인프라 일부를 C#과 Pulumi Azure Native
 - .NET 10 Console Application
 - Pulumi .NET SDK
 - Pulumi Azure Native Provider
-- `dev` Stack의 Project Name, Environment, Azure Region 설정
+- `dev` Stack의 Project Name, Pulumi 전용 Resource Name Qualifier, Environment, Azure Region 설정
 - Azure Resource Group과 Private Azure Container Registry
 - Terraform Output과 비교할 Resource 이름과 ACR Login Server Output
 
@@ -81,18 +81,19 @@ $env:ARM_SUBSCRIPTION_ID = az account show `
 pulumi preview --diff
 ```
 
-Preview에는 Resource Group과 ACR을 포함해 Azure Resource 2개가 생성 대상으로 표시되어야 합니다. `pulumi up`을 실행하기 전에는 실제 Azure Resource와 비용이 발생하지 않습니다.
+Preview에는 Pulumi Stack과 Resource Group·ACR을 포함해 Resource 3개가 생성 대상으로 표시되어야 합니다. `pulumi up`을 실행하기 전에는 실제 Azure Resource와 비용이 발생하지 않습니다.
 
-예상되는 실제 Resource 이름은 Terraform과 동일합니다.
+Terraform과 Pulumi가 동일한 실제 Resource를 서로 다른 State로 관리하지 않도록 Pulumi 전용 `resourceNameQualifier`를 이름에 포함합니다.
 
 ```text
-Resource Group: rg-blue-server-dev
-ACR: acrblueserverdevad7bd252
+Terraform Resource Group: rg-blue-server-dev
+Pulumi Resource Group: rg-blue-server-pulumi-dev
+Pulumi ACR: acrblueserverpulumidevad7bd252
 ```
 
 ACR 이름의 마지막 8자는 현재 Azure Native Provider의 Subscription ID를 SHA-1으로 계산한 값입니다. Subscription ID 자체는 Stack Configuration이나 Repository 파일에 저장하지 않습니다.
 
-Preview가 성공해도 현재 단계에서는 다음 명령을 실행하지 않습니다.
+Preview 검토 전에는 다음 명령을 실행하지 않습니다. KAN-65에서는 분리된 Resource 이름을 확인한 뒤 `pulumi up`과 `pulumi destroy`를 사용자 실행으로 검증합니다.
 
 ```powershell
 # 실제 Azure Resource를 생성하므로 현재 단계에서는 실행하지 않음

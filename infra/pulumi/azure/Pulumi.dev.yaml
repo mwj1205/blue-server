@@ -1,5 +1,6 @@
 config:
   blue-server-azure:projectName: blue-server
+  blue-server-azure:resourceNameQualifier: pulumi
   blue-server-azure:environment: dev
   blue-server-azure:location: koreacentral
   blue-server-azure:containerRegistrySku: Basic
