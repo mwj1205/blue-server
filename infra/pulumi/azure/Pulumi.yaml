@@ -1,0 +1,3 @@
+name: blue-server-azure
+description: Blue Server Azure 인프라를 C#으로 학습하기 위한 Pulumi 프로젝트
+runtime: dotnet
