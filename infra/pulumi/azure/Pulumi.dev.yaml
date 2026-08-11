@@ -2,4 +2,5 @@ config:
   blue-server-azure:projectName: blue-server
   blue-server-azure:environment: dev
   blue-server-azure:location: koreacentral
+  blue-server-azure:containerRegistrySku: Basic
 encryptionsalt: v1:fkjiunjgKoU=:v1:6EzNlt84vYaPA+sJ:2eWpjMaDszqF0gmQ7yeZKY5TqCuQHQ==
