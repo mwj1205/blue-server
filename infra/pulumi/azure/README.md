@@ -2,6 +2,8 @@
 
 Terraform으로 구성했던 Azure 인프라 일부를 C#과 Pulumi Azure Native Provider로 재현하고 차이를 비교하기 위한 프로젝트입니다.
 
+실제 구현과 실행 결과를 기준으로 한 도구 선택 근거는 [Terraform과 Pulumi 비교](TERRAFORM_COMPARISON.md)에 정리합니다.
+
 8-1 단계에서는 Stack Configuration, Naming 규칙, Output과 `pulumi preview` 실행 기반을 구성했습니다. 8-2 단계에서는 Terraform 구성과 비교할 Resource Group과 ACR을 선언합니다.
 
 ## 구성
