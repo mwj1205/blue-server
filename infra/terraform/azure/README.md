@@ -138,7 +138,9 @@ ACR 이름과 Login Server는 Workflow에 하드코딩하지 않습니다. `AZUR
 
 AKS는 `Free` Tier Control Plane과 `Standard_D4s_v5` System Node 2개로 구성합니다. `Free` Tier는 Control Plane의 Uptime SLA를 제공하지 않으며 Node VM, Managed Disk, Load Balancer, Public IP 등 Cluster가 사용하는 Azure Resource에는 비용이 발생할 수 있습니다.
 
-Kubernetes Version은 로컬 Kubernetes와 Minor Version을 맞추기 위해 Korea Central에서 지원되는 `1.36`으로 고정합니다. 특정 Patch를 고정하지 않아 Azure가 지원하는 최신 `1.36.x` Patch를 선택할 수 있도록 합니다. System Node OS는 `AzureLinux3`, Network는 Azure CNI Overlay를 사용합니다. Cluster는 System Assigned Managed Identity를 사용하므로 Service Principal의 Client Secret을 저장하지 않습니다.
+Kubernetes Version은 ECK `3.4.1`의 공식 지원 범위에 맞춰 Korea Central에서 지원되는 `1.35`로 고정합니다. 특정 Patch를 고정하지 않아 Azure가 지원하는 최신 `1.35.x` Patch를 선택할 수 있도록 합니다. System Node OS는 `AzureLinux3`, Network는 Azure CNI Overlay를 사용합니다. Cluster는 System Assigned Managed Identity를 사용하므로 Service Principal의 Client Secret을 저장하지 않습니다.
+
+로컬 Kubernetes `1.36`과 Minor Version을 맞추는 것보다 Azure 관측 환경에서 사용하는 ECK 안정판의 공식 호환 범위를 우선합니다. ECK가 Kubernetes `1.36`을 공식 지원하는 안정판으로 갱신되면 Operator와 AKS Version을 함께 검토합니다.
 
 Node Pool의 `upgrade_settings`는 Azure가 생성 시 적용한 기본값과 Terraform 구성을 일치시킵니다. 이를 생략하면 IAM처럼 Cluster 외부 Resource만 추가하는 Plan에서도 Provider가 기존 Upgrade 설정 제거를 AKS Update로 제안할 수 있습니다.
 

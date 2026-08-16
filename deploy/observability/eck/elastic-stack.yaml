@@ -1,0 +1,117 @@
+# Elasticsearch 단일 Node 학습 환경 구성
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: blue-server
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: blue-server
+spec:
+  version: 9.4.2
+  volumeClaimDeletePolicy: DeleteOnScaledownAndClusterDeletion
+  http:
+    service:
+      spec:
+        type: ClusterIP
+  nodeSets:
+    - name: default
+      count: 1
+      config:
+        node.store.allow_mmap: false
+      podTemplate:
+        metadata:
+          labels:
+            app.kubernetes.io/part-of: blue-server
+            app.kubernetes.io/component: elasticsearch
+        spec:
+          containers:
+            - name: elasticsearch
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 2Gi
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            storageClassName: managed-csi
+            resources:
+              requests:
+                storage: 10Gi
+---
+# Kibana와 APM Integration Package 구성
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: blue-server
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: blue-server
+spec:
+  version: 9.4.2
+  count: 1
+  elasticsearchRef:
+    name: blue-server
+  config:
+    xpack.fleet.packages:
+      - name: apm
+        version: latest
+  http:
+    service:
+      spec:
+        type: ClusterIP
+  podTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: blue-server
+        app.kubernetes.io/component: kibana
+    spec:
+      containers:
+        - name: kibana
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+---
+# .NET Agent의 Trace를 수신할 APM Server 구성
+apiVersion: apm.k8s.elastic.co/v1
+kind: ApmServer
+metadata:
+  name: blue-server
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: blue-server
+spec:
+  version: 9.4.2
+  count: 1
+  elasticsearchRef:
+    name: blue-server
+  kibanaRef:
+    name: blue-server
+  http:
+    service:
+      spec:
+        type: ClusterIP
+  podTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: blue-server
+        app.kubernetes.io/component: apm-server
+    spec:
+      containers:
+        - name: apm-server
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi

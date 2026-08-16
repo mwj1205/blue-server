@@ -59,11 +59,11 @@ variable "container_registry_sku" {
 variable "aks_kubernetes_version" {
   description = "AKS Control Plane과 System Node Pool에 사용할 Kubernetes Version"
   type        = string
-  default     = "1.36"
+  default     = "1.35"
 
   validation {
     condition     = can(regex("^[0-9]+\\.[0-9]+(\\.[0-9]+)?$", var.aks_kubernetes_version))
-    error_message = "aks_kubernetes_version은 1.36 또는 1.36.1과 같은 Kubernetes Version 형식이어야 합니다."
+    error_message = "aks_kubernetes_version은 1.35 또는 1.35.1과 같은 Kubernetes Version 형식이어야 합니다."
   }
 }
 
