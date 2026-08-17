@@ -42,6 +42,20 @@ redis:
     enabled: false
     secretKey: REDIS_PASSWORD
 
+observability:
+  elasticApm:
+    enabled: false
+    serverUrl: http://apm-server:8200
+    environment: local
+    transactionSampleRate: 1.0
+    centralConfig: false
+    openTelemetryBridgeEnabled: true
+    captureBody: "off"
+    credentials:
+      existingSecretName: blue-server-apm-agent
+      secretTokenKey: secret-token
+      serverCertificateKey: tls.crt
+
 migration:
   enabled: true
   backoffLimit: 1

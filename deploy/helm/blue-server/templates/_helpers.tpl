@@ -57,6 +57,40 @@ Host=$(POSTGRES_HOST);Port=$(POSTGRES_PORT);Database=$(POSTGRES_DB);Username=$(P
 $(REDIS_HOST):$(REDIS_PORT),ssl=$(REDIS_SSL),abortConnect=false{{- if .Values.redis.authentication.enabled }},password=$(REDIS_PASSWORD){{- end }}
 {{- end }}
 
+{{/* API, Game, Silo에서 공유할 Elastic APM Agent 설정 */}}
+{{- define "blue-server.elasticApmEnv" -}}
+{{- $root := .root -}}
+- name: Observability__ElasticApmEnabled
+  value: "true"
+- name: ELASTIC_APM_SERVER_URL
+  value: {{ $root.Values.observability.elasticApm.serverUrl | quote }}
+- name: ELASTIC_APM_ENVIRONMENT
+  value: {{ $root.Values.observability.elasticApm.environment | quote }}
+- name: ELASTIC_APM_SERVICE_NAME
+  value: {{ .serviceName | quote }}
+- name: ELASTIC_APM_SERVICE_VERSION
+  value: {{ .serviceVersion | quote }}
+- name: ELASTIC_APM_SERVICE_NODE_NAME
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ELASTIC_APM_TRANSACTION_SAMPLE_RATE
+  value: {{ $root.Values.observability.elasticApm.transactionSampleRate | quote }}
+- name: ELASTIC_APM_CENTRAL_CONFIG
+  value: {{ $root.Values.observability.elasticApm.centralConfig | quote }}
+- name: ELASTIC_APM_OPENTELEMETRY_BRIDGE_ENABLED
+  value: {{ $root.Values.observability.elasticApm.openTelemetryBridgeEnabled | quote }}
+- name: ELASTIC_APM_CAPTURE_BODY
+  value: {{ $root.Values.observability.elasticApm.captureBody | quote }}
+- name: ELASTIC_APM_SECRET_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ $root.Values.observability.elasticApm.credentials.existingSecretName }}
+      key: {{ $root.Values.observability.elasticApm.credentials.secretTokenKey }}
+- name: ELASTIC_APM_SERVER_CERT
+  value: /etc/elastic-apm/certs/tls.crt
+{{- end }}
+
 {{/* Orleans Silo resource 이름 */}}
 {{- define "blue-server.siloName" -}}
 {{- printf "%s-silo" (include "blue-server.fullname" .) | trunc 63 | trimSuffix "-" }}
