@@ -104,6 +104,77 @@ kubectl port-forward `
 
 브라우저에서 `https://localhost:15601`로 접속하고 사용자 이름 `elastic`과 위 Password를 사용한다. ECK 자체 서명 인증서를 사용하므로 개발 브라우저에서 인증서 경고가 표시될 수 있다.
 
+## APM Agent 인증정보 전달
+
+Kubernetes Secret은 다른 Namespace에서 직접 참조할 수 없다. ECK가 `observability` Namespace에 생성한 APM Secret Token과 TLS 인증서를 `blue-dev` Namespace의 애플리케이션 전용 Secret으로 복제한다.
+
+먼저 대상 Namespace를 준비한다.
+
+```powershell
+kubectl create namespace blue-dev `
+  --dry-run=client `
+  --output yaml |
+  kubectl apply --server-side --filename -
+```
+
+Secret 값은 화면이나 명령행 인자에 출력하지 않고 Process 안에서 Base64 상태로 전달한다.
+
+```powershell
+$apmTokenSecret = kubectl get secret blue-server-apm-token `
+  --namespace observability `
+  --output json | ConvertFrom-Json
+
+$apmCertificateSecret = kubectl get secret blue-server-apm-http-certs-public `
+  --namespace observability `
+  --output json | ConvertFrom-Json
+
+$agentSecret = [ordered]@{
+  apiVersion = "v1"
+  kind = "Secret"
+  metadata = [ordered]@{
+    name = "blue-server-apm-agent"
+    namespace = "blue-dev"
+  }
+  type = "Opaque"
+  data = [ordered]@{
+    "secret-token" = $apmTokenSecret.data."secret-token"
+    "tls.crt" = $apmCertificateSecret.data."tls.crt"
+  }
+}
+
+$agentSecret |
+  ConvertTo-Json -Depth 5 |
+  kubectl apply `
+    --server-side `
+    --field-manager blue-server-apm-bootstrap `
+    --filename -
+```
+
+복제된 Secret의 값은 출력하지 않고 Key 존재 여부만 확인한다.
+
+```powershell
+$agentSecretMetadata = kubectl get secret blue-server-apm-agent `
+  --namespace blue-dev `
+  --output json | ConvertFrom-Json
+
+$agentSecretMetadata.data.PSObject.Properties.Name
+```
+
+출력에는 `secret-token`과 `tls.crt`가 있어야 한다. ECK Stack을 다시 생성하여 Token이나 인증서가 변경되면 이 복제를 다시 실행하고 API·Game·Silo Pod를 재시작해야 한다. Token은 환경변수로 주입되므로 실행 중인 Pod에는 자동 반영되지 않는다.
+
+## Helm APM 설정
+
+`values-azure.yaml`은 다음 연결 정보만 관리한다.
+
+- APM Server: `https://blue-server-apm-http.observability.svc:8200`
+- Agent Environment: `azure-dev`
+- Secret 이름과 Token·인증서 Key 이름
+- Transaction Sample Rate와 OpenTelemetry Bridge 설정
+
+실제 Token과 인증서 내용은 Git이나 Helm Release 값에 저장하지 않는다. API·Game·Silo는 같은 APM Server 설정을 공유하되 서로 다른 `ELASTIC_APM_SERVICE_NAME`을 사용하고, Pod 이름을 `ELASTIC_APM_SERVICE_NODE_NAME`으로 전달한다.
+
+ECK 자체 서명 인증서 검증을 끄는 대신 `tls.crt`를 각 Pod의 `/etc/elastic-apm/certs/tls.crt`에 Read-only로 Mount하고 `ELASTIC_APM_SERVER_CERT`로 지정한다.
+
 ## 다음 단계
 
-이 단계에서는 수집 Backend만 구성한다. API, Game, Silo의 APM 활성화와 APM Token·CA 인증서 전달은 KAN-69에서 Helm Chart에 추가한다.
+애플리케이션 Namespace에 APM Secret과 기존 Database·Redis·JWT Secret을 준비한 뒤 Helm Release를 설치한다. API, Game, Silo가 APM Server로 전송한 HTTP·TCP·Orleans Trace와 Pod Instance를 Kibana에서 확인한다.

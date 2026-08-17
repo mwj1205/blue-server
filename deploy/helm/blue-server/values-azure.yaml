@@ -40,6 +40,21 @@ redis:
     enabled: true
     secretKey: REDIS_PASSWORD
 
+# ECK APM Server의 Cluster DNS, Token, 자체 서명 TLS 인증서 연결
+observability:
+  elasticApm:
+    enabled: true
+    serverUrl: https://blue-server-apm-http.observability.svc:8200
+    environment: azure-dev
+    transactionSampleRate: 1.0
+    centralConfig: false
+    openTelemetryBridgeEnabled: true
+    captureBody: "off"
+    credentials:
+      existingSecretName: blue-server-apm-agent
+      secretTokenKey: secret-token
+      serverCertificateKey: tls.crt
+
 # Azure 개발 환경 전용 Orleans Cluster 분리
 orleans:
   clusterId: blue-server-azure-dev

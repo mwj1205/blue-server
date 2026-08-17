@@ -8,6 +8,7 @@
     "secrets",
     "database",
     "redis",
+    "observability",
     "migration",
     "api",
     "game",
@@ -154,6 +155,86 @@
             "secretKey": {
               "type": "string",
               "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
+          }
+        }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "elasticApm"
+      ],
+      "properties": {
+        "elasticApm": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "serverUrl",
+            "environment",
+            "transactionSampleRate",
+            "centralConfig",
+            "openTelemetryBridgeEnabled",
+            "captureBody",
+            "credentials"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "serverUrl": {
+              "type": "string",
+              "format": "uri"
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1
+            },
+            "transactionSampleRate": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "centralConfig": {
+              "type": "boolean"
+            },
+            "openTelemetryBridgeEnabled": {
+              "type": "boolean"
+            },
+            "captureBody": {
+              "type": "string",
+              "enum": [
+                "off",
+                "errors",
+                "transactions",
+                "all"
+              ]
+            },
+            "credentials": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "existingSecretName",
+                "secretTokenKey",
+                "serverCertificateKey"
+              ],
+              "properties": {
+                "existingSecretName": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                  "maxLength": 253
+                },
+                "secretTokenKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "serverCertificateKey": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
             }
           }
         }

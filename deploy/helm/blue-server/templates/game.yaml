@@ -168,6 +168,10 @@ spec:
                 configMapKeyRef:
                   name: {{ include "blue-server.configMapName" . }}
                   key: JWT_ACCESS_TOKEN_DAYS
+            {{- if .Values.observability.elasticApm.enabled }}
+            # Elastic APM Agent 전송 및 Pod instance 식별 설정
+            {{- include "blue-server.elasticApmEnv" (dict "root" . "serviceName" "blue-server-game" "serviceVersion" .Values.images.game.tag) | nindent 12 }}
+            {{- end }}
           # 실제 Session 생성을 방지하는 TCP listener 상태 확인
           startupProbe:
             exec:
@@ -207,8 +211,21 @@ spec:
           volumeMounts:
             - name: temporary-files
               mountPath: /tmp
+            {{- if .Values.observability.elasticApm.enabled }}
+            - name: elastic-apm-server-certificate
+              mountPath: /etc/elastic-apm/certs
+              readOnly: true
+            {{- end }}
       volumes:
         - name: temporary-files
           emptyDir:
             sizeLimit: {{ .Values.game.temporaryStorageLimit | quote }}
+        {{- if .Values.observability.elasticApm.enabled }}
+        - name: elastic-apm-server-certificate
+          secret:
+            secretName: {{ .Values.observability.elasticApm.credentials.existingSecretName }}
+            items:
+              - key: {{ .Values.observability.elasticApm.credentials.serverCertificateKey }}
+                path: tls.crt
+        {{- end }}
 {{- end }}

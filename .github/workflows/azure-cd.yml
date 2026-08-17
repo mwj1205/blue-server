@@ -32,6 +32,7 @@ jobs:
       CHART_PATH: ./deploy/helm/blue-server
       VALUES_FILE: ./deploy/helm/blue-server/values-azure.yaml
       SECRET_NAME: blue-server-secrets
+      APM_SECRET_NAME: blue-server-apm-agent
       IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
 
     steps:
@@ -87,7 +88,7 @@ jobs:
           version: v4.2.3
 
       # GitHub에 비밀값을 복제하지 않고 사전 생성된 Kubernetes Secret 사용
-      - name: Verify deployment secret
+      - name: Verify deployment secrets
         shell: bash
         run: |
           if ! kubectl get namespace "$NAMESPACE" > /dev/null; then
@@ -111,6 +112,26 @@ jobs:
 
             if [ -z "$encoded_value" ]; then
               echo "::error::Secret $SECRET_NAME does not contain a value for $key."
+              exit 1
+            fi
+          done
+
+          if ! kubectl get secret "$APM_SECRET_NAME" \
+            --namespace "$NAMESPACE" \
+            > /dev/null; then
+            echo "::error::Secret $APM_SECRET_NAME does not exist in namespace $NAMESPACE."
+            exit 1
+          fi
+
+          for key in secret-token tls.crt; do
+            encoded_value="$(
+              kubectl get secret "$APM_SECRET_NAME" \
+                --namespace "$NAMESPACE" \
+                --output "go-template={{ index .data \"$key\" }}"
+            )"
+
+            if [ -z "$encoded_value" ]; then
+              echo "::error::Secret $APM_SECRET_NAME does not contain a value for $key."
               exit 1
             fi
           done
