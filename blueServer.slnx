@@ -13,6 +13,7 @@
     <Project Path="src/Orleans/blueServer.Silo/blueServer.Silo.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/blueServer.Game.IntegrationTests/blueServer.Game.IntegrationTests.csproj" />
     <Project Path="tests/blueServer.Game.Tests/blueServer.Game.Tests.csproj" />
   </Folder>
 </Solution>
