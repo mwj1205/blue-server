@@ -63,6 +63,7 @@ builder.Services.AddScoped<CharacterGachaService>();
 builder.Services.AddScoped<OwnedCharacterListService>();
 builder.Services.AddScoped<PartyService>();
 builder.Services.AddScoped<StageClearService>();
+builder.Services.AddScoped<RewardGrantService>();
 builder.Services.AddScoped<GameJwtValidator>();
 
 if (orleansEnabled)
