@@ -19,6 +19,7 @@ public sealed class RewardGrantServiceIntegrationTests
             .Options;
         var nickname = $"reward-integration-{Guid.NewGuid():N}";
         var requestId = Guid.NewGuid();
+        var rollbackRequestId = Guid.NewGuid();
         long playerId;
 
         await using (var arrangeDb = new GameDbContext(options))
@@ -32,6 +33,20 @@ public sealed class RewardGrantServiceIntegrationTests
         var rewards = RewardBundle.Create(
             RewardItem.Create(RewardType.Gold, 150),
             RewardItem.Create(RewardType.Gem, 20));
+
+        // 활성 Transaction 없이 상위 Use Case용 지급 경로를 호출하는 오류 방지 검증
+        await using (var noTransactionDb = new GameDbContext(options))
+        {
+            var service = new RewardGrantService(noTransactionDb);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.GrantWithinCurrentTransactionAsync(
+                    playerId,
+                    rollbackRequestId,
+                    "Missing parent transaction test",
+                    rewards,
+                    CancellationToken.None));
+        }
 
         // 최초 요청의 재화 변경과 지급 이력 저장 검증
         await using (var grantDb = new GameDbContext(options))
@@ -83,6 +98,23 @@ public sealed class RewardGrantServiceIntegrationTests
                 result.Status);
         }
 
+        // 상위 Use Case Transaction Rollback 시 보상 변경도 함께 Rollback되는지 검증
+        await using (var rollbackDb = new GameDbContext(options))
+        await using (var transaction = await rollbackDb.Database.BeginTransactionAsync())
+        {
+            var service = new RewardGrantService(rollbackDb);
+            var result = await service.GrantWithinCurrentTransactionAsync(
+                playerId,
+                rollbackRequestId,
+                "Parent operation rollback test",
+                RewardBundle.Create(
+                    RewardItem.Create(RewardType.Gold, 999)),
+                CancellationToken.None);
+
+            Assert.Equal(RewardGrantStatus.Granted, result.Status);
+            await transaction.RollbackAsync();
+        }
+
         await using (var assertDb = new GameDbContext(options))
         {
             var player = await assertDb.Players
@@ -97,6 +129,10 @@ public sealed class RewardGrantServiceIntegrationTests
 
             Assert.Equal(Player.InitialGold + 150, player.Gold);
             Assert.Equal(Player.InitialGem + 20, player.Gem);
+            Assert.False(await assertDb.RewardGrantRecords
+                .AnyAsync(record =>
+                    record.PlayerId == playerId &&
+                    record.RequestId == rollbackRequestId));
             Assert.Equal("Integration test", grant.Reason);
             Assert.Collection(
                 grant.Items.OrderBy(item => item.Type),

@@ -49,48 +49,23 @@ public sealed class RewardGrantService
 
         try
         {
-            var player = await _db.Players.FirstOrDefaultAsync(
-                player => player.Id == playerId,
+            var result = await GrantWithinCurrentTransactionCoreAsync(
+                playerId,
+                requestId,
+                grantRecord,
+                rewards,
                 cancellationToken);
 
-            if (player is null)
+            if (result.Status == RewardGrantStatus.Granted)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+            else
             {
                 await transaction.RollbackAsync(CancellationToken.None);
-                return RewardGrantResult.PlayerNotFound();
             }
 
-            // Fast Path 이후 시작된 동일 요청과의 경합 축소를 위한 Transaction 내부 재확인
-            var existingGrant = await _db.RewardGrantRecords
-                .Include(record => record.Items)
-                .FirstOrDefaultAsync(
-                record =>
-                    record.PlayerId == playerId &&
-                    record.RequestId == requestId,
-                cancellationToken);
-
-            if (existingGrant is not null)
-            {
-                await transaction.RollbackAsync(CancellationToken.None);
-                return existingGrant.HasSameGrant(grantRecord.Reason, rewards)
-                    ? RewardGrantResult.AlreadyGranted(
-                        player.Gold,
-                        player.Gem)
-                    : RewardGrantResult.IdempotencyConflict();
-            }
-
-            foreach (var reward in rewards.Items)
-            {
-                ApplyReward(player, reward);
-            }
-
-            _db.RewardGrantRecords.Add(grantRecord);
-
-            await _db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-
-            return RewardGrantResult.Granted(
-                player.Gold,
-                player.Gem);
+            return result;
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -132,6 +107,85 @@ public sealed class RewardGrantService
             _db.ChangeTracker.Clear();
             throw;
         }
+    }
+
+    public async Task<RewardGrantResult> GrantWithinCurrentTransactionAsync(
+        long playerId,
+        Guid requestId,
+        string reason,
+        RewardBundle rewards,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rewards);
+
+        // 상위 Use Case와 다른 Transaction으로 분리되는 잘못된 호출 방지
+        if (_db.Database.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException(
+                "An active transaction is required to grant rewards within a parent operation.");
+        }
+
+        var grantRecord = RewardGrantRecord.Create(
+            playerId,
+            requestId,
+            reason,
+            DateTime.UtcNow,
+            rewards);
+
+        // Transaction의 Commit과 Rollback 책임은 Mail 등의 상위 Use Case에 귀속
+        return await GrantWithinCurrentTransactionCoreAsync(
+            playerId,
+            requestId,
+            grantRecord,
+            rewards,
+            cancellationToken);
+    }
+
+    private async Task<RewardGrantResult> GrantWithinCurrentTransactionCoreAsync(
+        long playerId,
+        Guid requestId,
+        RewardGrantRecord grantRecord,
+        RewardBundle rewards,
+        CancellationToken cancellationToken)
+    {
+        var player = await _db.Players.FirstOrDefaultAsync(
+            player => player.Id == playerId,
+            cancellationToken);
+
+        if (player is null)
+        {
+            return RewardGrantResult.PlayerNotFound();
+        }
+
+        // 동일 Transaction 내부의 기존 지급 이력 재확인
+        var existingGrant = await _db.RewardGrantRecords
+            .Include(record => record.Items)
+            .FirstOrDefaultAsync(
+                record =>
+                    record.PlayerId == playerId &&
+                    record.RequestId == requestId,
+                cancellationToken);
+
+        if (existingGrant is not null)
+        {
+            return existingGrant.HasSameGrant(grantRecord.Reason, rewards)
+                ? RewardGrantResult.AlreadyGranted(
+                    player.Gold,
+                    player.Gem)
+                : RewardGrantResult.IdempotencyConflict();
+        }
+
+        foreach (var reward in rewards.Items)
+        {
+            ApplyReward(player, reward);
+        }
+
+        _db.RewardGrantRecords.Add(grantRecord);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return RewardGrantResult.Granted(
+            player.Gold,
+            player.Gem);
     }
 
     private async Task<RewardGrantResult?> TryGetExistingResultAsync(
