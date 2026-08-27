@@ -1,9 +1,8 @@
 using blueServer.Domain.Entities;
 using blueServer.Domain.Rewards;
-using blueServer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
-namespace blueServer.Game.Services;
+namespace blueServer.Infrastructure.Rewards;
 
 public sealed class RewardGrantService
 {

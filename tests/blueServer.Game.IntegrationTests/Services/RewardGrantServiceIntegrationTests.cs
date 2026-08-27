@@ -1,7 +1,7 @@
 using blueServer.Domain.Entities;
 using blueServer.Domain.Rewards;
-using blueServer.Game.Services;
 using blueServer.Infrastructure;
+using blueServer.Infrastructure.Rewards;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
