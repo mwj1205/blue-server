@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-using blueServer.Domain.Rewards;
 using blueServer.Infrastructure.Rewards;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,9 +5,6 @@ namespace blueServer.Infrastructure.Mails;
 
 public sealed class MailClaimService
 {
-    private static readonly Guid MailRewardNamespaceId = new(
-        "f708b7c3-9119-4b9e-a114-a41029c2b7d7");
-
     private readonly GameDbContext _db;
     private readonly RewardGrantService _rewardGrantService;
 
@@ -68,21 +63,16 @@ public sealed class MailClaimService
                 return MailClaimResult.NoRewards();
             }
 
-            var rewards = RewardBundle.Create(
-                mail.Attachments.Select(attachment =>
-                    RewardItem.Create(
-                        attachment.Type,
-                        attachment.Amount)));
-            var requestId = CreateRewardRequestId(mail.Id);
+            var rewardRequest = MailRewardGrantRequestFactory.Create(mail);
 
             // 같은 SaveChanges에 Mail 상태와 Player 재화 변경 포함
             mail.Claim(claimedAt);
             var rewardResult = await _rewardGrantService
                 .GrantWithinCurrentTransactionAsync(
                     playerId,
-                    requestId,
-                    $"Mail reward {mail.Id}",
-                    rewards,
+                    rewardRequest.RequestId,
+                    rewardRequest.Reason,
+                    rewardRequest.Rewards,
                     cancellationToken);
 
             if (!rewardResult.IsSuccess)
@@ -191,17 +181,6 @@ public sealed class MailClaimService
                 currentState.ClaimedAt,
                 currentState.Gold,
                 currentState.Gem);
-    }
-
-    private static Guid CreateRewardRequestId(long mailId)
-    {
-        Span<byte> requestIdBytes = stackalloc byte[16];
-        MailRewardNamespaceId.TryWriteBytes(requestIdBytes);
-        BinaryPrimitives.WriteInt64LittleEndian(
-            requestIdBytes[8..],
-            mailId);
-
-        return new Guid(requestIdBytes);
     }
 
     private static MailClaimResult MapRewardFailure(
