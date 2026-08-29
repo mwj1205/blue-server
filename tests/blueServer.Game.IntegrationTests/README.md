@@ -47,3 +47,79 @@ finally {
 - 동일 Request ID와 payload 재시도 시 중복 지급 방지
 - 동일 Request ID에 다른 payload 사용 시 멱등성 충돌
 - `RewardGrantRecords`, `RewardGrantItems` 지급 snapshot 저장
+
+## Mail HTTP API 통합 검증
+
+Mail HTTP API는 배포된 API의 인증 Pipeline과 PostgreSQL을 함께 사용한다. 첫 번째
+PowerShell에서 현재 코드를 API Image로 다시 빌드하고 Kubernetes Node에 적재한
+뒤 Deployment를 재시작한다.
+
+```powershell
+docker build `
+  --file src/blueServer.Api/Dockerfile `
+  --tag blue-server-api:local `
+  .
+
+.\deploy\kubernetes\local\import-kind-image.ps1 `
+  -Image blue-server-api:local
+
+kubectl rollout restart deployment/blue-server-api `
+  --namespace blue-server
+
+kubectl rollout status deployment/blue-server-api `
+  --namespace blue-server `
+  --timeout=180s
+```
+
+API Service와 PostgreSQL Service를 각각 포트포워드한다.
+
+```powershell
+kubectl port-forward service/blue-server-api `
+  --namespace blue-server `
+  15201:80
+```
+
+```powershell
+kubectl port-forward statefulset/postgres `
+  --namespace blue-server `
+  15433:5432
+```
+
+별도 PowerShell에서 Secret을 Test Process 환경 변수로만 전달하고 Mail HTTP
+시나리오만 실행한다.
+
+```powershell
+$encodedPassword = kubectl get secret blue-server-secrets `
+  --namespace blue-server `
+  --output jsonpath='{.data.POSTGRES_PASSWORD}'
+
+$password = [Text.Encoding]::UTF8.GetString(
+  [Convert]::FromBase64String($encodedPassword))
+
+try {
+  $env:BLUE_SERVER_INTEGRATION_CONNECTION_STRING = `
+    "Host=127.0.0.1;Port=15433;Database=bluearchive;Username=postgres;Password=$password;GSS Encryption Mode=Disable"
+
+  $env:BLUE_SERVER_API_BASE_ADDRESS = `
+    "http://127.0.0.1:15201"
+
+  dotnet test `
+    .\tests\blueServer.Game.IntegrationTests\blueServer.Game.IntegrationTests.csproj `
+    --no-restore `
+    --filter "FullyQualifiedName~MailHttpApiIntegrationTests"
+}
+finally {
+  Remove-Item Env:BLUE_SERVER_INTEGRATION_CONNECTION_STRING `
+    -ErrorAction SilentlyContinue
+
+  Remove-Item Env:BLUE_SERVER_API_BASE_ADDRESS `
+    -ErrorAction SilentlyContinue
+
+  $password = $null
+  $encodedPassword = $null
+}
+```
+
+테스트는 회원가입·로그인으로 실제 JWT를 발급한 뒤 Mail 목록·상세·읽음·개별
+수령·일괄 수령과 재요청을 검증한다. 생성한 Player, Mail과 지급 이력은 테스트
+후에도 PostgreSQL에 유지한다.
