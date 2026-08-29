@@ -49,6 +49,7 @@ builder.Services.AddScoped<MailDetailQueryService>();
 builder.Services.AddScoped<MailReadService>();
 builder.Services.AddScoped<RewardGrantService>();
 builder.Services.AddScoped<MailClaimService>();
+builder.Services.AddScoped<MailClaimAllService>();
 
 if (orleansEnabled)
 {

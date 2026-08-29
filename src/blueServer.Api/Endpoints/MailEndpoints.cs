@@ -17,6 +17,7 @@ public static class MailEndpoints
         group.MapGet("/{mailId:long}", GetMailDetailAsync);
         group.MapPut("/{mailId:long}/read", MarkMailAsReadAsync);
         group.MapPost("/{mailId:long}/claim", ClaimMailAsync);
+        group.MapPost("/claim-all", ClaimAllMailAsync);
 
         return app;
     }
@@ -162,6 +163,24 @@ public static class MailEndpoints
         return ToResponse(result);
     }
 
+    private static async Task<IResult> ClaimAllMailAsync(
+        ClaimsPrincipal user,
+        MailClaimAllService mailClaimAllService,
+        CancellationToken cancellationToken)
+    {
+        if (!user.TryGetPlayerId(out var playerId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await mailClaimAllService.ClaimAllAsync(
+            playerId,
+            DateTime.UtcNow,
+            cancellationToken);
+
+        return ToResponse(result);
+    }
+
     private static MailListResponse ToResponse(
         MailListResult result)
     {
@@ -269,6 +288,33 @@ public static class MailEndpoints
             }),
             _ => throw new InvalidOperationException(
                 $"Unexpected Mail claim result. Status={result.Status}")
+        };
+    }
+
+    private static IResult ToResponse(MailClaimAllResult result)
+    {
+        return result.Status switch
+        {
+            MailClaimAllStatus.Claimed or
+                MailClaimAllStatus.NothingToClaim =>
+                Results.Ok(new MailClaimAllResponse(
+                    result.ClaimedMailCount,
+                    result.GrantedGold,
+                    result.GrantedGem,
+                    result.CurrentGold,
+                    result.CurrentGem,
+                    result.HasMore)),
+            MailClaimAllStatus.PlayerNotFound => Results.NotFound(),
+            MailClaimAllStatus.ConcurrencyConflict => Results.Conflict(new
+            {
+                message = "Mail state changed. Reload the Mail list and try again."
+            }),
+            MailClaimAllStatus.IdempotencyConflict => Results.Conflict(new
+            {
+                message = "Mail reward state conflicts with a completed request."
+            }),
+            _ => throw new InvalidOperationException(
+                $"Unexpected Mail claim-all result. Status={result.Status}")
         };
     }
 

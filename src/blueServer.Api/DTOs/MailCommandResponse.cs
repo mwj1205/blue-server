@@ -9,3 +9,11 @@ public sealed record MailClaimResponse(
     int CurrentGold,
     int CurrentGem,
     bool WasAlreadyClaimed);
+
+public sealed record MailClaimAllResponse(
+    int ClaimedMailCount,
+    int GrantedGold,
+    int GrantedGem,
+    int CurrentGold,
+    int CurrentGem,
+    bool HasMore);
