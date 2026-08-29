@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using blueServer.Api.DTOs;
+using blueServer.Api.Extensions;
 using blueServer.Api.Services;
 using blueServer.Domain.Entities;
 using FluentValidation;
@@ -41,7 +42,7 @@ public static class PlayerEndpoints
             IPlayerProfileQueryService playerProfileQueryService,
             CancellationToken cancellationToken) =>
         {
-            if (!TryGetPlayerId(user, out var playerId))
+            if (!user.TryGetPlayerId(out var playerId))
             {
                 return Results.Unauthorized();
             }
@@ -62,7 +63,7 @@ public static class PlayerEndpoints
             int partyNo,
             CancellationToken cancellationToken) =>
         {
-            if (!TryGetPlayerId(user, out var playerId))
+            if (!user.TryGetPlayerId(out var playerId))
             {
                 return Results.Unauthorized();
             }
@@ -93,7 +94,7 @@ public static class PlayerEndpoints
             SavePartyRequest request,
             CancellationToken cancellationToken) =>
         {
-            if (!TryGetPlayerId(user, out var playerId))
+            if (!user.TryGetPlayerId(out var playerId))
             {
                 return Results.Unauthorized();
             }
@@ -179,15 +180,4 @@ public static class PlayerEndpoints
         return partyNo is >= Party.MinPartyNo and <= Party.MaxPartyNo;
     }
 
-    private static bool TryGetPlayerId(
-        ClaimsPrincipal user,
-        out long playerId)
-    {
-        var playerIdClaim = user.FindFirstValue(
-            ClaimTypes.NameIdentifier);
-
-        return long.TryParse(
-            playerIdClaim,
-            out playerId);
-    }
 }
