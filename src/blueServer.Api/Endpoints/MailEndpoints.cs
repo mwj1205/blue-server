@@ -15,6 +15,8 @@ public static class MailEndpoints
 
         group.MapGet("/", GetMailListAsync);
         group.MapGet("/{mailId:long}", GetMailDetailAsync);
+        group.MapPut("/{mailId:long}/read", MarkMailAsReadAsync);
+        group.MapPost("/{mailId:long}/claim", ClaimMailAsync);
 
         return app;
     }
@@ -110,6 +112,56 @@ public static class MailEndpoints
             : Results.Ok(ToResponse(result.Mail));
     }
 
+    private static async Task<IResult> MarkMailAsReadAsync(
+        ClaimsPrincipal user,
+        MailReadService mailReadService,
+        long mailId,
+        CancellationToken cancellationToken)
+    {
+        if (!user.TryGetPlayerId(out var playerId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (mailId <= 0)
+        {
+            return InvalidMailId();
+        }
+
+        var result = await mailReadService.MarkAsReadAsync(
+            playerId,
+            mailId,
+            DateTime.UtcNow,
+            cancellationToken);
+
+        return ToResponse(result);
+    }
+
+    private static async Task<IResult> ClaimMailAsync(
+        ClaimsPrincipal user,
+        MailClaimService mailClaimService,
+        long mailId,
+        CancellationToken cancellationToken)
+    {
+        if (!user.TryGetPlayerId(out var playerId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (mailId <= 0)
+        {
+            return InvalidMailId();
+        }
+
+        var result = await mailClaimService.ClaimAsync(
+            playerId,
+            mailId,
+            DateTime.UtcNow,
+            cancellationToken);
+
+        return ToResponse(result);
+    }
+
     private static MailListResponse ToResponse(
         MailListResult result)
     {
@@ -157,5 +209,74 @@ public static class MailEndpoints
             mail.IsExpired,
             mail.CanClaim,
             attachments);
+    }
+
+    private static IResult ToResponse(MailReadResult result)
+    {
+        return result.Status switch
+        {
+            MailReadStatus.MarkedAsRead when result.ReadAt.HasValue =>
+                Results.Ok(new MailReadResponse(
+                    result.ReadAt.Value,
+                    false)),
+            MailReadStatus.AlreadyRead when result.ReadAt.HasValue =>
+                Results.Ok(new MailReadResponse(
+                    result.ReadAt.Value,
+                    true)),
+            MailReadStatus.NotFound => Results.NotFound(),
+            MailReadStatus.ConcurrencyConflict => Results.Conflict(new
+            {
+                message = "Mail state changed. Reload the Mail and try again."
+            }),
+            _ => throw new InvalidOperationException(
+                $"Unexpected Mail read result. Status={result.Status}")
+        };
+    }
+
+    private static IResult ToResponse(MailClaimResult result)
+    {
+        return result.Status switch
+        {
+            MailClaimStatus.Claimed when result.ClaimedAt.HasValue =>
+                Results.Ok(new MailClaimResponse(
+                    result.ClaimedAt.Value,
+                    result.CurrentGold,
+                    result.CurrentGem,
+                    false)),
+            MailClaimStatus.AlreadyClaimed when result.ClaimedAt.HasValue =>
+                Results.Ok(new MailClaimResponse(
+                    result.ClaimedAt.Value,
+                    result.CurrentGold,
+                    result.CurrentGem,
+                    true)),
+            MailClaimStatus.NotFound or
+                MailClaimStatus.PlayerNotFound => Results.NotFound(),
+            MailClaimStatus.Expired => Results.Conflict(new
+            {
+                message = "Mail has expired."
+            }),
+            MailClaimStatus.NoRewards => Results.Conflict(new
+            {
+                message = "Mail has no rewards to claim."
+            }),
+            MailClaimStatus.ConcurrencyConflict => Results.Conflict(new
+            {
+                message = "Mail state changed. Reload the Mail and try again."
+            }),
+            MailClaimStatus.IdempotencyConflict => Results.Conflict(new
+            {
+                message = "Mail reward state conflicts with the completed request."
+            }),
+            _ => throw new InvalidOperationException(
+                $"Unexpected Mail claim result. Status={result.Status}")
+        };
+    }
+
+    private static IResult InvalidMailId()
+    {
+        return Results.BadRequest(new
+        {
+            message = "Mail id must be greater than zero."
+        });
     }
 }
