@@ -24,6 +24,8 @@ public class GameDbContext : DbContext
     public DbSet<PartySlot> PartySlots => Set<PartySlot>();
     public DbSet<StageTemplate> StageTemplates => Set<StageTemplate>();
     public DbSet<StageClearRecord> StageClearRecords => Set<StageClearRecord>();
+    public DbSet<RewardGrantRecord> RewardGrantRecords => Set<RewardGrantRecord>();
+    public DbSet<RewardGrantItem> RewardGrantItems => Set<RewardGrantItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -108,6 +110,44 @@ public class GameDbContext : DbContext
                 .WithMany(stage => stage.ClearRecords)
                 .HasForeignKey(record => record.StageTemplateId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<RewardGrantRecord>(entity =>
+        {
+            // Player별 Request ID 중복 방지를 통한 보상 지급 멱등성 보장
+            entity.HasIndex(record => new
+            {
+                record.PlayerId,
+                record.RequestId
+            })
+                .IsUnique();
+
+            entity.Property(record => record.Reason)
+                .HasMaxLength(RewardGrantRecord.MaxReasonLength);
+
+            entity.HasOne(record => record.Player)
+                .WithMany()
+                .HasForeignKey(record => record.PlayerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(record => record.Items)
+                .WithOne(item => item.RewardGrantRecord)
+                .HasForeignKey(item => item.RewardGrantRecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RewardGrantItem>(entity =>
+        {
+            // 지급 이력에는 RewardType별로 합산된 Snapshot 한 건만 저장
+            entity.HasIndex(item => new
+            {
+                item.RewardGrantRecordId,
+                item.Type
+            })
+                .IsUnique();
+
+            entity.Property(item => item.Type)
+                .HasConversion<int>();
         });
     }
 }
