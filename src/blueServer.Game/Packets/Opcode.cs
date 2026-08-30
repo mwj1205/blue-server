@@ -26,5 +26,10 @@ public enum Opcode : ushort
     PlayerProfile = 15,
     PlayerProfileResult = 16,
 
+    MailList = 17,
+    MailListResult = 18,
+    MailDetail = 19,
+    MailDetailResult = 20,
+
     ChatMessage = 1000  // S -> C
 }
