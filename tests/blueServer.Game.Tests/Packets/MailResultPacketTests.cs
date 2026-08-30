@@ -1,0 +1,129 @@
+using blueServer.Game.Packets;
+using blueServer.Infrastructure.Mails;
+using Xunit;
+
+namespace blueServer.Game.Tests.Packets;
+
+public sealed class MailResultPacketTests
+{
+    private static readonly DateTime SentAt = new(
+        2026,
+        8,
+        30,
+        1,
+        2,
+        3,
+        456,
+        DateTimeKind.Utc);
+
+    [Fact]
+    public void MailListResultPacket_Serialize_WritesExpectedPayload()
+    {
+        var expiresAt = SentAt.AddDays(7);
+        var packet = new MailListResultPacket
+        {
+            Success = true,
+            Message = "Mail list loaded",
+            Items =
+            [
+                new MailListPacketItem(
+                    10,
+                    "Attendance reward",
+                    SentAt,
+                    expiresAt,
+                    true,
+                    false,
+                    false,
+                    true,
+                    2)
+            ],
+            NextCursor = new MailListCursor(SentAt, 10)
+        }.Serialize();
+
+        var reader = new PacketReader(packet);
+
+        Assert.Equal(Opcode.MailListResult, reader.Opcode);
+        Assert.True(reader.ReadBool());
+        Assert.Equal("Mail list loaded", reader.ReadString());
+        Assert.Equal(1, reader.ReadInt());
+        Assert.Equal(10, reader.ReadLong());
+        Assert.Equal("Attendance reward", reader.ReadString());
+        Assert.Equal(ToUnixMilliseconds(SentAt), reader.ReadLong());
+        Assert.True(reader.ReadBool());
+        Assert.Equal(ToUnixMilliseconds(expiresAt), reader.ReadLong());
+        Assert.True(reader.ReadBool());
+        Assert.False(reader.ReadBool());
+        Assert.False(reader.ReadBool());
+        Assert.True(reader.ReadBool());
+        Assert.Equal(2, reader.ReadInt());
+        Assert.True(reader.ReadBool());
+        Assert.Equal(ToUnixMilliseconds(SentAt), reader.ReadLong());
+        Assert.Equal(10, reader.ReadLong());
+        reader.EnsureFullyRead();
+    }
+
+    [Fact]
+    public void MailDetailResultPacket_Serialize_WritesExpectedPayload()
+    {
+        var readAt = SentAt.AddMinutes(1);
+        var packet = new MailDetailResultPacket
+        {
+            Success = true,
+            Message = "Mail detail loaded",
+            Mail = new MailDetailPacketItem(
+                10,
+                "Attendance reward",
+                "Daily login reward",
+                SentAt,
+                null,
+                readAt,
+                null,
+                false,
+                true,
+                [
+                    new MailAttachmentPacketItem(1, 100),
+                    new MailAttachmentPacketItem(2, 10)
+                ])
+        }.Serialize();
+
+        var reader = new PacketReader(packet);
+
+        Assert.Equal(Opcode.MailDetailResult, reader.Opcode);
+        Assert.True(reader.ReadBool());
+        Assert.Equal("Mail detail loaded", reader.ReadString());
+        Assert.Equal(10, reader.ReadLong());
+        Assert.Equal("Attendance reward", reader.ReadString());
+        Assert.Equal("Daily login reward", reader.ReadString());
+        Assert.Equal(ToUnixMilliseconds(SentAt), reader.ReadLong());
+        Assert.False(reader.ReadBool());
+        Assert.True(reader.ReadBool());
+        Assert.Equal(ToUnixMilliseconds(readAt), reader.ReadLong());
+        Assert.False(reader.ReadBool());
+        Assert.False(reader.ReadBool());
+        Assert.True(reader.ReadBool());
+        Assert.Equal(2, reader.ReadInt());
+        Assert.Equal(1, reader.ReadInt());
+        Assert.Equal(100, reader.ReadInt());
+        Assert.Equal(2, reader.ReadInt());
+        Assert.Equal(10, reader.ReadInt());
+        reader.EnsureFullyRead();
+    }
+
+    [Fact]
+    public void MailDetailResultPacket_Serialize_Throws_WhenSuccessHasNoMail()
+    {
+        var packet = new MailDetailResultPacket
+        {
+            Success = true,
+            Message = "Mail detail loaded"
+        };
+
+        Assert.Throws<InvalidOperationException>(() =>
+            packet.Serialize());
+    }
+
+    private static long ToUnixMilliseconds(DateTime value)
+    {
+        return new DateTimeOffset(value).ToUnixTimeMilliseconds();
+    }
+}
