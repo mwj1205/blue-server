@@ -11,6 +11,8 @@ using blueServer.Game.Packets;
 using blueServer.Game.Services;
 using Microsoft.Extensions.Configuration;
 using blueServer.Infrastructure.Security;
+using blueServer.Infrastructure.Mails;
+using blueServer.Infrastructure.Rewards;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using Elastic.Apm.EntityFrameworkCore;
@@ -64,6 +66,8 @@ builder.Services.AddScoped<OwnedCharacterListService>();
 builder.Services.AddScoped<PartyService>();
 builder.Services.AddScoped<StageClearService>();
 builder.Services.AddScoped<RewardGrantService>();
+builder.Services.AddScoped<MailClaimService>();
+builder.Services.AddScoped<MailClaimAllService>();
 builder.Services.AddScoped<GameJwtValidator>();
 
 if (orleansEnabled)

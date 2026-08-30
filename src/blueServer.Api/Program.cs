@@ -2,6 +2,8 @@ using blueServer.Api.Endpoints;
 using blueServer.Api.Extensions;
 using blueServer.Api.Middlewares;
 using blueServer.Api.Services;
+using blueServer.Infrastructure.Mails;
+using blueServer.Infrastructure.Rewards;
 using blueServer.Infrastructure.Security;
 using Elastic.Apm.EntityFrameworkCore;
 using System.Text.Json;
@@ -42,6 +44,12 @@ builder.Services.AddScoped<PlayerService>();
 builder.Services.AddScoped<PartyService>();
 builder.Services.AddScoped<PasswordService>();
 builder.Services.AddScoped<RefreshTokenService>();
+builder.Services.AddScoped<MailListQueryService>();
+builder.Services.AddScoped<MailDetailQueryService>();
+builder.Services.AddScoped<MailReadService>();
+builder.Services.AddScoped<RewardGrantService>();
+builder.Services.AddScoped<MailClaimService>();
+builder.Services.AddScoped<MailClaimAllService>();
 
 if (orleansEnabled)
 {
@@ -65,5 +73,6 @@ app.UseAuthorization();
 
 app.MapPlayerEndpoints();
 app.MapAuthEndpoints();
+app.MapMailEndpoints();
 
 app.Run();
