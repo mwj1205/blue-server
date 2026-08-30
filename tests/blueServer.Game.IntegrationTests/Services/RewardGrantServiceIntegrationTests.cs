@@ -1,7 +1,7 @@
 using blueServer.Domain.Entities;
 using blueServer.Domain.Rewards;
-using blueServer.Game.Services;
 using blueServer.Infrastructure;
+using blueServer.Infrastructure.Rewards;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -146,6 +146,144 @@ public sealed class RewardGrantServiceIntegrationTests
                     Assert.Equal(RewardType.Gem, item.Type);
                     Assert.Equal(20, item.Amount);
                 });
+        }
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task GrantBatchWithinCurrentTransactionAsync_GrantsOnlyNewRequestsAndRejectsPayloadConflict()
+    {
+        var connectionString = Environment.GetEnvironmentVariable(
+            PostgreSqlIntegrationFactAttribute.ConnectionStringEnvironmentVariable)!;
+        var options = new DbContextOptionsBuilder<GameDbContext>()
+            .UseNpgsql(connectionString)
+            .Options;
+        var existingRequestId = Guid.NewGuid();
+        var newRequestId = Guid.NewGuid();
+        var rejectedRequestId = Guid.NewGuid();
+        var existingRewards = RewardBundle.Create(
+            RewardItem.Create(RewardType.Gold, 10));
+        var newRewards = RewardBundle.Create(
+            RewardItem.Create(RewardType.Gold, 20),
+            RewardItem.Create(RewardType.Gem, 5));
+        long playerId;
+
+        await using (var arrangeDb = new GameDbContext(options))
+        {
+            var player = Player.Create(
+                $"reward-batch-{Guid.NewGuid():N}",
+                "integration-test");
+            arrangeDb.Players.Add(player);
+            await arrangeDb.SaveChangesAsync();
+            playerId = player.Id;
+
+            var service = new RewardGrantService(arrangeDb);
+            var result = await service.GrantAsync(
+                playerId,
+                existingRequestId,
+                "Existing batch request",
+                existingRewards,
+                CancellationToken.None);
+
+            Assert.Equal(RewardGrantStatus.Granted, result.Status);
+        }
+
+        var requests = new[]
+        {
+            new RewardGrantRequest(
+                existingRequestId,
+                "Existing batch request",
+                existingRewards),
+            new RewardGrantRequest(
+                newRequestId,
+                "New batch request",
+                newRewards)
+        };
+
+        // 완료 요청은 제외하고 새로운 요청만 같은 Transaction에서 지급
+        await using (var batchDb = new GameDbContext(options))
+        await using (var transaction = await batchDb.Database.BeginTransactionAsync())
+        {
+            var service = new RewardGrantService(batchDb);
+            var result = await service.GrantBatchWithinCurrentTransactionAsync(
+                playerId,
+                requests,
+                CancellationToken.None);
+
+            Assert.Equal(RewardGrantBatchStatus.Granted, result.Status);
+            Assert.Equal(1, result.GrantedRequestCount);
+            Assert.Equal(1, result.AlreadyGrantedRequestCount);
+            Assert.Equal(Player.InitialGold + 30, result.CurrentGold);
+            Assert.Equal(Player.InitialGem + 5, result.CurrentGem);
+
+            await transaction.CommitAsync();
+        }
+
+        // 전체 Batch 재시도에서 추가 지급이 없는지 검증
+        await using (var retryDb = new GameDbContext(options))
+        await using (var transaction = await retryDb.Database.BeginTransactionAsync())
+        {
+            var service = new RewardGrantService(retryDb);
+            var result = await service.GrantBatchWithinCurrentTransactionAsync(
+                playerId,
+                requests,
+                CancellationToken.None);
+
+            Assert.Equal(
+                RewardGrantBatchStatus.AlreadyGranted,
+                result.Status);
+            Assert.Equal(0, result.GrantedRequestCount);
+            Assert.Equal(2, result.AlreadyGrantedRequestCount);
+            Assert.Equal(Player.InitialGold + 30, result.CurrentGold);
+            Assert.Equal(Player.InitialGem + 5, result.CurrentGem);
+
+            await transaction.CommitAsync();
+        }
+
+        // 한 요청의 Payload 충돌 시 새 요청까지 전부 적용하지 않는지 검증
+        await using (var conflictDb = new GameDbContext(options))
+        await using (var transaction = await conflictDb.Database.BeginTransactionAsync())
+        {
+            var service = new RewardGrantService(conflictDb);
+            var result = await service.GrantBatchWithinCurrentTransactionAsync(
+                playerId,
+                [
+                    new RewardGrantRequest(
+                        existingRequestId,
+                        "Existing batch request",
+                        RewardBundle.Create(
+                            RewardItem.Create(RewardType.Gold, 11))),
+                    new RewardGrantRequest(
+                        rejectedRequestId,
+                        "Rejected batch request",
+                        RewardBundle.Create(
+                            RewardItem.Create(RewardType.Gold, 999)))
+                ],
+                CancellationToken.None);
+
+            Assert.Equal(
+                RewardGrantBatchStatus.IdempotencyConflict,
+                result.Status);
+
+            await transaction.RollbackAsync();
+        }
+
+        await using (var assertDb = new GameDbContext(options))
+        {
+            var player = await assertDb.Players
+                .AsNoTracking()
+                .SingleAsync(player => player.Id == playerId);
+            var requestIds = await assertDb.RewardGrantRecords
+                .AsNoTracking()
+                .Where(record => record.PlayerId == playerId)
+                .Select(record => record.RequestId)
+                .ToArrayAsync();
+
+            Assert.Equal(Player.InitialGold + 30, player.Gold);
+            Assert.Equal(Player.InitialGem + 5, player.Gem);
+            Assert.Contains(existingRequestId, requestIds);
+            Assert.Contains(newRequestId, requestIds);
+            Assert.DoesNotContain(rejectedRequestId, requestIds);
+            Assert.Equal(2, requestIds.Length);
         }
     }
 }

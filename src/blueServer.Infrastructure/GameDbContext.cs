@@ -26,6 +26,8 @@ public class GameDbContext : DbContext
     public DbSet<StageClearRecord> StageClearRecords => Set<StageClearRecord>();
     public DbSet<RewardGrantRecord> RewardGrantRecords => Set<RewardGrantRecord>();
     public DbSet<RewardGrantItem> RewardGrantItems => Set<RewardGrantItem>();
+    public DbSet<Mail> Mails => Set<Mail>();
+    public DbSet<MailAttachment> MailAttachments => Set<MailAttachment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -148,6 +150,70 @@ public class GameDbContext : DbContext
 
             entity.Property(item => item.Type)
                 .HasConversion<int>();
+        });
+
+        modelBuilder.Entity<Mail>(entity =>
+        {
+            entity.Property(mail => mail.Title)
+                .HasMaxLength(Mail.MaxTitleLength);
+
+            entity.Property(mail => mail.Body)
+                .HasMaxLength(Mail.MaxBodyLength);
+
+            // Player Mail 목록의 최신순 조회 지원
+            entity.HasIndex(mail => new
+            {
+                mail.PlayerId,
+                mail.SentAt
+            });
+
+            // 동일 Mail의 동시 수령 갱신 충돌 감지
+            entity.Property(mail => mail.Version)
+                .IsRowVersion();
+
+            entity.HasOne(mail => mail.Player)
+                .WithMany()
+                .HasForeignKey(mail => mail.PlayerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(mail => mail.Attachments)
+                .WithOne(attachment => attachment.Mail)
+                .HasForeignKey(attachment => attachment.MailId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_Mails_ExpiresAt_After_SentAt",
+                    "\"ExpiresAt\" IS NULL OR \"ExpiresAt\" > \"SentAt\"");
+                table.HasCheckConstraint(
+                    "CK_Mails_ReadAt_After_SentAt",
+                    "\"ReadAt\" IS NULL OR \"ReadAt\" >= \"SentAt\"");
+                table.HasCheckConstraint(
+                    "CK_Mails_ClaimedAt_After_SentAt",
+                    "\"ClaimedAt\" IS NULL OR \"ClaimedAt\" >= \"SentAt\"");
+            });
+        });
+
+        modelBuilder.Entity<MailAttachment>(entity =>
+        {
+            // Mail에는 RewardType별로 합산된 Attachment Snapshot 한 건만 저장
+            entity.HasIndex(attachment => new
+            {
+                attachment.MailId,
+                attachment.Type
+            })
+                .IsUnique();
+
+            entity.Property(attachment => attachment.Type)
+                .HasConversion<int>();
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_MailAttachments_Amount_Positive",
+                    "\"Amount\" > 0");
+            });
         });
     }
 }
