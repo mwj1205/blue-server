@@ -12,6 +12,7 @@ public class PacketReader
 
     public ushort Size { get; }
     public Opcode Opcode { get; }
+    public int RemainingBytes => _buffer.Length - _position;
 
     public PacketReader(byte[] buffer)
     {
@@ -37,7 +38,15 @@ public class PacketReader
     public bool ReadBool()
     {
         EnsureAvailable(1);
-        return _buffer[_position++] == 1;
+        var value = _buffer[_position++];
+
+        return value switch
+        {
+            0 => false,
+            1 => true,
+            _ => throw new PacketProtocolException(
+                $"Invalid boolean value: {value}.")
+        };
     }
 
     public ushort ReadUShort()
@@ -76,6 +85,15 @@ public class PacketReader
 
         _position += length;
         return text;
+    }
+
+    public void EnsureFullyRead()
+    {
+        if (RemainingBytes != 0)
+        {
+            throw new PacketProtocolException(
+                $"Packet payload contains {RemainingBytes} unexpected trailing bytes.");
+        }
     }
 
     private void EnsureAvailable(int byteCount)
