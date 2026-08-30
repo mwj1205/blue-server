@@ -63,6 +63,18 @@ public sealed class PacketReaderTests
     }
 
     [Fact]
+    public void ReadBool_Throws_WhenPayloadIsNotZeroOrOne()
+    {
+        var packet = CreatePacket(Opcode.MailList, writer =>
+        {
+            writer.WriteByte(2);
+        });
+        var reader = new PacketReader(packet);
+
+        Assert.Throws<PacketProtocolException>(() => reader.ReadBool());
+    }
+
+    [Fact]
     public void ReadInt_ReturnsExpectedValue_WhenPayloadContainsInt()
     {
         var packet = CreatePacket(Opcode.PartyGet, writer =>
@@ -116,6 +128,19 @@ public sealed class PacketReaderTests
         var reader = new PacketReader(packet);
 
         Assert.Throws<PacketProtocolException>(() => reader.ReadString());
+    }
+
+    [Fact]
+    public void EnsureFullyRead_Throws_WhenPayloadHasTrailingBytes()
+    {
+        var packet = CreatePacket(Opcode.MailDetail, writer =>
+        {
+            writer.WriteByte(1);
+        });
+        var reader = new PacketReader(packet);
+
+        Assert.Throws<PacketProtocolException>(() =>
+            reader.EnsureFullyRead());
     }
 
     private static byte[] CreatePacket(Opcode opcode, Action<MemoryStream>? writePayload = null)
