@@ -47,6 +47,7 @@ builder.Services.AddScoped<RefreshTokenService>();
 builder.Services.AddScoped<MailListQueryService>();
 builder.Services.AddScoped<MailDetailQueryService>();
 builder.Services.AddScoped<MailReadService>();
+builder.Services.AddScoped<MailDeliveryService>();
 builder.Services.AddScoped<RewardGrantService>();
 builder.Services.AddScoped<MailClaimService>();
 builder.Services.AddScoped<MailClaimAllService>();
