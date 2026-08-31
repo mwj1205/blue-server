@@ -4,11 +4,14 @@ namespace blueServer.Domain.Entities;
 
 public sealed class Mail
 {
+    public const int MaxSourceIdLength = 200;
     public const int MaxTitleLength = 100;
     public const int MaxBodyLength = 2_000;
 
     public long Id { get; set; }
     public long PlayerId { get; set; }
+    public MailSourceType SourceType { get; set; }
+    public string SourceId { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty;
     public DateTime SentAt { get; set; }
@@ -31,7 +34,9 @@ public sealed class Mail
         string body,
         DateTime sentAt,
         DateTime? expiresAt = null,
-        IEnumerable<RewardItem>? rewards = null)
+        IEnumerable<RewardItem>? rewards = null,
+        MailSourceType sourceType = MailSourceType.System,
+        string? sourceId = null)
     {
         if (playerId <= 0)
         {
@@ -40,6 +45,19 @@ public sealed class Mail
                 playerId,
                 "Player id must be greater than zero.");
         }
+
+        if (!Enum.IsDefined(sourceType))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(sourceType),
+                sourceType,
+                "Mail source type is not supported.");
+        }
+
+        var normalizedSourceId = ValidateAndNormalizeText(
+            sourceId ?? $"direct:{Guid.NewGuid():N}",
+            MaxSourceIdLength,
+            nameof(sourceId));
 
         var normalizedTitle = ValidateAndNormalizeText(
             title,
@@ -68,6 +86,8 @@ public sealed class Mail
         var mail = new Mail
         {
             PlayerId = playerId,
+            SourceType = sourceType,
+            SourceId = normalizedSourceId,
             Title = normalizedTitle,
             Body = normalizedBody,
             SentAt = sentAt,
@@ -101,6 +121,20 @@ public sealed class Mail
         }
 
         return mail;
+    }
+
+    public bool HasSameDelivery(Mail other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+
+        return PlayerId == other.PlayerId &&
+            SourceType == other.SourceType &&
+            SourceId == other.SourceId &&
+            Title == other.Title &&
+            Body == other.Body &&
+            SentAt == other.SentAt &&
+            ExpiresAt == other.ExpiresAt &&
+            HasSameAttachments(other.Attachments);
     }
 
     public bool IsExpired(DateTime currentTime)
@@ -158,6 +192,19 @@ public sealed class Mail
                 actionTime,
                 "Mail action time must not be earlier than sent time.");
         }
+    }
+
+    private bool HasSameAttachments(
+        IEnumerable<MailAttachment> otherAttachments)
+    {
+        var currentItems = Attachments
+            .OrderBy(attachment => attachment.Type)
+            .Select(attachment => (attachment.Type, attachment.Amount));
+        var otherItems = otherAttachments
+            .OrderBy(attachment => attachment.Type)
+            .Select(attachment => (attachment.Type, attachment.Amount));
+
+        return currentItems.SequenceEqual(otherItems);
     }
 
     private static string ValidateAndNormalizeText(
