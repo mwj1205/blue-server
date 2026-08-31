@@ -66,6 +66,7 @@ builder.Services.AddScoped<OwnedCharacterListService>();
 builder.Services.AddScoped<PartyService>();
 builder.Services.AddScoped<StageClearService>();
 builder.Services.AddScoped<RewardGrantService>();
+builder.Services.AddScoped<MailDeliveryService>();
 builder.Services.AddScoped<MailClaimService>();
 builder.Services.AddScoped<MailClaimAllService>();
 builder.Services.AddScoped<MailListQueryService>();

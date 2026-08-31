@@ -154,6 +154,12 @@ public class GameDbContext : DbContext
 
         modelBuilder.Entity<Mail>(entity =>
         {
+            entity.Property(mail => mail.SourceType)
+                .HasConversion<int>();
+
+            entity.Property(mail => mail.SourceId)
+                .HasMaxLength(Mail.MaxSourceIdLength);
+
             entity.Property(mail => mail.Title)
                 .HasMaxLength(Mail.MaxTitleLength);
 
@@ -166,6 +172,15 @@ public class GameDbContext : DbContext
                 mail.PlayerId,
                 mail.SentAt
             });
+
+            // 동일 발송 출처의 재시도에 대한 Mail 중복 생성 방지
+            entity.HasIndex(mail => new
+            {
+                mail.PlayerId,
+                mail.SourceType,
+                mail.SourceId
+            })
+                .IsUnique();
 
             // 동일 Mail의 동시 수령 갱신 충돌 감지
             entity.Property(mail => mail.Version)
@@ -183,6 +198,12 @@ public class GameDbContext : DbContext
 
             entity.ToTable(table =>
             {
+                table.HasCheckConstraint(
+                    "CK_Mails_SourceType_Valid",
+                    "\"SourceType\" IN (0, 1, 2, 3)");
+                table.HasCheckConstraint(
+                    "CK_Mails_SourceId_NotEmpty",
+                    "length(btrim(\"SourceId\")) > 0");
                 table.HasCheckConstraint(
                     "CK_Mails_ExpiresAt_After_SentAt",
                     "\"ExpiresAt\" IS NULL OR \"ExpiresAt\" > \"SentAt\"");

@@ -22,9 +22,13 @@ public sealed class MailTests
                 RewardItem.Create(RewardType.Gold, 100),
                 RewardItem.Create(RewardType.Gold, 50),
                 RewardItem.Create(RewardType.Gem, 10)
-            ]);
+            ],
+            MailSourceType.Event,
+            "  launch-event:2026  ");
 
         Assert.Equal(1, mail.PlayerId);
+        Assert.Equal(MailSourceType.Event, mail.SourceType);
+        Assert.Equal("launch-event:2026", mail.SourceId);
         Assert.Equal("Launch reward", mail.Title);
         Assert.Equal("Thank you for playing.", mail.Body);
         Assert.Equal(sentAt, mail.SentAt);
@@ -43,6 +47,45 @@ public sealed class MailTests
                 Assert.Equal(RewardType.Gem, attachment.Type);
                 Assert.Equal(10, attachment.Amount);
             });
+    }
+
+    [Fact]
+    public void HasSameDelivery_ComparesPayloadAndAggregatedAttachments()
+    {
+        var sentAt = DateTime.UtcNow;
+        var first = Mail.Create(
+            1,
+            "Reward mail",
+            "Claim the attached reward.",
+            sentAt,
+            sentAt.AddDays(1),
+            [
+                RewardItem.Create(RewardType.Gold, 60),
+                RewardItem.Create(RewardType.Gold, 40)
+            ],
+            MailSourceType.Event,
+            "event:100:player:1");
+        var same = Mail.Create(
+            1,
+            "Reward mail",
+            "Claim the attached reward.",
+            sentAt,
+            sentAt.AddDays(1),
+            [RewardItem.Create(RewardType.Gold, 100)],
+            MailSourceType.Event,
+            "event:100:player:1");
+        var different = Mail.Create(
+            1,
+            "Reward mail",
+            "Claim the attached reward.",
+            sentAt,
+            sentAt.AddDays(1),
+            [RewardItem.Create(RewardType.Gold, 101)],
+            MailSourceType.Event,
+            "event:100:player:1");
+
+        Assert.True(first.HasSameDelivery(same));
+        Assert.False(first.HasSameDelivery(different));
     }
 
     [Fact]
