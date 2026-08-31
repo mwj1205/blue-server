@@ -61,4 +61,58 @@ internal static class MailPacketMapper
                     .ToArray())
         };
     }
+
+    public static MailClaimResultPacket ToPacket(MailClaimResult result)
+    {
+        var status = result.Status switch
+        {
+            MailClaimStatus.Claimed => MailClaimPacketStatus.Claimed,
+            MailClaimStatus.AlreadyClaimed =>
+                MailClaimPacketStatus.AlreadyClaimed,
+            MailClaimStatus.NotFound or MailClaimStatus.PlayerNotFound =>
+                MailClaimPacketStatus.NotFound,
+            MailClaimStatus.Expired => MailClaimPacketStatus.Expired,
+            MailClaimStatus.NoRewards => MailClaimPacketStatus.NoRewards,
+            MailClaimStatus.ConcurrencyConflict =>
+                MailClaimPacketStatus.ConcurrencyConflict,
+            MailClaimStatus.IdempotencyConflict =>
+                MailClaimPacketStatus.IdempotencyConflict,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(result.Status),
+                result.Status,
+                "Unexpected Mail claim status.")
+        };
+
+        return new MailClaimResultPacket
+        {
+            Success = result.IsSuccess,
+            Status = status,
+            Message = GetClaimMessage(status),
+            ClaimedAt = result.ClaimedAt,
+            CurrentGold = result.CurrentGold,
+            CurrentGem = result.CurrentGem
+        };
+    }
+
+    private static string GetClaimMessage(MailClaimPacketStatus status)
+    {
+        return status switch
+        {
+            MailClaimPacketStatus.Claimed => "Mail rewards claimed",
+            MailClaimPacketStatus.AlreadyClaimed =>
+                "Mail rewards already claimed",
+            MailClaimPacketStatus.NotFound => "Mail not found",
+            MailClaimPacketStatus.Expired => "Mail has expired",
+            MailClaimPacketStatus.NoRewards =>
+                "Mail has no rewards to claim",
+            MailClaimPacketStatus.ConcurrencyConflict =>
+                "Mail state changed. Reload the Mail and try again",
+            MailClaimPacketStatus.IdempotencyConflict =>
+                "Mail reward state conflicts with the completed request",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(status),
+                status,
+                "Unexpected Mail claim packet status.")
+        };
+    }
 }

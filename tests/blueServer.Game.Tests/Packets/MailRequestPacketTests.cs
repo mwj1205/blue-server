@@ -100,4 +100,35 @@ public sealed class MailRequestPacketTests
         Assert.Equal(Opcode.MailDetail, reader.Opcode);
         Assert.Equal(10, request.MailId);
     }
+
+    [Fact]
+    public void MailClaimRequestPacket_Read_RestoresMailId()
+    {
+        var packet = new MailClaimRequestPacket
+        {
+            MailId = 20
+        }.Serialize();
+
+        var reader = new PacketReader(packet);
+        var request = MailClaimRequestPacket.Read(reader);
+
+        Assert.Equal(Opcode.MailClaim, reader.Opcode);
+        Assert.Equal(20, request.MailId);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void MailClaimRequestPacket_Read_Throws_WhenMailIdIsInvalid(
+        long mailId)
+    {
+        var packet = new MailClaimRequestPacket
+        {
+            MailId = mailId
+        }.Serialize();
+        var reader = new PacketReader(packet);
+
+        Assert.Throws<PacketProtocolException>(() =>
+            MailClaimRequestPacket.Read(reader));
+    }
 }
