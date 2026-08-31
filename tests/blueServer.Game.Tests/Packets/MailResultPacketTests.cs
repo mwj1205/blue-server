@@ -266,6 +266,66 @@ public sealed class MailResultPacketTests
             packet.Serialize());
     }
 
+    [Fact]
+    public void MailReadResultPacket_Serialize_WritesMarkedAsReadResult()
+    {
+        var packet = new MailReadResultPacket
+        {
+            Success = true,
+            Status = MailReadPacketStatus.MarkedAsRead,
+            Message = "Mail marked as read",
+            ReadAt = SentAt
+        }.Serialize();
+
+        var reader = new PacketReader(packet);
+
+        Assert.Equal(Opcode.MailReadResult, reader.Opcode);
+        Assert.True(reader.ReadBool());
+        Assert.Equal(
+            (int)MailReadPacketStatus.MarkedAsRead,
+            reader.ReadInt());
+        Assert.Equal("Mail marked as read", reader.ReadString());
+        Assert.True(reader.ReadBool());
+        Assert.Equal(ToUnixMilliseconds(SentAt), reader.ReadLong());
+        reader.EnsureFullyRead();
+    }
+
+    [Fact]
+    public void MailReadResultPacket_Serialize_WritesNotFoundResult()
+    {
+        var packet = new MailReadResultPacket
+        {
+            Success = false,
+            Status = MailReadPacketStatus.NotFound,
+            Message = "Mail not found"
+        }.Serialize();
+
+        var reader = new PacketReader(packet);
+
+        Assert.Equal(Opcode.MailReadResult, reader.Opcode);
+        Assert.False(reader.ReadBool());
+        Assert.Equal(
+            (int)MailReadPacketStatus.NotFound,
+            reader.ReadInt());
+        Assert.Equal("Mail not found", reader.ReadString());
+        Assert.False(reader.ReadBool());
+        reader.EnsureFullyRead();
+    }
+
+    [Fact]
+    public void MailReadResultPacket_Serialize_Throws_WhenSuccessHasNoReadTime()
+    {
+        var packet = new MailReadResultPacket
+        {
+            Success = true,
+            Status = MailReadPacketStatus.MarkedAsRead,
+            Message = "Mail marked as read"
+        };
+
+        Assert.Throws<InvalidOperationException>(() =>
+            packet.Serialize());
+    }
+
     private static long ToUnixMilliseconds(DateTime value)
     {
         return new DateTimeOffset(value).ToUnixTimeMilliseconds();

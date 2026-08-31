@@ -159,4 +159,53 @@ public sealed class MailRequestPacketTests
         Assert.Throws<PacketProtocolException>(() =>
             MailClaimAllRequestPacket.Read(reader));
     }
+
+    [Fact]
+    public void MailReadRequestPacket_Read_RestoresMailId()
+    {
+        var packet = new MailReadRequestPacket
+        {
+            MailId = 30
+        }.Serialize();
+
+        var reader = new PacketReader(packet);
+        var request = MailReadRequestPacket.Read(reader);
+
+        Assert.Equal(Opcode.MailRead, reader.Opcode);
+        Assert.Equal(30, request.MailId);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void MailReadRequestPacket_Read_Throws_WhenMailIdIsInvalid(
+        long mailId)
+    {
+        var packet = new MailReadRequestPacket
+        {
+            MailId = mailId
+        }.Serialize();
+        var reader = new PacketReader(packet);
+
+        Assert.Throws<PacketProtocolException>(() =>
+            MailReadRequestPacket.Read(reader));
+    }
+
+    [Fact]
+    public void MailReadRequestPacket_Read_Throws_WhenPayloadHasTrailingBytes()
+    {
+        var bodyWriter = new PacketWriter();
+        bodyWriter.WriteUShort((ushort)Opcode.MailRead);
+        bodyWriter.WriteLong(30);
+        bodyWriter.WriteBool(true);
+
+        var body = bodyWriter.ToArray();
+        var packetWriter = new PacketWriter();
+        packetWriter.WriteUShort(checked((ushort)(body.Length + 2)));
+        packetWriter.WriteBytes(body);
+        var reader = new PacketReader(packetWriter.ToArray());
+
+        Assert.Throws<PacketProtocolException>(() =>
+            MailReadRequestPacket.Read(reader));
+    }
 }

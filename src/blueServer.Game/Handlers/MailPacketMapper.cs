@@ -129,6 +129,32 @@ internal static class MailPacketMapper
         };
     }
 
+    public static MailReadResultPacket ToPacket(MailReadResult result)
+    {
+        var status = result.Status switch
+        {
+            MailReadStatus.MarkedAsRead =>
+                MailReadPacketStatus.MarkedAsRead,
+            MailReadStatus.AlreadyRead =>
+                MailReadPacketStatus.AlreadyRead,
+            MailReadStatus.NotFound => MailReadPacketStatus.NotFound,
+            MailReadStatus.ConcurrencyConflict =>
+                MailReadPacketStatus.ConcurrencyConflict,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(result.Status),
+                result.Status,
+                "Unexpected Mail read status.")
+        };
+
+        return new MailReadResultPacket
+        {
+            Success = result.IsSuccess,
+            Status = status,
+            Message = GetReadMessage(status),
+            ReadAt = result.ReadAt
+        };
+    }
+
     private static string GetClaimMessage(MailClaimPacketStatus status)
     {
         return status switch
@@ -170,6 +196,22 @@ internal static class MailPacketMapper
                 nameof(status),
                 status,
                 "Unexpected Mail claim-all packet status.")
+        };
+    }
+
+    private static string GetReadMessage(MailReadPacketStatus status)
+    {
+        return status switch
+        {
+            MailReadPacketStatus.MarkedAsRead => "Mail marked as read",
+            MailReadPacketStatus.AlreadyRead => "Mail already read",
+            MailReadPacketStatus.NotFound => "Mail not found",
+            MailReadPacketStatus.ConcurrencyConflict =>
+                "Mail state changed. Reload the Mail and try again",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(status),
+                status,
+                "Unexpected Mail read packet status.")
         };
     }
 }
