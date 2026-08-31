@@ -94,6 +94,41 @@ internal static class MailPacketMapper
         };
     }
 
+    public static MailClaimAllResultPacket ToPacket(
+        MailClaimAllResult result)
+    {
+        var status = result.Status switch
+        {
+            MailClaimAllStatus.Claimed =>
+                MailClaimAllPacketStatus.Claimed,
+            MailClaimAllStatus.NothingToClaim =>
+                MailClaimAllPacketStatus.NothingToClaim,
+            MailClaimAllStatus.PlayerNotFound =>
+                MailClaimAllPacketStatus.PlayerNotFound,
+            MailClaimAllStatus.ConcurrencyConflict =>
+                MailClaimAllPacketStatus.ConcurrencyConflict,
+            MailClaimAllStatus.IdempotencyConflict =>
+                MailClaimAllPacketStatus.IdempotencyConflict,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(result.Status),
+                result.Status,
+                "Unexpected Mail claim-all status.")
+        };
+
+        return new MailClaimAllResultPacket
+        {
+            Success = result.IsSuccess,
+            Status = status,
+            Message = GetClaimAllMessage(status),
+            ClaimedMailCount = result.ClaimedMailCount,
+            GrantedGold = result.GrantedGold,
+            GrantedGem = result.GrantedGem,
+            CurrentGold = result.CurrentGold,
+            CurrentGem = result.CurrentGem,
+            HasMore = result.HasMore
+        };
+    }
+
     private static string GetClaimMessage(MailClaimPacketStatus status)
     {
         return status switch
@@ -113,6 +148,28 @@ internal static class MailPacketMapper
                 nameof(status),
                 status,
                 "Unexpected Mail claim packet status.")
+        };
+    }
+
+    private static string GetClaimAllMessage(
+        MailClaimAllPacketStatus status)
+    {
+        return status switch
+        {
+            MailClaimAllPacketStatus.Claimed =>
+                "Mail rewards claimed",
+            MailClaimAllPacketStatus.NothingToClaim =>
+                "No Mail rewards to claim",
+            MailClaimAllPacketStatus.PlayerNotFound =>
+                "Player not found",
+            MailClaimAllPacketStatus.ConcurrencyConflict =>
+                "Mail state changed. Reload the Mail list and try again",
+            MailClaimAllPacketStatus.IdempotencyConflict =>
+                "Mail reward state conflicts with a completed request",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(status),
+                status,
+                "Unexpected Mail claim-all packet status.")
         };
     }
 }

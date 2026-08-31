@@ -131,4 +131,32 @@ public sealed class MailRequestPacketTests
         Assert.Throws<PacketProtocolException>(() =>
             MailClaimRequestPacket.Read(reader));
     }
+
+    [Fact]
+    public void MailClaimAllRequestPacket_Read_AcceptsEmptyPayload()
+    {
+        var packet = new MailClaimAllRequestPacket().Serialize();
+        var reader = new PacketReader(packet);
+
+        MailClaimAllRequestPacket.Read(reader);
+
+        Assert.Equal(Opcode.MailClaimAll, reader.Opcode);
+    }
+
+    [Fact]
+    public void MailClaimAllRequestPacket_Read_Throws_WhenPayloadHasTrailingBytes()
+    {
+        var bodyWriter = new PacketWriter();
+        bodyWriter.WriteUShort((ushort)Opcode.MailClaimAll);
+        bodyWriter.WriteBool(true);
+
+        var body = bodyWriter.ToArray();
+        var packetWriter = new PacketWriter();
+        packetWriter.WriteUShort(checked((ushort)(body.Length + 2)));
+        packetWriter.WriteBytes(body);
+        var reader = new PacketReader(packetWriter.ToArray());
+
+        Assert.Throws<PacketProtocolException>(() =>
+            MailClaimAllRequestPacket.Read(reader));
+    }
 }

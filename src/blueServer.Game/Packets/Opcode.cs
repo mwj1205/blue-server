@@ -32,6 +32,8 @@ public enum Opcode : ushort
     MailDetailResult = 20,
     MailClaim = 21,
     MailClaimResult = 22,
+    MailClaimAll = 23,
+    MailClaimAllResult = 24,
 
     ChatMessage = 1000  // S -> C
 }

@@ -98,6 +98,7 @@ builder.Services.AddKeyedScoped<IPacketHandler, PlayerProfileHandler>(Opcode.Pla
 builder.Services.AddKeyedScoped<IPacketHandler, MailListHandler>(Opcode.MailList);
 builder.Services.AddKeyedScoped<IPacketHandler, MailDetailHandler>(Opcode.MailDetail);
 builder.Services.AddKeyedScoped<IPacketHandler, MailClaimHandler>(Opcode.MailClaim);
+builder.Services.AddKeyedScoped<IPacketHandler, MailClaimAllHandler>(Opcode.MailClaimAll);
 
 builder.Services.AddSingleton<PacketDispatcher>();
 builder.Services.AddSingleton<SessionFactory>();

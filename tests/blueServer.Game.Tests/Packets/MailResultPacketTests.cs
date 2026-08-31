@@ -188,6 +188,84 @@ public sealed class MailResultPacketTests
             packet.Serialize());
     }
 
+    [Fact]
+    public void MailClaimAllResultPacket_Serialize_WritesClaimedResult()
+    {
+        var packet = new MailClaimAllResultPacket
+        {
+            Success = true,
+            Status = MailClaimAllPacketStatus.Claimed,
+            Message = "Mail rewards claimed",
+            ClaimedMailCount = 2,
+            GrantedGold = 150,
+            GrantedGem = 10,
+            CurrentGold = 1150,
+            CurrentGem = 510,
+            HasMore = true
+        }.Serialize();
+
+        var reader = new PacketReader(packet);
+
+        Assert.Equal(Opcode.MailClaimAllResult, reader.Opcode);
+        Assert.True(reader.ReadBool());
+        Assert.Equal(
+            (int)MailClaimAllPacketStatus.Claimed,
+            reader.ReadInt());
+        Assert.Equal("Mail rewards claimed", reader.ReadString());
+        Assert.Equal(2, reader.ReadInt());
+        Assert.Equal(150, reader.ReadInt());
+        Assert.Equal(10, reader.ReadInt());
+        Assert.Equal(1150, reader.ReadInt());
+        Assert.Equal(510, reader.ReadInt());
+        Assert.True(reader.ReadBool());
+        reader.EnsureFullyRead();
+    }
+
+    [Fact]
+    public void MailClaimAllResultPacket_Serialize_WritesNothingToClaimResult()
+    {
+        var packet = new MailClaimAllResultPacket
+        {
+            Success = true,
+            Status = MailClaimAllPacketStatus.NothingToClaim,
+            Message = "No Mail rewards to claim",
+            CurrentGold = 1000,
+            CurrentGem = 500
+        }.Serialize();
+
+        var reader = new PacketReader(packet);
+
+        Assert.Equal(Opcode.MailClaimAllResult, reader.Opcode);
+        Assert.True(reader.ReadBool());
+        Assert.Equal(
+            (int)MailClaimAllPacketStatus.NothingToClaim,
+            reader.ReadInt());
+        Assert.Equal("No Mail rewards to claim", reader.ReadString());
+        Assert.Equal(0, reader.ReadInt());
+        Assert.Equal(0, reader.ReadInt());
+        Assert.Equal(0, reader.ReadInt());
+        Assert.Equal(1000, reader.ReadInt());
+        Assert.Equal(500, reader.ReadInt());
+        Assert.False(reader.ReadBool());
+        reader.EnsureFullyRead();
+    }
+
+    [Fact]
+    public void MailClaimAllResultPacket_Serialize_Throws_WhenClaimedCountIsZero()
+    {
+        var packet = new MailClaimAllResultPacket
+        {
+            Success = true,
+            Status = MailClaimAllPacketStatus.Claimed,
+            Message = "Mail rewards claimed",
+            CurrentGold = 1000,
+            CurrentGem = 500
+        };
+
+        Assert.Throws<InvalidOperationException>(() =>
+            packet.Serialize());
+    }
+
     private static long ToUnixMilliseconds(DateTime value)
     {
         return new DateTimeOffset(value).ToUnixTimeMilliseconds();
