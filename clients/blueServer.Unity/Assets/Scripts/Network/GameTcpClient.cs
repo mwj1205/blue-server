@@ -116,6 +116,61 @@ namespace BlueServer.Client.Network
             return ParsePlayerProfileResponse(response);
         }
 
+        public async Task<MailListResponse> GetMailListAsync(
+            int pageSize,
+            MailListCursor cursor,
+            CancellationToken cancellationToken)
+        {
+            var response = await ExchangeAsync(
+                MailPacketCodec.BuildListRequest(pageSize, cursor),
+                cancellationToken);
+
+            return MailPacketCodec.ParseListResponse(response);
+        }
+
+        public async Task<MailDetailResponse> GetMailDetailAsync(
+            long mailId,
+            CancellationToken cancellationToken)
+        {
+            var response = await ExchangeAsync(
+                MailPacketCodec.BuildDetailRequest(mailId),
+                cancellationToken);
+
+            return MailPacketCodec.ParseDetailResponse(response);
+        }
+
+        public async Task<MailReadResponse> MarkMailAsReadAsync(
+            long mailId,
+            CancellationToken cancellationToken)
+        {
+            var response = await ExchangeAsync(
+                MailPacketCodec.BuildReadRequest(mailId),
+                cancellationToken);
+
+            return MailPacketCodec.ParseReadResponse(response);
+        }
+
+        public async Task<MailClaimResponse> ClaimMailAsync(
+            long mailId,
+            CancellationToken cancellationToken)
+        {
+            var response = await ExchangeAsync(
+                MailPacketCodec.BuildClaimRequest(mailId),
+                cancellationToken);
+
+            return MailPacketCodec.ParseClaimResponse(response);
+        }
+
+        public async Task<MailClaimAllResponse> ClaimAllMailAsync(
+            CancellationToken cancellationToken)
+        {
+            var response = await ExchangeAsync(
+                MailPacketCodec.BuildClaimAllRequest(),
+                cancellationToken);
+
+            return MailPacketCodec.ParseClaimAllResponse(response);
+        }
+
         public static PlayerProfileResponse ParsePlayerProfileResponse(
             byte[] response)
         {
