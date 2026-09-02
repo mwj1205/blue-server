@@ -44,10 +44,23 @@ namespace BlueServer.Client.Protocol
             get { return _position == _buffer.Length; }
         }
 
+        public int RemainingBytes
+        {
+            get { return _buffer.Length - _position; }
+        }
+
         public bool ReadBool()
         {
             EnsureAvailable(sizeof(byte));
-            return _buffer[_position++] == 1;
+            var value = _buffer[_position++];
+
+            if (value > 1)
+            {
+                throw new GameProtocolException(
+                    "Boolean payload must be encoded as zero or one.");
+            }
+
+            return value == 1;
         }
 
         public int ReadInt()

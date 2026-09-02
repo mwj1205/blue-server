@@ -8,5 +8,10 @@ namespace BlueServer.Client.Protocol
             : base(message)
         {
         }
+
+        public GameProtocolException(string message, Exception innerException)
+            : base(message, innerException)
+        {
+        }
     }
 }
