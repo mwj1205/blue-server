@@ -1,6 +1,8 @@
 using System;
 using System.Threading;
+using BlueServer.Client.Mail;
 using BlueServer.Client.Network;
+using BlueServer.Client.Protocol;
 using UnityEngine;
 
 namespace BlueServer.Client
@@ -76,6 +78,14 @@ namespace BlueServer.Client
                         profile.PartyCount,
                         profile.ClearedStageCount,
                         profile.TotalStageClearCount));
+
+                var mailState = new MailInboxState(_client);
+                var mailView = gameObject.AddComponent<MailInboxView>();
+                mailView.Initialize(mailState, _lifetimeCts.Token);
+
+                await mailState.LoadFirstPageAsync(
+                    MailPacketCodec.DefaultPageSize,
+                    _lifetimeCts.Token);
             }
             catch (OperationCanceledException)
             {
