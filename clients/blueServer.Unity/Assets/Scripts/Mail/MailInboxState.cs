@@ -21,6 +21,7 @@ namespace BlueServer.Client.Mail
     public sealed class MailInboxState
     {
         private readonly IMailQueryClient _client;
+        private readonly IMailCommandClient _commandClient;
         private readonly List<MailListItem> _items =
             new List<MailListItem>();
 
@@ -32,6 +33,7 @@ namespace BlueServer.Client.Mail
             }
 
             _client = client;
+            _commandClient = client as IMailCommandClient;
             Items = _items.AsReadOnly();
             Status = MailInboxStatus.Idle;
         }
@@ -43,6 +45,18 @@ namespace BlueServer.Client.Mail
         public MailListCursor NextCursor { get; private set; }
         public MailInboxStatus Status { get; private set; }
         public string ErrorMessage { get; private set; }
+        public MailReadResponse LastReadResult { get; private set; }
+        public MailClaimResponse LastClaimResult { get; private set; }
+        public MailClaimAllResponse LastClaimAllResult { get; private set; }
+        public int CurrentGold { get; private set; }
+        public int CurrentGem { get; private set; }
+        public bool HasCurrentBalance { get; private set; }
+        public bool RequiresRefresh { get; private set; }
+
+        public bool CanExecuteCommands
+        {
+            get { return _commandClient != null; }
+        }
 
         public bool IsBusy
         {
@@ -89,6 +103,7 @@ namespace BlueServer.Client.Mail
                 _items.AddRange(response.Items);
                 NextCursor = response.NextCursor;
                 SelectedMail = null;
+                RequiresRefresh = false;
                 CompleteRequest();
                 return true;
             }
@@ -99,6 +114,162 @@ namespace BlueServer.Client.Mail
             }
             catch (Exception exception)
             {
+                SetExceptionFailure(exception);
+                throw;
+            }
+        }
+
+        public async Task<bool> MarkAsReadAsync(
+            long mailId,
+            CancellationToken cancellationToken)
+        {
+            ValidateMailId(mailId);
+            var commandClient = GetCommandClient();
+
+            if (!TryBeginRequest())
+            {
+                return false;
+            }
+
+            try
+            {
+                var response = await commandClient.MarkMailAsReadAsync(
+                    mailId,
+                    cancellationToken);
+
+                LastReadResult = response;
+
+                if (!response.Success || !response.ReadAt.HasValue)
+                {
+                    if (response.Status == MailReadStatus.ConcurrencyConflict)
+                    {
+                        RequiresRefresh = true;
+                    }
+
+                    SetServerFailure(response.Message);
+                    return false;
+                }
+
+                ApplyReadState(mailId, response.ReadAt.Value);
+                CompleteRequest();
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                MarkMutationUncertain();
+                CancelRequest();
+                throw;
+            }
+            catch (Exception exception)
+            {
+                MarkMutationUncertain();
+                SetExceptionFailure(exception);
+                throw;
+            }
+        }
+
+        public async Task<bool> ClaimAsync(
+            long mailId,
+            CancellationToken cancellationToken)
+        {
+            ValidateMailId(mailId);
+            var commandClient = GetCommandClient();
+
+            if (!TryBeginRequest())
+            {
+                return false;
+            }
+
+            try
+            {
+                var response = await commandClient.ClaimMailAsync(
+                    mailId,
+                    cancellationToken);
+
+                LastClaimResult = response;
+
+                if (!response.Success || !response.ClaimedAt.HasValue)
+                {
+                    if (response.Status == MailClaimStatus.ConcurrencyConflict ||
+                        response.Status == MailClaimStatus.IdempotencyConflict)
+                    {
+                        RequiresRefresh = true;
+                    }
+
+                    SetServerFailure(response.Message);
+                    return false;
+                }
+
+                ApplyClaimState(mailId, response.ClaimedAt.Value);
+                SetCurrentBalance(
+                    response.CurrentGold,
+                    response.CurrentGem);
+                CompleteRequest();
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                MarkMutationUncertain();
+                CancelRequest();
+                throw;
+            }
+            catch (Exception exception)
+            {
+                MarkMutationUncertain();
+                SetExceptionFailure(exception);
+                throw;
+            }
+        }
+
+        public async Task<bool> ClaimAllAsync(
+            CancellationToken cancellationToken)
+        {
+            var commandClient = GetCommandClient();
+
+            if (!TryBeginRequest())
+            {
+                return false;
+            }
+
+            try
+            {
+                var response = await commandClient.ClaimAllMailAsync(
+                    cancellationToken);
+
+                LastClaimAllResult = response;
+
+                if (!response.Success)
+                {
+                    if (response.Status ==
+                            MailClaimAllStatus.ConcurrencyConflict ||
+                        response.Status ==
+                            MailClaimAllStatus.IdempotencyConflict)
+                    {
+                        RequiresRefresh = true;
+                    }
+
+                    SetServerFailure(response.Message);
+                    return false;
+                }
+
+                SetCurrentBalance(
+                    response.CurrentGold,
+                    response.CurrentGem);
+
+                // 응답에 처리 대상 Mail ID가 없으므로 결과와 무관하게 목록 재조회
+                RequiresRefresh = true;
+                CompleteRequest();
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                MarkMutationUncertain();
+                CancelRequest();
+                throw;
+            }
+            catch (Exception exception)
+            {
+                MarkMutationUncertain();
                 SetExceptionFailure(exception);
                 throw;
             }
@@ -218,6 +389,128 @@ namespace BlueServer.Client.Mail
                 {
                     _items.Add(item);
                 }
+            }
+        }
+
+        private void ApplyReadState(long mailId, DateTime readAt)
+        {
+            for (var index = 0; index < _items.Count; index++)
+            {
+                var item = _items[index];
+
+                if (item.Id == mailId)
+                {
+                    _items[index] = CopyListItem(
+                        item,
+                        true,
+                        item.IsClaimed,
+                        item.CanClaim);
+                    break;
+                }
+            }
+
+            if (SelectedMail != null && SelectedMail.Id == mailId)
+            {
+                SelectedMail = CopyDetail(
+                    SelectedMail,
+                    readAt,
+                    SelectedMail.ClaimedAt,
+                    SelectedMail.CanClaim);
+            }
+        }
+
+        private void ApplyClaimState(long mailId, DateTime claimedAt)
+        {
+            for (var index = 0; index < _items.Count; index++)
+            {
+                var item = _items[index];
+
+                if (item.Id == mailId)
+                {
+                    _items[index] = CopyListItem(
+                        item,
+                        true,
+                        true,
+                        false);
+                    break;
+                }
+            }
+
+            if (SelectedMail != null && SelectedMail.Id == mailId)
+            {
+                SelectedMail = CopyDetail(
+                    SelectedMail,
+                    SelectedMail.ReadAt ?? claimedAt,
+                    claimedAt,
+                    false);
+            }
+        }
+
+        private static MailListItem CopyListItem(
+            MailListItem item,
+            bool isRead,
+            bool isClaimed,
+            bool canClaim)
+        {
+            return new MailListItem(
+                item.Id,
+                item.Title,
+                item.SentAt,
+                item.ExpiresAt,
+                isRead,
+                isClaimed,
+                item.IsExpired,
+                canClaim,
+                item.AttachmentCount);
+        }
+
+        private static MailDetail CopyDetail(
+            MailDetail mail,
+            DateTime? readAt,
+            DateTime? claimedAt,
+            bool canClaim)
+        {
+            return new MailDetail(
+                mail.Id,
+                mail.Title,
+                mail.Body,
+                mail.SentAt,
+                mail.ExpiresAt,
+                readAt,
+                claimedAt,
+                mail.IsExpired,
+                canClaim,
+                mail.Attachments);
+        }
+
+        private void SetCurrentBalance(int gold, int gem)
+        {
+            CurrentGold = gold;
+            CurrentGem = gem;
+            HasCurrentBalance = true;
+        }
+
+        private void MarkMutationUncertain()
+        {
+            RequiresRefresh = true;
+        }
+
+        private IMailCommandClient GetCommandClient()
+        {
+            if (_commandClient == null)
+            {
+                throw new InvalidOperationException(
+                    "The configured Mail client does not support commands.");
+            }
+
+            return _commandClient;
+        }
+
+        private static void ValidateMailId(long mailId)
+        {
+            if (mailId <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(mailId));
             }
         }
 

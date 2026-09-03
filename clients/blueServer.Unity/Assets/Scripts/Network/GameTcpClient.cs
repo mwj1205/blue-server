@@ -7,7 +7,10 @@ using BlueServer.Client.Protocol;
 
 namespace BlueServer.Client.Network
 {
-    public sealed class GameTcpClient : IMailQueryClient, IDisposable
+    public sealed class GameTcpClient :
+        IMailQueryClient,
+        IMailCommandClient,
+        IDisposable
     {
         private readonly string _host;
         private readonly int _port;
