@@ -7,6 +7,7 @@
 ***/
 
 using blueServer.Domain.Entities;
+using blueServer.Domain.Currencies;
 using Microsoft.EntityFrameworkCore;
 
 namespace blueServer.Infrastructure;
@@ -26,6 +27,7 @@ public class GameDbContext : DbContext
     public DbSet<StageClearRecord> StageClearRecords => Set<StageClearRecord>();
     public DbSet<RewardGrantRecord> RewardGrantRecords => Set<RewardGrantRecord>();
     public DbSet<RewardGrantItem> RewardGrantItems => Set<RewardGrantItem>();
+    public DbSet<CurrencyChangeLog> CurrencyChangeLogs => Set<CurrencyChangeLog>();
     public DbSet<Mail> Mails => Set<Mail>();
     public DbSet<MailAttachment> MailAttachments => Set<MailAttachment>();
 
@@ -150,6 +152,70 @@ public class GameDbContext : DbContext
 
             entity.Property(item => item.Type)
                 .HasConversion<int>();
+        });
+
+        modelBuilder.Entity<CurrencyChangeLog>(entity =>
+        {
+            entity.Property(change => change.CurrencyType)
+                .HasConversion<int>();
+
+            entity.Property(change => change.ReasonType)
+                .HasConversion<int>();
+
+            entity.Property(change => change.SourceId)
+                .HasMaxLength(CurrencyChangeLog.MaxSourceIdLength);
+
+            // 동일 업무 요청에서 Currency별 이력 중복 생성 방지
+            entity.HasIndex(change => new
+            {
+                change.PlayerId,
+                change.RequestId,
+                change.CurrencyType
+            })
+                .IsUnique();
+
+            // Player의 최신 재화 변경 이력 조회 지원
+            entity.HasIndex(change => new
+            {
+                change.PlayerId,
+                change.CreatedAt,
+                change.Id
+            });
+
+            entity.HasOne(change => change.Player)
+                .WithMany()
+                .HasForeignKey(change => change.PlayerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(change => change.RewardGrantRecord)
+                .WithMany()
+                .HasForeignKey(change => change.RewardGrantRecordId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_CurrencyChangeLogs_CurrencyType_Valid",
+                    "\"CurrencyType\" IN (1, 2)");
+                table.HasCheckConstraint(
+                    "CK_CurrencyChangeLogs_Delta_NotZero",
+                    "\"Delta\" <> 0");
+                table.HasCheckConstraint(
+                    "CK_CurrencyChangeLogs_BalanceBefore_NonNegative",
+                    "\"BalanceBefore\" >= 0");
+                table.HasCheckConstraint(
+                    "CK_CurrencyChangeLogs_BalanceAfter_NonNegative",
+                    "\"BalanceAfter\" >= 0");
+                table.HasCheckConstraint(
+                    "CK_CurrencyChangeLogs_Balance_Consistent",
+                    "\"BalanceAfter\" = \"BalanceBefore\" + \"Delta\"");
+                table.HasCheckConstraint(
+                    "CK_CurrencyChangeLogs_ReasonType_Valid",
+                    "\"ReasonType\" IN (1, 2, 3, 4, 5, 6, 7, 8)");
+                table.HasCheckConstraint(
+                    "CK_CurrencyChangeLogs_SourceId_NotEmpty",
+                    "length(btrim(\"SourceId\")) > 0");
+            });
         });
 
         modelBuilder.Entity<Mail>(entity =>
