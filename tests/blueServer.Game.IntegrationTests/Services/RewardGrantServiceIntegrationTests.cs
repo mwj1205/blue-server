@@ -84,6 +84,24 @@ public sealed class RewardGrantServiceIntegrationTests
             Assert.Equal(Player.InitialGem + 20, result.CurrentGem);
         }
 
+        // 동일 Request ID에 다른 이력 출처 사용 시 멱등성 충돌 검증
+        await using (var sourceConflictDb = new GameDbContext(options))
+        {
+            var service = new RewardGrantService(sourceConflictDb);
+            var result = await service.GrantAsync(
+                playerId,
+                CreateRequest(
+                    requestId,
+                    "Integration test",
+                    rewards,
+                    "different-source"),
+                CancellationToken.None);
+
+            Assert.Equal(
+                RewardGrantStatus.IdempotencyConflict,
+                result.Status);
+        }
+
         // 동일 Request ID에 다른 payload 사용 시 멱등성 충돌 검증
         await using (var conflictDb = new GameDbContext(options))
         {
@@ -132,6 +150,13 @@ public sealed class RewardGrantServiceIntegrationTests
                 .SingleAsync(record =>
                     record.PlayerId == playerId &&
                     record.RequestId == requestId);
+            var currencyChanges = await assertDb.CurrencyChangeLogs
+                .AsNoTracking()
+                .Where(change =>
+                    change.PlayerId == playerId &&
+                    change.RequestId == requestId)
+                .OrderBy(change => change.CurrencyType)
+                .ToArrayAsync();
 
             Assert.Equal(Player.InitialGold + 150, player.Gold);
             Assert.Equal(Player.InitialGem + 20, player.Gem);
@@ -139,6 +164,10 @@ public sealed class RewardGrantServiceIntegrationTests
                 .AnyAsync(record =>
                     record.PlayerId == playerId &&
                     record.RequestId == rollbackRequestId));
+            Assert.False(await assertDb.CurrencyChangeLogs
+                .AnyAsync(change =>
+                    change.PlayerId == playerId &&
+                    change.RequestId == rollbackRequestId));
             Assert.Equal("Integration test", grant.Reason);
             Assert.Collection(
                 grant.Items.OrderBy(item => item.Type),
@@ -151,6 +180,38 @@ public sealed class RewardGrantServiceIntegrationTests
                 {
                     Assert.Equal(RewardType.Gem, item.Type);
                     Assert.Equal(20, item.Amount);
+                });
+            Assert.Collection(
+                currencyChanges,
+                change =>
+                {
+                    Assert.Equal(CurrencyType.Gold, change.CurrencyType);
+                    Assert.Equal(150, change.Delta);
+                    Assert.Equal(Player.InitialGold, change.BalanceBefore);
+                    Assert.Equal(Player.InitialGold + 150, change.BalanceAfter);
+                    Assert.Equal(
+                        CurrencyChangeReasonType.RewardGrant,
+                        change.ReasonType);
+                    Assert.Equal(
+                        $"integration-test:{requestId:N}",
+                        change.SourceId);
+                    Assert.Equal(requestId, change.RequestId);
+                    Assert.Equal(grant.Id, change.RewardGrantRecordId);
+                },
+                change =>
+                {
+                    Assert.Equal(CurrencyType.Gem, change.CurrencyType);
+                    Assert.Equal(20, change.Delta);
+                    Assert.Equal(Player.InitialGem, change.BalanceBefore);
+                    Assert.Equal(Player.InitialGem + 20, change.BalanceAfter);
+                    Assert.Equal(
+                        CurrencyChangeReasonType.RewardGrant,
+                        change.ReasonType);
+                    Assert.Equal(
+                        $"integration-test:{requestId:N}",
+                        change.SourceId);
+                    Assert.Equal(requestId, change.RequestId);
+                    Assert.Equal(grant.Id, change.RewardGrantRecordId);
                 });
         }
     }
@@ -284,6 +345,10 @@ public sealed class RewardGrantServiceIntegrationTests
                 .Where(record => record.PlayerId == playerId)
                 .Select(record => record.RequestId)
                 .ToArrayAsync();
+            var currencyChanges = await assertDb.CurrencyChangeLogs
+                .AsNoTracking()
+                .Where(change => change.PlayerId == playerId)
+                .ToArrayAsync();
 
             Assert.Equal(Player.InitialGold + 30, player.Gold);
             Assert.Equal(Player.InitialGem + 5, player.Gem);
@@ -291,19 +356,32 @@ public sealed class RewardGrantServiceIntegrationTests
             Assert.Contains(newRequestId, requestIds);
             Assert.DoesNotContain(rejectedRequestId, requestIds);
             Assert.Equal(2, requestIds.Length);
+            Assert.Equal(3, currencyChanges.Length);
+            Assert.Equal(
+                1,
+                currencyChanges.Count(change =>
+                    change.RequestId == existingRequestId));
+            Assert.Equal(
+                2,
+                currencyChanges.Count(change =>
+                    change.RequestId == newRequestId));
+            Assert.DoesNotContain(
+                currencyChanges,
+                change => change.RequestId == rejectedRequestId);
         }
     }
 
     private static RewardGrantRequest CreateRequest(
         Guid requestId,
         string reason,
-        RewardBundle rewards)
+        RewardBundle rewards,
+        string? sourceId = null)
     {
         return new RewardGrantRequest(
             requestId,
             reason,
             rewards,
             CurrencyChangeReasonType.RewardGrant,
-            $"integration-test:{requestId:N}");
+            sourceId ?? $"integration-test:{requestId:N}");
     }
 }
