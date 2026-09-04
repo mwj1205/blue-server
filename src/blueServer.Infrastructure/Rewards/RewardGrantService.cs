@@ -1,3 +1,4 @@
+using blueServer.Domain.Currencies;
 using blueServer.Domain.Entities;
 using blueServer.Domain.Rewards;
 using Microsoft.EntityFrameworkCore;
@@ -17,27 +18,25 @@ public sealed class RewardGrantService
 
     public async Task<RewardGrantResult> GrantAsync(
         long playerId,
-        Guid requestId,
-        string reason,
-        RewardBundle rewards,
+        RewardGrantRequest request,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(rewards);
+        ArgumentNullException.ThrowIfNull(request);
 
         // 재화 변경 전에 지급 식별자와 사유 검증
         var grantRecord = RewardGrantRecord.Create(
             playerId,
-            requestId,
-            reason,
+            request.RequestId,
+            request.Reason,
             DateTime.UtcNow,
-            rewards);
+            request.Rewards);
 
         // Transaction 시작 전 완료 이력 확인을 통한 일반 재시도 Fast Path
         var existingResult = await TryGetExistingResultAsync(
             playerId,
-            requestId,
+            request.RequestId,
             grantRecord.Reason,
-            rewards,
+            request.Rewards,
             cancellationToken);
 
         if (existingResult is not null)
@@ -52,9 +51,7 @@ public sealed class RewardGrantService
         {
             var result = await GrantWithinCurrentTransactionAsync(
                 playerId,
-                requestId,
-                grantRecord.Reason,
-                rewards,
+                request,
                 cancellationToken);
 
             if (result.Status == RewardGrantStatus.Granted)
@@ -75,9 +72,9 @@ public sealed class RewardGrantService
 
             var duplicateResult = await TryGetExistingResultAsync(
                 playerId,
-                requestId,
+                request.RequestId,
                 grantRecord.Reason,
-                rewards,
+                request.Rewards,
                 CancellationToken.None);
 
             return duplicateResult ?? RewardGrantResult.ConcurrencyConflict();
@@ -90,9 +87,9 @@ public sealed class RewardGrantService
             // Unique Constraint 경합이면 먼저 완료된 동일 요청의 결과로 복구
             var duplicateResult = await TryGetExistingResultAsync(
                 playerId,
-                requestId,
+                request.RequestId,
                 grantRecord.Reason,
-                rewards,
+                request.Rewards,
                 CancellationToken.None);
 
             if (duplicateResult is not null)
@@ -112,16 +109,14 @@ public sealed class RewardGrantService
 
     public async Task<RewardGrantResult> GrantWithinCurrentTransactionAsync(
         long playerId,
-        Guid requestId,
-        string reason,
-        RewardBundle rewards,
+        RewardGrantRequest request,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(rewards);
+        ArgumentNullException.ThrowIfNull(request);
 
         var batchResult = await GrantBatchWithinCurrentTransactionAsync(
             playerId,
-            [new RewardGrantRequest(requestId, reason, rewards)],
+            [request],
             cancellationToken);
 
         return batchResult.Status switch
@@ -353,7 +348,9 @@ public sealed class RewardGrantService
 public sealed record RewardGrantRequest(
     Guid RequestId,
     string Reason,
-    RewardBundle Rewards);
+    RewardBundle Rewards,
+    CurrencyChangeReasonType CurrencyChangeReasonType,
+    string CurrencyChangeSourceId);
 
 public enum RewardGrantBatchStatus
 {

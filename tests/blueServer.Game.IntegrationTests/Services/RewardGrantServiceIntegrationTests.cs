@@ -1,3 +1,4 @@
+using blueServer.Domain.Currencies;
 using blueServer.Domain.Entities;
 using blueServer.Domain.Rewards;
 using blueServer.Infrastructure;
@@ -42,9 +43,10 @@ public sealed class RewardGrantServiceIntegrationTests
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.GrantWithinCurrentTransactionAsync(
                     playerId,
-                    rollbackRequestId,
-                    "Missing parent transaction test",
-                    rewards,
+                    CreateRequest(
+                        rollbackRequestId,
+                        "Missing parent transaction test",
+                        rewards),
                     CancellationToken.None));
         }
 
@@ -54,9 +56,10 @@ public sealed class RewardGrantServiceIntegrationTests
             var service = new RewardGrantService(grantDb);
             var result = await service.GrantAsync(
                 playerId,
-                requestId,
-                "Integration test",
-                rewards,
+                CreateRequest(
+                    requestId,
+                    "Integration test",
+                    rewards),
                 CancellationToken.None);
 
             Assert.Equal(RewardGrantStatus.Granted, result.Status);
@@ -70,9 +73,10 @@ public sealed class RewardGrantServiceIntegrationTests
             var service = new RewardGrantService(retryDb);
             var result = await service.GrantAsync(
                 playerId,
-                requestId,
-                "Integration test",
-                rewards,
+                CreateRequest(
+                    requestId,
+                    "Integration test",
+                    rewards),
                 CancellationToken.None);
 
             Assert.Equal(RewardGrantStatus.AlreadyGranted, result.Status);
@@ -86,11 +90,12 @@ public sealed class RewardGrantServiceIntegrationTests
             var service = new RewardGrantService(conflictDb);
             var result = await service.GrantAsync(
                 playerId,
-                requestId,
-                "Integration test",
-                RewardBundle.Create(
-                    RewardItem.Create(RewardType.Gold, 151),
-                    RewardItem.Create(RewardType.Gem, 20)),
+                CreateRequest(
+                    requestId,
+                    "Integration test",
+                    RewardBundle.Create(
+                        RewardItem.Create(RewardType.Gold, 151),
+                        RewardItem.Create(RewardType.Gem, 20))),
                 CancellationToken.None);
 
             Assert.Equal(
@@ -105,10 +110,11 @@ public sealed class RewardGrantServiceIntegrationTests
             var service = new RewardGrantService(rollbackDb);
             var result = await service.GrantWithinCurrentTransactionAsync(
                 playerId,
-                rollbackRequestId,
-                "Parent operation rollback test",
-                RewardBundle.Create(
-                    RewardItem.Create(RewardType.Gold, 999)),
+                CreateRequest(
+                    rollbackRequestId,
+                    "Parent operation rollback test",
+                    RewardBundle.Create(
+                        RewardItem.Create(RewardType.Gold, 999))),
                 CancellationToken.None);
 
             Assert.Equal(RewardGrantStatus.Granted, result.Status);
@@ -179,9 +185,10 @@ public sealed class RewardGrantServiceIntegrationTests
             var service = new RewardGrantService(arrangeDb);
             var result = await service.GrantAsync(
                 playerId,
-                existingRequestId,
-                "Existing batch request",
-                existingRewards,
+                CreateRequest(
+                    existingRequestId,
+                    "Existing batch request",
+                    existingRewards),
                 CancellationToken.None);
 
             Assert.Equal(RewardGrantStatus.Granted, result.Status);
@@ -189,11 +196,11 @@ public sealed class RewardGrantServiceIntegrationTests
 
         var requests = new[]
         {
-            new RewardGrantRequest(
+            CreateRequest(
                 existingRequestId,
                 "Existing batch request",
                 existingRewards),
-            new RewardGrantRequest(
+            CreateRequest(
                 newRequestId,
                 "New batch request",
                 newRewards)
@@ -247,12 +254,12 @@ public sealed class RewardGrantServiceIntegrationTests
             var result = await service.GrantBatchWithinCurrentTransactionAsync(
                 playerId,
                 [
-                    new RewardGrantRequest(
+                    CreateRequest(
                         existingRequestId,
                         "Existing batch request",
                         RewardBundle.Create(
                             RewardItem.Create(RewardType.Gold, 11))),
-                    new RewardGrantRequest(
+                    CreateRequest(
                         rejectedRequestId,
                         "Rejected batch request",
                         RewardBundle.Create(
@@ -285,5 +292,18 @@ public sealed class RewardGrantServiceIntegrationTests
             Assert.DoesNotContain(rejectedRequestId, requestIds);
             Assert.Equal(2, requestIds.Length);
         }
+    }
+
+    private static RewardGrantRequest CreateRequest(
+        Guid requestId,
+        string reason,
+        RewardBundle rewards)
+    {
+        return new RewardGrantRequest(
+            requestId,
+            reason,
+            rewards,
+            CurrencyChangeReasonType.RewardGrant,
+            $"integration-test:{requestId:N}");
     }
 }
