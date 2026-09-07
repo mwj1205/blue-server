@@ -70,9 +70,7 @@ public sealed class MailClaimService
             var rewardResult = await _rewardGrantService
                 .GrantWithinCurrentTransactionAsync(
                     playerId,
-                    rewardRequest.RequestId,
-                    rewardRequest.Reason,
-                    rewardRequest.Rewards,
+                    rewardRequest,
                     cancellationToken);
 
             if (!rewardResult.IsSuccess)

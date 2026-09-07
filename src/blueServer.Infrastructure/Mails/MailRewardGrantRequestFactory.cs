@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using blueServer.Domain.Currencies;
 using blueServer.Domain.Entities;
 using blueServer.Domain.Rewards;
 using blueServer.Infrastructure.Rewards;
@@ -23,7 +24,9 @@ internal static class MailRewardGrantRequestFactory
         return new RewardGrantRequest(
             CreateRequestId(mail.Id),
             $"Mail reward {mail.Id}",
-            rewards);
+            rewards,
+            CurrencyChangeReasonType.RewardGrant,
+            $"mail:{mail.Id}");
     }
 
     private static Guid CreateRequestId(long mailId)

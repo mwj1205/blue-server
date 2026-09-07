@@ -1,3 +1,4 @@
+using blueServer.Domain.Currencies;
 using blueServer.Domain.Entities;
 using blueServer.Domain.Rewards;
 using Microsoft.EntityFrameworkCore;
@@ -17,27 +18,25 @@ public sealed class RewardGrantService
 
     public async Task<RewardGrantResult> GrantAsync(
         long playerId,
-        Guid requestId,
-        string reason,
-        RewardBundle rewards,
+        RewardGrantRequest request,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(rewards);
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateCurrencyChangeContext(request);
 
         // 재화 변경 전에 지급 식별자와 사유 검증
         var grantRecord = RewardGrantRecord.Create(
             playerId,
-            requestId,
-            reason,
+            request.RequestId,
+            request.Reason,
             DateTime.UtcNow,
-            rewards);
+            request.Rewards);
 
         // Transaction 시작 전 완료 이력 확인을 통한 일반 재시도 Fast Path
         var existingResult = await TryGetExistingResultAsync(
             playerId,
-            requestId,
-            grantRecord.Reason,
-            rewards,
+            request,
+            grantRecord,
             cancellationToken);
 
         if (existingResult is not null)
@@ -52,9 +51,7 @@ public sealed class RewardGrantService
         {
             var result = await GrantWithinCurrentTransactionAsync(
                 playerId,
-                requestId,
-                grantRecord.Reason,
-                rewards,
+                request,
                 cancellationToken);
 
             if (result.Status == RewardGrantStatus.Granted)
@@ -75,9 +72,8 @@ public sealed class RewardGrantService
 
             var duplicateResult = await TryGetExistingResultAsync(
                 playerId,
-                requestId,
-                grantRecord.Reason,
-                rewards,
+                request,
+                grantRecord,
                 CancellationToken.None);
 
             return duplicateResult ?? RewardGrantResult.ConcurrencyConflict();
@@ -90,9 +86,8 @@ public sealed class RewardGrantService
             // Unique Constraint 경합이면 먼저 완료된 동일 요청의 결과로 복구
             var duplicateResult = await TryGetExistingResultAsync(
                 playerId,
-                requestId,
-                grantRecord.Reason,
-                rewards,
+                request,
+                grantRecord,
                 CancellationToken.None);
 
             if (duplicateResult is not null)
@@ -112,16 +107,14 @@ public sealed class RewardGrantService
 
     public async Task<RewardGrantResult> GrantWithinCurrentTransactionAsync(
         long playerId,
-        Guid requestId,
-        string reason,
-        RewardBundle rewards,
+        RewardGrantRequest request,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(rewards);
+        ArgumentNullException.ThrowIfNull(request);
 
         var batchResult = await GrantBatchWithinCurrentTransactionAsync(
             playerId,
-            [new RewardGrantRequest(requestId, reason, rewards)],
+            [request],
             cancellationToken);
 
         return batchResult.Status switch
@@ -190,16 +183,32 @@ public sealed class RewardGrantService
             .ToDictionaryAsync(
                 record => record.RequestId,
                 cancellationToken);
+        var existingCurrencyChanges = await _db.CurrencyChangeLogs
+            .AsNoTracking()
+            .Where(change =>
+                change.PlayerId == playerId &&
+                requestIds.Contains(change.RequestId))
+            .ToArrayAsync(cancellationToken);
+        var currencyChangesByRequestId = existingCurrencyChanges
+            .ToLookup(change => change.RequestId);
 
         // 하나라도 Payload가 다르면 Batch 전체 적용 전에 중단
         foreach (var preparedRequest in preparedRequests)
         {
-            if (existingGrants.TryGetValue(
+            if (!existingGrants.TryGetValue(
                     preparedRequest.Request.RequestId,
-                    out var existingGrant) &&
-                !existingGrant.HasSameGrant(
+                    out var existingGrant))
+            {
+                continue;
+            }
+
+            if (!existingGrant.HasSameGrant(
                     preparedRequest.Record.Reason,
-                    preparedRequest.Request.Rewards))
+                    preparedRequest.Request.Rewards) ||
+                !HasSameCurrencyChangeContext(
+                    currencyChangesByRequestId[
+                        preparedRequest.Request.RequestId],
+                    preparedRequest.Request))
             {
                 return RewardGrantBatchResult.IdempotencyConflict();
             }
@@ -212,9 +221,15 @@ public sealed class RewardGrantService
 
         foreach (var preparedRequest in newRequests)
         {
-            foreach (var reward in preparedRequest.Request.Rewards.Items)
+            foreach (var reward in preparedRequest.Record.Items)
             {
-                ApplyReward(player, reward);
+                var currencyChange = ApplyRewardAndCreateCurrencyChange(
+                    player,
+                    reward,
+                    preparedRequest,
+                    grantedAt);
+
+                _db.CurrencyChangeLogs.Add(currencyChange);
             }
 
             _db.RewardGrantRecords.Add(preparedRequest.Record);
@@ -240,9 +255,8 @@ public sealed class RewardGrantService
 
     private async Task<RewardGrantResult?> TryGetExistingResultAsync(
         long playerId,
-        Guid requestId,
-        string reason,
-        RewardBundle rewards,
+        RewardGrantRequest request,
+        RewardGrantRecord requestedGrant,
         CancellationToken cancellationToken)
     {
         var existingGrant = await _db.RewardGrantRecords
@@ -251,7 +265,7 @@ public sealed class RewardGrantService
             .FirstOrDefaultAsync(
                 record =>
                     record.PlayerId == playerId &&
-                    record.RequestId == requestId,
+                    record.RequestId == request.RequestId,
                 cancellationToken);
 
         if (existingGrant is null)
@@ -259,7 +273,24 @@ public sealed class RewardGrantService
             return null;
         }
 
-        if (!existingGrant.HasSameGrant(reason, rewards))
+        if (!existingGrant.HasSameGrant(
+                requestedGrant.Reason,
+                request.Rewards))
+        {
+            return RewardGrantResult.IdempotencyConflict();
+        }
+
+
+        var currencyChanges = await _db.CurrencyChangeLogs
+            .AsNoTracking()
+            .Where(change =>
+                change.PlayerId == playerId &&
+                change.RequestId == request.RequestId)
+            .ToArrayAsync(cancellationToken);
+
+        if (!HasSameCurrencyChangeContext(
+                currencyChanges,
+                request))
         {
             return RewardGrantResult.IdempotencyConflict();
         }
@@ -279,15 +310,26 @@ public sealed class RewardGrantService
             : RewardGrantResult.AlreadyGranted(balance.Gold, balance.Gem);
     }
 
-    private static void ApplyReward(Player player, RewardItem reward)
+    private static CurrencyChangeLog ApplyRewardAndCreateCurrencyChange(
+        Player player,
+        RewardGrantItem reward,
+        PreparedRewardGrant preparedRequest,
+        DateTime createdAt)
     {
+        int balanceBefore;
+        CurrencyType currencyType;
+
         switch (reward.Type)
         {
             case RewardType.Gold:
+                balanceBefore = player.Gold;
+                currencyType = CurrencyType.Gold;
                 player.AddGold(reward.Amount);
                 break;
 
             case RewardType.Gem:
+                balanceBefore = player.Gem;
+                currencyType = CurrencyType.Gem;
                 player.AddGems(reward.Amount);
                 break;
 
@@ -297,6 +339,39 @@ public sealed class RewardGrantService
                     reward.Type,
                     "Reward type is not supported.");
         }
+
+        return CurrencyChangeLog.Create(
+            player.Id,
+            currencyType,
+            reward.Amount,
+            balanceBefore,
+            preparedRequest.Request.CurrencyChangeReasonType,
+            preparedRequest.Request.CurrencyChangeSourceId,
+            preparedRequest.Request.RequestId,
+            createdAt,
+            preparedRequest.Record);
+    }
+
+    private static bool HasSameCurrencyChangeContext(
+        IEnumerable<CurrencyChangeLog> currencyChanges,
+        RewardGrantRequest request)
+    {
+        var changes = currencyChanges.ToArray();
+
+        // CurrencyChangeLogs 도입 전에 완료된 지급 이력은 기존 멱등성 규칙으로 처리
+        if (changes.Length == 0)
+        {
+            return true;
+        }
+
+        var normalizedSourceId = request.CurrencyChangeSourceId.Trim();
+
+        return changes.All(change =>
+            change.ReasonType == request.CurrencyChangeReasonType &&
+            string.Equals(
+                change.SourceId,
+                normalizedSourceId,
+                StringComparison.Ordinal));
     }
 
     private static void ValidateBatchRequest(
@@ -335,6 +410,11 @@ public sealed class RewardGrantService
                 nameof(requests));
         }
 
+        foreach (var request in requests)
+        {
+            ValidateCurrencyChangeContext(request);
+        }
+
         if (requests
             .GroupBy(request => request.RequestId)
             .Any(group => group.Count() > 1))
@@ -342,6 +422,33 @@ public sealed class RewardGrantService
             throw new ArgumentException(
                 "Reward grant request ids must be unique within a batch.",
                 nameof(requests));
+        }
+    }
+
+    private static void ValidateCurrencyChangeContext(
+        RewardGrantRequest request)
+    {
+        if (!Enum.IsDefined(request.CurrencyChangeReasonType))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                request.CurrencyChangeReasonType,
+                "Currency change reason type is not supported.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CurrencyChangeSourceId))
+        {
+            throw new ArgumentException(
+                "Currency change source id is required.",
+                nameof(request));
+        }
+
+        if (request.CurrencyChangeSourceId.Trim().Length >
+            CurrencyChangeLog.MaxSourceIdLength)
+        {
+            throw new ArgumentException(
+                $"Currency change source id must not exceed {CurrencyChangeLog.MaxSourceIdLength} characters.",
+                nameof(request));
         }
     }
 
@@ -353,7 +460,9 @@ public sealed class RewardGrantService
 public sealed record RewardGrantRequest(
     Guid RequestId,
     string Reason,
-    RewardBundle Rewards);
+    RewardBundle Rewards,
+    CurrencyChangeReasonType CurrencyChangeReasonType,
+    string CurrencyChangeSourceId);
 
 public enum RewardGrantBatchStatus
 {
