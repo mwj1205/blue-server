@@ -1,6 +1,7 @@
 using blueServer.Domain.Entities;
 using blueServer.Domain.Rewards;
 using blueServer.Infrastructure;
+using blueServer.Infrastructure.Currencies;
 using blueServer.Infrastructure.Mails;
 using blueServer.Infrastructure.Rewards;
 using Microsoft.EntityFrameworkCore;
@@ -287,7 +288,9 @@ public sealed class MailClaimAllServiceIntegrationTests
     {
         return new MailClaimAllService(
             db,
-            new RewardGrantService(db));
+            new RewardGrantService(
+                db,
+                new CurrencyChangeService(db)));
     }
 
     private static async Task<MailClaimAllResult>
