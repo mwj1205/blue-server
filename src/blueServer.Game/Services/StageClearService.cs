@@ -1,5 +1,7 @@
+using blueServer.Domain.Currencies;
 using blueServer.Domain.Entities;
 using blueServer.Infrastructure;
+using blueServer.Infrastructure.Currencies;
 using Microsoft.EntityFrameworkCore;
 
 namespace blueServer.Game.Services;
@@ -7,10 +9,14 @@ namespace blueServer.Game.Services;
 public sealed class StageClearService
 {
     private readonly GameDbContext _db;
+    private readonly CurrencyChangeService _currencyChangeService;
 
-    public StageClearService(GameDbContext db)
+    public StageClearService(
+        GameDbContext db,
+        CurrencyChangeService currencyChangeService)
     {
         _db = db;
+        _currencyChangeService = currencyChangeService;
     }
 
     public async Task<StageClearResult> ClearAsync(
@@ -96,6 +102,8 @@ public sealed class StageClearService
         try
         {
             var clearedAt = DateTime.UtcNow;
+            var operationId = Guid.NewGuid();
+            var sourceId = $"stage-clear:{stageTemplateId}:{operationId:N}";
             var record = await _db.StageClearRecords
                 .FirstOrDefaultAsync(
                     record =>
@@ -117,8 +125,20 @@ public sealed class StageClearService
                 record.RecordClear(clearedAt);
             }
 
-            player.AddGold(stage.RewardGold);
-            player.AddGems(stage.RewardGem);
+            GrantStageReward(
+                player,
+                CurrencyType.Gold,
+                stage.RewardGold,
+                sourceId,
+                operationId,
+                clearedAt);
+            GrantStageReward(
+                player,
+                CurrencyType.Gem,
+                stage.RewardGem,
+                sourceId,
+                operationId,
+                clearedAt);
 
             await _db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -150,6 +170,36 @@ public sealed class StageClearService
             await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
+    }
+
+    private void GrantStageReward(
+        Player player,
+        CurrencyType currencyType,
+        int amount,
+        string sourceId,
+        Guid requestId,
+        DateTime changedAt)
+    {
+        if (amount < 0)
+        {
+            throw new InvalidOperationException(
+                "Stage reward amount must not be negative.");
+        }
+
+        if (amount == 0)
+        {
+            return;
+        }
+
+        _currencyChangeService.ChangeWithinCurrentTransaction(
+            player,
+            new CurrencyChangeRequest(
+                currencyType,
+                amount,
+                CurrencyChangeReasonType.StageClearReward,
+                sourceId,
+                requestId,
+                changedAt));
     }
 
     private static string? ValidateRequest(
