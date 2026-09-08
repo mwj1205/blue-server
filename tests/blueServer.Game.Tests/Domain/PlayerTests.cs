@@ -58,6 +58,39 @@ public sealed class PlayerTests
     }
 
     [Fact]
+    public void TrySpendGold_DecreasesGold_WhenEnoughGoldExists()
+    {
+        var player = Player.Create("sensei");
+
+        var result = player.TrySpendGold(100);
+
+        Assert.True(result);
+        Assert.Equal(Player.InitialGold - 100, player.Gold);
+    }
+
+    [Fact]
+    public void TrySpendGold_KeepsGold_WhenGoldIsNotEnough()
+    {
+        var player = Player.Create("sensei");
+
+        var result = player.TrySpendGold(Player.InitialGold + 1);
+
+        Assert.False(result);
+        Assert.Equal(Player.InitialGold, player.Gold);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void TrySpendGold_Throws_WhenAmountIsNotPositive(int amount)
+    {
+        var player = Player.Create("sensei");
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => player.TrySpendGold(amount));
+    }
+
+    [Fact]
     public void AddRewards_IncreasesCurrency()
     {
         var player = Player.Create("sensei");

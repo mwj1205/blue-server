@@ -54,6 +54,25 @@ public class Player
         return true;
     }
 
+    public bool TrySpendGold(int amount)
+    {
+        if (amount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "Amount must be greater than zero.");
+        }
+
+        if (Gold < amount)
+        {
+            return false;
+        }
+
+        Gold -= amount;
+        return true;
+    }
+
     public void AddGold(int amount)
     {
         if (amount < 0)
