@@ -1,6 +1,7 @@
 using blueServer.Domain.Currencies;
 using blueServer.Domain.Entities;
 using blueServer.Domain.Rewards;
+using blueServer.Infrastructure.Currencies;
 using Microsoft.EntityFrameworkCore;
 
 namespace blueServer.Infrastructure.Rewards;
@@ -10,10 +11,14 @@ public sealed class RewardGrantService
     public const int MaxBatchSize = 100;
 
     private readonly GameDbContext _db;
+    private readonly CurrencyChangeService _currencyChangeService;
 
-    public RewardGrantService(GameDbContext db)
+    public RewardGrantService(
+        GameDbContext db,
+        CurrencyChangeService currencyChangeService)
     {
         _db = db;
+        _currencyChangeService = currencyChangeService;
     }
 
     public async Task<RewardGrantResult> GrantAsync(
@@ -223,13 +228,16 @@ public sealed class RewardGrantService
         {
             foreach (var reward in preparedRequest.Record.Items)
             {
-                var currencyChange = ApplyRewardAndCreateCurrencyChange(
+                _currencyChangeService.ChangeWithinCurrentTransaction(
                     player,
-                    reward,
-                    preparedRequest,
-                    grantedAt);
-
-                _db.CurrencyChangeLogs.Add(currencyChange);
+                    new CurrencyChangeRequest(
+                        ToCurrencyType(reward.Type),
+                        reward.Amount,
+                        preparedRequest.Request.CurrencyChangeReasonType,
+                        preparedRequest.Request.CurrencyChangeSourceId,
+                        preparedRequest.Request.RequestId,
+                        grantedAt),
+                    preparedRequest.Record);
             }
 
             _db.RewardGrantRecords.Add(preparedRequest.Record);
@@ -310,46 +318,17 @@ public sealed class RewardGrantService
             : RewardGrantResult.AlreadyGranted(balance.Gold, balance.Gem);
     }
 
-    private static CurrencyChangeLog ApplyRewardAndCreateCurrencyChange(
-        Player player,
-        RewardGrantItem reward,
-        PreparedRewardGrant preparedRequest,
-        DateTime createdAt)
+    private static CurrencyType ToCurrencyType(RewardType rewardType)
     {
-        int balanceBefore;
-        CurrencyType currencyType;
-
-        switch (reward.Type)
+        return rewardType switch
         {
-            case RewardType.Gold:
-                balanceBefore = player.Gold;
-                currencyType = CurrencyType.Gold;
-                player.AddGold(reward.Amount);
-                break;
-
-            case RewardType.Gem:
-                balanceBefore = player.Gem;
-                currencyType = CurrencyType.Gem;
-                player.AddGems(reward.Amount);
-                break;
-
-            default:
-                throw new ArgumentOutOfRangeException(
-                    nameof(reward),
-                    reward.Type,
-                    "Reward type is not supported.");
-        }
-
-        return CurrencyChangeLog.Create(
-            player.Id,
-            currencyType,
-            reward.Amount,
-            balanceBefore,
-            preparedRequest.Request.CurrencyChangeReasonType,
-            preparedRequest.Request.CurrencyChangeSourceId,
-            preparedRequest.Request.RequestId,
-            createdAt,
-            preparedRequest.Record);
+            RewardType.Gold => CurrencyType.Gold,
+            RewardType.Gem => CurrencyType.Gem,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(rewardType),
+                rewardType,
+                "Reward type is not supported.")
+        };
     }
 
     private static bool HasSameCurrencyChangeContext(

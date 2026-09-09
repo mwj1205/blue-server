@@ -1,6 +1,8 @@
+using blueServer.Domain.Currencies;
 using blueServer.Domain.Entities;
 using blueServer.Game.Repositories;
 using blueServer.Infrastructure;
+using blueServer.Infrastructure.Currencies;
 using Microsoft.EntityFrameworkCore;
 
 namespace blueServer.Game.Services;
@@ -13,17 +15,20 @@ public sealed class CharacterGachaService
     private readonly PlayerRepository _players;
     private readonly OwnedCharacterRepository _ownedCharacters;
     private readonly CharacterTemplateRepository _characterTemplates;
+    private readonly CurrencyChangeService _currencyChangeService;
 
     public CharacterGachaService(
         GameDbContext db,
         PlayerRepository players,
         OwnedCharacterRepository ownedCharacters,
-        CharacterTemplateRepository characterTemplates)
+        CharacterTemplateRepository characterTemplates,
+        CurrencyChangeService currencyChangeService)
     {
         _db = db;
         _players = players;
         _ownedCharacters = ownedCharacters;
         _characterTemplates = characterTemplates;
+        _currencyChangeService = currencyChangeService;
     }
 
     public async Task<CharacterGachaResult> DrawAsync(
@@ -50,7 +55,19 @@ public sealed class CharacterGachaService
 
         try
         {
-            if (!player.TrySpendGems(GachaCost))
+            var operationId = Guid.NewGuid();
+            var currencyChangeResult =
+                _currencyChangeService.ChangeWithinCurrentTransaction(
+                    player,
+                    new CurrencyChangeRequest(
+                        CurrencyType.Gem,
+                        -GachaCost,
+                        CurrencyChangeReasonType.GachaCost,
+                        $"gacha:{operationId:N}",
+                        operationId,
+                        DateTime.UtcNow));
+
+            if (!currencyChangeResult.IsSuccess)
             {
                 await transaction.RollbackAsync(CancellationToken.None);
                 return CharacterGachaResult.Fail("Not enough gems", player.Gem);

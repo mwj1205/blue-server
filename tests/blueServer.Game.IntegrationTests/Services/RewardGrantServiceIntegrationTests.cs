@@ -2,6 +2,7 @@ using blueServer.Domain.Currencies;
 using blueServer.Domain.Entities;
 using blueServer.Domain.Rewards;
 using blueServer.Infrastructure;
+using blueServer.Infrastructure.Currencies;
 using blueServer.Infrastructure.Rewards;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -10,6 +11,13 @@ namespace blueServer.Game.IntegrationTests.Services;
 
 public sealed class RewardGrantServiceIntegrationTests
 {
+    private static RewardGrantService CreateService(GameDbContext db)
+    {
+        return new RewardGrantService(
+            db,
+            new CurrencyChangeService(db));
+    }
+
     [PostgreSqlIntegrationFact]
     public async Task GrantAsync_PersistsRewardAndHandlesIdempotentRetry()
     {
@@ -38,7 +46,7 @@ public sealed class RewardGrantServiceIntegrationTests
         // 활성 Transaction 없이 상위 Use Case용 지급 경로를 호출하는 오류 방지 검증
         await using (var noTransactionDb = new GameDbContext(options))
         {
-            var service = new RewardGrantService(noTransactionDb);
+            var service = CreateService(noTransactionDb);
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.GrantWithinCurrentTransactionAsync(
@@ -53,7 +61,7 @@ public sealed class RewardGrantServiceIntegrationTests
         // 최초 요청의 재화 변경과 지급 이력 저장 검증
         await using (var grantDb = new GameDbContext(options))
         {
-            var service = new RewardGrantService(grantDb);
+            var service = CreateService(grantDb);
             var result = await service.GrantAsync(
                 playerId,
                 CreateRequest(
@@ -70,7 +78,7 @@ public sealed class RewardGrantServiceIntegrationTests
         // 동일 Request ID와 payload 재시도 시 중복 지급 방지 검증
         await using (var retryDb = new GameDbContext(options))
         {
-            var service = new RewardGrantService(retryDb);
+            var service = CreateService(retryDb);
             var result = await service.GrantAsync(
                 playerId,
                 CreateRequest(
@@ -87,7 +95,7 @@ public sealed class RewardGrantServiceIntegrationTests
         // 동일 Request ID에 다른 이력 출처 사용 시 멱등성 충돌 검증
         await using (var sourceConflictDb = new GameDbContext(options))
         {
-            var service = new RewardGrantService(sourceConflictDb);
+            var service = CreateService(sourceConflictDb);
             var result = await service.GrantAsync(
                 playerId,
                 CreateRequest(
@@ -105,7 +113,7 @@ public sealed class RewardGrantServiceIntegrationTests
         // 동일 Request ID에 다른 payload 사용 시 멱등성 충돌 검증
         await using (var conflictDb = new GameDbContext(options))
         {
-            var service = new RewardGrantService(conflictDb);
+            var service = CreateService(conflictDb);
             var result = await service.GrantAsync(
                 playerId,
                 CreateRequest(
@@ -125,7 +133,7 @@ public sealed class RewardGrantServiceIntegrationTests
         await using (var rollbackDb = new GameDbContext(options))
         await using (var transaction = await rollbackDb.Database.BeginTransactionAsync())
         {
-            var service = new RewardGrantService(rollbackDb);
+            var service = CreateService(rollbackDb);
             var result = await service.GrantWithinCurrentTransactionAsync(
                 playerId,
                 CreateRequest(
@@ -243,7 +251,7 @@ public sealed class RewardGrantServiceIntegrationTests
             await arrangeDb.SaveChangesAsync();
             playerId = player.Id;
 
-            var service = new RewardGrantService(arrangeDb);
+            var service = CreateService(arrangeDb);
             var result = await service.GrantAsync(
                 playerId,
                 CreateRequest(
@@ -271,7 +279,7 @@ public sealed class RewardGrantServiceIntegrationTests
         await using (var batchDb = new GameDbContext(options))
         await using (var transaction = await batchDb.Database.BeginTransactionAsync())
         {
-            var service = new RewardGrantService(batchDb);
+            var service = CreateService(batchDb);
             var result = await service.GrantBatchWithinCurrentTransactionAsync(
                 playerId,
                 requests,
@@ -290,7 +298,7 @@ public sealed class RewardGrantServiceIntegrationTests
         await using (var retryDb = new GameDbContext(options))
         await using (var transaction = await retryDb.Database.BeginTransactionAsync())
         {
-            var service = new RewardGrantService(retryDb);
+            var service = CreateService(retryDb);
             var result = await service.GrantBatchWithinCurrentTransactionAsync(
                 playerId,
                 requests,
@@ -311,7 +319,7 @@ public sealed class RewardGrantServiceIntegrationTests
         await using (var conflictDb = new GameDbContext(options))
         await using (var transaction = await conflictDb.Database.BeginTransactionAsync())
         {
-            var service = new RewardGrantService(conflictDb);
+            var service = CreateService(conflictDb);
             var result = await service.GrantBatchWithinCurrentTransactionAsync(
                 playerId,
                 [
