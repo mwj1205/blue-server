@@ -30,6 +30,8 @@ public class GameDbContext : DbContext
     public DbSet<CurrencyChangeLog> CurrencyChangeLogs => Set<CurrencyChangeLog>();
     public DbSet<Mail> Mails => Set<Mail>();
     public DbSet<MailAttachment> MailAttachments => Set<MailAttachment>();
+    public DbSet<ItemTemplate> ItemTemplates => Set<ItemTemplate>();
+    public DbSet<PlayerItem> PlayerItems => Set<PlayerItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -300,6 +302,59 @@ public class GameDbContext : DbContext
                 table.HasCheckConstraint(
                     "CK_MailAttachments_Amount_Positive",
                     "\"Amount\" > 0");
+            });
+        });
+
+        modelBuilder.Entity<ItemTemplate>(entity =>
+        {
+            entity.Property(template => template.Name)
+                .HasMaxLength(ItemTemplate.MaxNameLength);
+
+            entity.Property(template => template.Type)
+                .HasConversion<int>();
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_ItemTemplates_Name_NotEmpty",
+                    "length(btrim(\"Name\")) > 0");
+                table.HasCheckConstraint(
+                    "CK_ItemTemplates_Type_Valid",
+                    "\"Type\" IN (1, 2, 3, 4)");
+                table.HasCheckConstraint(
+                    "CK_ItemTemplates_MaxQuantity_Valid",
+                    $"\"MaxQuantity\" = {ItemTemplate.InventoryMaxQuantity}");
+            });
+        });
+
+        modelBuilder.Entity<PlayerItem>(entity =>
+        {
+            // 한 Player의 같은 Item Template은 수량 한 행으로 관리
+            entity.HasIndex(item => new
+            {
+                item.PlayerId,
+                item.ItemTemplateId
+            })
+                .IsUnique();
+
+            entity.Property(item => item.Version)
+                .IsRowVersion();
+
+            entity.HasOne(item => item.Player)
+                .WithMany()
+                .HasForeignKey(item => item.PlayerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(item => item.ItemTemplate)
+                .WithMany()
+                .HasForeignKey(item => item.ItemTemplateId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_PlayerItems_Quantity_Range",
+                    $"\"Quantity\" BETWEEN 0 AND {ItemTemplate.InventoryMaxQuantity}");
             });
         });
     }
