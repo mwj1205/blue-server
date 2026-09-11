@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "items": [
+    {
+      "id": 1001,
+      "code": "growth_material_basic",
+      "nameKey": "item.growth_material.basic.name",
+      "descriptionKey": "item.growth_material.basic.description",
+      "type": "Material"
+    },
+    {
+      "id": 2001,
+      "code": "test_character_shard",
+      "nameKey": "item.test_character_shard.name",
+      "descriptionKey": "item.test_character_shard.description",
+      "type": "CharacterShard"
+    },
+    {
+      "id": 3001,
+      "code": "recovery_potion_small",
+      "nameKey": "item.recovery_potion.small.name",
+      "descriptionKey": "item.recovery_potion.small.description",
+      "type": "Consumable"
+    },
+    {
+      "id": 4001,
+      "code": "test_event_token",
+      "nameKey": "item.test_event_token.name",
+      "descriptionKey": "item.test_event_token.description",
+      "type": "EventCurrency"
+    }
+  ]
+}
