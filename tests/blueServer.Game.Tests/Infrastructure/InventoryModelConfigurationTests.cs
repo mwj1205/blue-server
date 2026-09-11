@@ -1,6 +1,7 @@
 using blueServer.Domain.Entities;
 using blueServer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Xunit;
 
 namespace blueServer.Game.Tests.Infrastructure;
@@ -68,6 +69,17 @@ public sealed class InventoryModelConfigurationTests
         Assert.Equal(
             typeof(int),
             entityType.FindProperty(nameof(ItemTemplate.Type))?.GetProviderClrType());
+    }
+
+    [Fact]
+    public void ItemTemplate_DoesNotGenerateStableMasterDataId()
+    {
+        using var dbContext = CreateDbContext();
+        var entityType = dbContext.Model.FindEntityType(typeof(ItemTemplate));
+        var idProperty = entityType?.FindProperty(nameof(ItemTemplate.Id));
+
+        Assert.NotNull(idProperty);
+        Assert.Equal(ValueGenerated.Never, idProperty.ValueGenerated);
     }
 
     private static GameDbContext CreateDbContext()

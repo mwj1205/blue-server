@@ -307,6 +307,10 @@ public class GameDbContext : DbContext
 
         modelBuilder.Entity<ItemTemplate>(entity =>
         {
+            // 마스터 데이터 ID는 DB가 발급하지 않고 외부 데이터 정의에서 고정
+            entity.Property(template => template.Id)
+                .ValueGeneratedNever();
+
             entity.Property(template => template.Name)
                 .HasMaxLength(ItemTemplate.MaxNameLength);
 
