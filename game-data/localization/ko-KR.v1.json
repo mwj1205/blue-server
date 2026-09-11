@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "locale": "ko-KR",
+  "entries": [
+    {
+      "key": "item.growth_material.basic.name",
+      "value": "초급 성장 재료"
+    },
+    {
+      "key": "item.growth_material.basic.description",
+      "value": "캐릭터 성장에 사용하는 기본 재료"
+    },
+    {
+      "key": "item.test_character_shard.name",
+      "value": "캐릭터 조각"
+    },
+    {
+      "key": "item.test_character_shard.description",
+      "value": "캐릭터 성장과 해금에 사용하는 조각"
+    },
+    {
+      "key": "item.recovery_potion.small.name",
+      "value": "소형 회복제"
+    },
+    {
+      "key": "item.recovery_potion.small.description",
+      "value": "일부 자원을 회복하는 소모품"
+    },
+    {
+      "key": "item.test_event_token.name",
+      "value": "이벤트 토큰"
+    },
+    {
+      "key": "item.test_event_token.description",
+      "value": "이벤트 상점에서 사용하는 기간 한정 재화"
+    }
+  ]
+}
