@@ -37,7 +37,7 @@ public sealed class EmbeddedGameDataLoaderTests
             "초급 성장 재료",
             gameData.DefaultLocalization.GetRequiredText(material.NameKey));
         Assert.Equal(
-            "캐릭터 성장에 사용하는 기본 재료입니다.",
+            "캐릭터 성장에 사용하는 기본 재료",
             gameData.DefaultLocalization.GetRequiredText(material.DescriptionKey));
     }
 }
