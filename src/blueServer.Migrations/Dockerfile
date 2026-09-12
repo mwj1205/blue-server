@@ -7,6 +7,7 @@ COPY src/blueServer.Migrations/blueServer.Migrations.csproj src/blueServer.Migra
 RUN dotnet restore src/blueServer.Migrations/blueServer.Migrations.csproj
 
 COPY src/ src/
+COPY game-data/ game-data/
 RUN dotnet publish src/blueServer.Migrations/blueServer.Migrations.csproj \
     --configuration Release \
     --no-restore \

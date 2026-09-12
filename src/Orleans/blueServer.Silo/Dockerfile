@@ -9,6 +9,7 @@ COPY src/Orleans/blueServer.Silo/blueServer.Silo.csproj src/Orleans/blueServer.S
 RUN dotnet restore src/Orleans/blueServer.Silo/blueServer.Silo.csproj
 
 COPY src/ src/
+COPY game-data/ game-data/
 RUN dotnet publish src/Orleans/blueServer.Silo/blueServer.Silo.csproj \
     --configuration Release \
     --no-restore \

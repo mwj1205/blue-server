@@ -8,6 +8,7 @@ COPY src/blueServer.Api/blueServer.Api.csproj src/blueServer.Api/
 RUN dotnet restore src/blueServer.Api/blueServer.Api.csproj
 
 COPY src/ src/
+COPY game-data/ game-data/
 RUN dotnet publish src/blueServer.Api/blueServer.Api.csproj \
     --configuration Release \
     --no-restore \
