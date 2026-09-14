@@ -63,4 +63,58 @@ public sealed class ItemTemplateTests
                 "item.growth_material.basic.description",
                 (ItemType)999));
     }
+
+    [Fact]
+    public void UpdateDefinition_UpdatesMutableFieldsAndReactivatesTemplate()
+    {
+        var template = CreateTemplate();
+        template.Deactivate();
+
+        var changed = template.UpdateDefinition(
+            "item.material.updated.name",
+            "item.material.updated.description",
+            ItemType.Consumable);
+
+        Assert.True(changed);
+        Assert.Equal("growth_material_basic", template.Code);
+        Assert.Equal("item.material.updated.name", template.NameKey);
+        Assert.Equal(
+            "item.material.updated.description",
+            template.DescriptionKey);
+        Assert.Equal(ItemType.Consumable, template.Type);
+        Assert.True(template.IsActive);
+    }
+
+    [Fact]
+    public void UpdateDefinition_ReturnsFalseWhenDefinitionIsUnchanged()
+    {
+        var template = CreateTemplate();
+
+        var changed = template.UpdateDefinition(
+            template.NameKey,
+            template.DescriptionKey,
+            template.Type);
+
+        Assert.False(changed);
+    }
+
+    [Fact]
+    public void Deactivate_IsIdempotent()
+    {
+        var template = CreateTemplate();
+
+        Assert.True(template.Deactivate());
+        Assert.False(template.Deactivate());
+        Assert.False(template.IsActive);
+    }
+
+    private static ItemTemplate CreateTemplate()
+    {
+        return ItemTemplate.Create(
+            1001,
+            "growth_material_basic",
+            "item.growth_material.basic.name",
+            "item.growth_material.basic.description",
+            ItemType.Material);
+    }
 }

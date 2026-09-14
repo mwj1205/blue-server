@@ -68,6 +68,56 @@ public sealed class ItemTemplate
         };
     }
 
+    public bool UpdateDefinition(
+        string nameKey,
+        string descriptionKey,
+        ItemType type)
+    {
+        var normalizedNameKey = NormalizeRequiredValue(
+            nameKey,
+            MaxLocalizationKeyLength,
+            nameof(nameKey));
+        var normalizedDescriptionKey = NormalizeRequiredValue(
+            descriptionKey,
+            MaxLocalizationKeyLength,
+            nameof(descriptionKey));
+
+        if (!Enum.IsDefined(type))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(type),
+                type,
+                "Item type is not supported.");
+        }
+
+        var changed =
+            !string.Equals(NameKey, normalizedNameKey, StringComparison.Ordinal) ||
+            !string.Equals(
+                DescriptionKey,
+                normalizedDescriptionKey,
+                StringComparison.Ordinal) ||
+            Type != type ||
+            !IsActive;
+
+        NameKey = normalizedNameKey;
+        DescriptionKey = normalizedDescriptionKey;
+        Type = type;
+        IsActive = true;
+
+        return changed;
+    }
+
+    public bool Deactivate()
+    {
+        if (!IsActive)
+        {
+            return false;
+        }
+
+        IsActive = false;
+        return true;
+    }
+
     private static string NormalizeRequiredValue(
         string? value,
         int maxLength,
