@@ -311,17 +311,35 @@ public class GameDbContext : DbContext
             entity.Property(template => template.Id)
                 .ValueGeneratedNever();
 
-            entity.Property(template => template.Name)
-                .HasMaxLength(ItemTemplate.MaxNameLength);
+            entity.Property(template => template.Code)
+                .HasMaxLength(ItemTemplate.MaxCodeLength);
+
+            entity.HasIndex(template => template.Code)
+                .IsUnique();
+
+            entity.Property(template => template.NameKey)
+                .HasMaxLength(ItemTemplate.MaxLocalizationKeyLength);
+
+            entity.Property(template => template.DescriptionKey)
+                .HasMaxLength(ItemTemplate.MaxLocalizationKeyLength);
 
             entity.Property(template => template.Type)
                 .HasConversion<int>();
 
+            entity.Property(template => template.IsActive)
+                .HasDefaultValue(true);
+
             entity.ToTable(table =>
             {
                 table.HasCheckConstraint(
-                    "CK_ItemTemplates_Name_NotEmpty",
-                    "length(btrim(\"Name\")) > 0");
+                    "CK_ItemTemplates_Code_NotEmpty",
+                    "length(btrim(\"Code\")) > 0");
+                table.HasCheckConstraint(
+                    "CK_ItemTemplates_NameKey_NotEmpty",
+                    "length(btrim(\"NameKey\")) > 0");
+                table.HasCheckConstraint(
+                    "CK_ItemTemplates_DescriptionKey_NotEmpty",
+                    "length(btrim(\"DescriptionKey\")) > 0");
                 table.HasCheckConstraint(
                     "CK_ItemTemplates_Type_Valid",
                     "\"Type\" IN (1, 2, 3, 4)");

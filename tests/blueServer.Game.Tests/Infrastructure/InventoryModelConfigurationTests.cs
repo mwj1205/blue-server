@@ -57,18 +57,30 @@ public sealed class InventoryModelConfigurationTests
     }
 
     [Fact]
-    public void ItemTemplate_ConfiguresNameLengthAndIntegerItemType()
+    public void ItemTemplate_ConfiguresCatalogFieldsAndIntegerItemType()
     {
         using var dbContext = CreateDbContext();
         var entityType = dbContext.Model.FindEntityType(typeof(ItemTemplate));
 
         Assert.NotNull(entityType);
         Assert.Equal(
-            ItemTemplate.MaxNameLength,
-            entityType.FindProperty(nameof(ItemTemplate.Name))?.GetMaxLength());
+            ItemTemplate.MaxCodeLength,
+            entityType.FindProperty(nameof(ItemTemplate.Code))?.GetMaxLength());
+        Assert.Equal(
+            ItemTemplate.MaxLocalizationKeyLength,
+            entityType.FindProperty(nameof(ItemTemplate.NameKey))?.GetMaxLength());
+        Assert.Equal(
+            ItemTemplate.MaxLocalizationKeyLength,
+            entityType.FindProperty(nameof(ItemTemplate.DescriptionKey))?.GetMaxLength());
         Assert.Equal(
             typeof(int),
             entityType.FindProperty(nameof(ItemTemplate.Type))?.GetProviderClrType());
+        Assert.Contains(
+            entityType.GetIndexes(),
+            index =>
+                index.IsUnique &&
+                index.Properties.Select(property => property.Name)
+                    .SequenceEqual([nameof(ItemTemplate.Code)]));
     }
 
     [Fact]

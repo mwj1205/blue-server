@@ -8,8 +8,9 @@ namespace blueServer.Infrastructure.GameData;
 public static class ItemCatalogJsonLoader
 {
     public const int SupportedSchemaVersion = 1;
-    public const int MaxCodeLength = 64;
-    public const int MaxLocalizationKeyLength = 150;
+    public const int MaxCodeLength = ItemTemplate.MaxCodeLength;
+    public const int MaxLocalizationKeyLength =
+        ItemTemplate.MaxLocalizationKeyLength;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {

@@ -90,7 +90,9 @@ public sealed class PlayerItemTests
     {
         return ItemTemplate.Create(
             1001,
-            "Beginner Activity Report",
+            "growth_material_basic",
+            "item.growth_material.basic.name",
+            "item.growth_material.basic.description",
             ItemType.Material);
     }
 }
