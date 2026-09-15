@@ -1,4 +1,5 @@
 using blueServer.Infrastructure;
+using blueServer.Infrastructure.GameData;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -38,19 +39,42 @@ for (var attempt = 1; attempt <= maxAttempts; attempt++)
             cancellationTokenSource.Token);
 
         Console.WriteLine("Database migrations completed.");
+
+        Console.WriteLine("Loading embedded game data catalog.");
+
+        var gameDataCatalog = await new EmbeddedGameDataLoader().LoadAsync(
+            cancellationTokenSource.Token);
+
+        Console.WriteLine(
+            $"Synchronizing item catalog. " +
+            $"SchemaVersion={gameDataCatalog.ItemCatalog.SchemaVersion}, " +
+            $"ItemCount={gameDataCatalog.ItemCatalog.Templates.Count}.");
+
+        var syncResult = await new ItemCatalogSynchronizer(dbContext)
+            .SynchronizeAsync(
+                gameDataCatalog.ItemCatalog,
+                cancellationTokenSource.Token);
+
+        Console.WriteLine(
+            $"Item catalog synchronization completed. " +
+            $"Added={syncResult.AddedCount}, " +
+            $"Updated={syncResult.UpdatedCount}, " +
+            $"Deactivated={syncResult.DeactivatedCount}.");
+
         return 0;
     }
     catch (OperationCanceledException)
         when (cancellationTokenSource.IsCancellationRequested)
     {
-        Console.Error.WriteLine("Database migration was cancelled.");
+        Console.Error.WriteLine("Database initialization was cancelled.");
         return 1;
     }
     catch (Exception exception)
         when (attempt < maxAttempts && IsTransient(exception))
     {
         Console.Error.WriteLine(
-            $"Database migration attempt failed with {exception.GetType().Name}. Retrying.");
+            $"Database initialization attempt failed with " +
+            $"{exception.GetType().Name}. Retrying.");
 
         try
         {
@@ -61,14 +85,15 @@ for (var attempt = 1; attempt <= maxAttempts; attempt++)
         catch (OperationCanceledException)
             when (cancellationTokenSource.IsCancellationRequested)
         {
-            Console.Error.WriteLine("Database migration was cancelled.");
+            Console.Error.WriteLine("Database initialization was cancelled.");
             return 1;
         }
     }
     catch (Exception exception)
     {
         Console.Error.WriteLine(
-            $"Database migration failed with {exception.GetType().Name}: {exception.Message}");
+            $"Database initialization failed with " +
+            $"{exception.GetType().Name}: {exception.Message}");
         return 1;
     }
 }
