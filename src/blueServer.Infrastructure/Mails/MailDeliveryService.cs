@@ -128,6 +128,7 @@ public sealed class MailDeliveryService
         var existingMail = await _db.Mails
             .AsNoTracking()
             .Include(mail => mail.Attachments)
+            .Include(mail => mail.ItemAttachments)
             .FirstOrDefaultAsync(
                 mail =>
                     mail.PlayerId == candidate.PlayerId &&
@@ -166,7 +167,8 @@ public sealed class MailDeliveryService
             expiresAt,
             request.Rewards,
             request.SourceType,
-            request.SourceId);
+            request.SourceId,
+            request.InventoryItemRewards);
     }
 
     private static DateTime NormalizeUtcToMicroseconds(
@@ -194,7 +196,8 @@ public sealed record MailDeliveryRequest(
     string Body,
     DateTime SentAt,
     DateTime? ExpiresAt,
-    IReadOnlyList<CurrencyReward>? Rewards = null);
+    IReadOnlyList<CurrencyReward>? Rewards = null,
+    IReadOnlyList<InventoryItemReward>? InventoryItemRewards = null);
 
 public enum MailDeliveryStatus
 {
