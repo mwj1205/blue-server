@@ -205,7 +205,7 @@ public sealed class MailDeliveryServiceIntegrationTests
             "Event reward delivery test.",
             sentAt,
             sentAt.AddDays(7),
-            [RewardItem.Create(RewardType.Gold, gold)]);
+            [CurrencyReward.Create(RewardType.Gold, gold)]);
     }
 
     private static DbContextOptions<GameDbContext> CreateDbContextOptions()

@@ -378,7 +378,7 @@ public sealed class MailTcpRoundTripIntegrationTests
                 "TCP Mail pagination verification.",
                 sentAt,
                 sentAt.AddDays(1),
-                [RewardItem.Create(RewardType.Gold, 10)]),
+                [CurrencyReward.Create(RewardType.Gold, 10)]),
             cancellationToken);
         var newestResult = await deliveryService.DeliverAsync(
             new MailDeliveryRequest(
@@ -390,8 +390,8 @@ public sealed class MailTcpRoundTripIntegrationTests
                 sentAt.AddMinutes(1),
                 sentAt.AddDays(1),
                 [
-                    RewardItem.Create(RewardType.Gold, 120),
-                    RewardItem.Create(RewardType.Gem, 15)
+                    CurrencyReward.Create(RewardType.Gold, 120),
+                    CurrencyReward.Create(RewardType.Gem, 15)
                 ]),
             cancellationToken);
         var otherPlayerResult = await deliveryService.DeliverAsync(
@@ -403,7 +403,7 @@ public sealed class MailTcpRoundTripIntegrationTests
                 "This Mail must not be exposed.",
                 sentAt.AddMinutes(2),
                 sentAt.AddDays(1),
-                [RewardItem.Create(RewardType.Gold, 999)]),
+                [CurrencyReward.Create(RewardType.Gold, 999)]),
             cancellationToken);
 
         Assert.Equal(MailDeliveryStatus.Delivered, olderResult.Status);

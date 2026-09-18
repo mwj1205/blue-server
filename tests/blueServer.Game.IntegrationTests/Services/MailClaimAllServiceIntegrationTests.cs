@@ -51,8 +51,8 @@ public sealed class MailClaimAllServiceIntegrationTests
                 sentAt,
                 claimedAt.AddDays(1),
                 [
-                    RewardItem.Create(RewardType.Gold, 100),
-                    RewardItem.Create(RewardType.Gem, 10)
+                    CurrencyReward.Create(RewardType.Gold, 100),
+                    CurrencyReward.Create(RewardType.Gem, 10)
                 ]);
             var secondEligibleMail = Mail.Create(
                 player.Id,
@@ -60,14 +60,14 @@ public sealed class MailClaimAllServiceIntegrationTests
                 "This Mail must also be claimed.",
                 sentAt.AddMinutes(1),
                 claimedAt.AddDays(1),
-                [RewardItem.Create(RewardType.Gold, 50)]);
+                [CurrencyReward.Create(RewardType.Gold, 50)]);
             var expiredMail = Mail.Create(
                 player.Id,
                 "Expired Mail",
                 "This Mail must be skipped.",
                 sentAt,
                 claimedAt.AddHours(-1),
-                [RewardItem.Create(RewardType.Gold, 999)]);
+                [CurrencyReward.Create(RewardType.Gold, 999)]);
             var emptyMail = Mail.Create(
                 player.Id,
                 "Empty Mail",
@@ -79,7 +79,7 @@ public sealed class MailClaimAllServiceIntegrationTests
                 "This Mail must not be granted again.",
                 sentAt,
                 claimedAt.AddDays(1),
-                [RewardItem.Create(RewardType.Gem, 999)]);
+                [CurrencyReward.Create(RewardType.Gem, 999)]);
             alreadyClaimedMail.Claim(claimedAt.AddHours(-1));
             var otherPlayerMail = Mail.Create(
                 otherPlayer.Id,
@@ -87,7 +87,7 @@ public sealed class MailClaimAllServiceIntegrationTests
                 "This Mail belongs to another Player.",
                 sentAt,
                 claimedAt.AddDays(1),
-                [RewardItem.Create(RewardType.Gold, 999)]);
+                [CurrencyReward.Create(RewardType.Gold, 999)]);
 
             arrangeDb.Mails.AddRange(
                 firstEligibleMail,
@@ -217,14 +217,14 @@ public sealed class MailClaimAllServiceIntegrationTests
                     "Reward must be granted once.",
                     claimedAt.AddHours(-1),
                     claimedAt.AddDays(1),
-                    [RewardItem.Create(RewardType.Gold, 40)]),
+                    [CurrencyReward.Create(RewardType.Gold, 40)]),
                 Mail.Create(
                     player.Id,
                     "Concurrent Mail 2",
                     "Reward must be granted once.",
                     claimedAt.AddHours(-1),
                     claimedAt.AddDays(1),
-                    [RewardItem.Create(RewardType.Gem, 4)])
+                    [CurrencyReward.Create(RewardType.Gem, 4)])
             };
             arrangeDb.Mails.AddRange(mails);
             await arrangeDb.SaveChangesAsync();

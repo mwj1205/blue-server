@@ -38,7 +38,7 @@ public sealed class Mail
         string body,
         DateTime sentAt,
         DateTime? expiresAt = null,
-        IEnumerable<RewardItem>? rewards = null,
+        IEnumerable<CurrencyReward>? rewards = null,
         MailSourceType sourceType = MailSourceType.System,
         string? sourceId = null,
         IEnumerable<InventoryItemReward>? inventoryItemRewards = null)

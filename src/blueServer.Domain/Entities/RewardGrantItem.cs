@@ -13,7 +13,7 @@ public sealed class RewardGrantItem
 
     public static RewardGrantItem Create(RewardType type, int amount)
     {
-        var reward = RewardItem.Create(type, amount);
+        var reward = CurrencyReward.Create(type, amount);
 
         return new RewardGrantItem
         {

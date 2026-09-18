@@ -45,7 +45,7 @@ public sealed class MailListQueryServiceIntegrationTests
                 "Already claimed reward mail.",
                 currentTime.AddDays(-4),
                 currentTime.AddDays(1),
-                [RewardItem.Create(RewardType.Gold, 10)]);
+                [CurrencyReward.Create(RewardType.Gold, 10)]);
             var readMail = Mail.Create(
                 player.Id,
                 "Read notice",
@@ -57,14 +57,14 @@ public sealed class MailListQueryServiceIntegrationTests
                 "Expired reward mail.",
                 currentTime.AddDays(-2),
                 currentTime.AddDays(-1),
-                [RewardItem.Create(RewardType.Gem, 5)]);
+                [CurrencyReward.Create(RewardType.Gem, 5)]);
             var newestMail = Mail.Create(
                 player.Id,
                 "New reward",
                 "Latest reward mail.",
                 currentTime.AddHours(-1),
                 currentTime.AddDays(1),
-                [RewardItem.Create(RewardType.Gold, 100)]);
+                [CurrencyReward.Create(RewardType.Gold, 100)]);
 
             readMail.MarkAsRead(currentTime.AddDays(-2));
             claimedMail.Claim(currentTime.AddDays(-3));

@@ -194,7 +194,7 @@ public sealed record MailDeliveryRequest(
     string Body,
     DateTime SentAt,
     DateTime? ExpiresAt,
-    IReadOnlyList<RewardItem>? Rewards = null);
+    IReadOnlyList<CurrencyReward>? Rewards = null);
 
 public enum MailDeliveryStatus
 {

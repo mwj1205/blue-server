@@ -86,8 +86,8 @@ public sealed class MailHttpApiIntegrationTests
                 sentAt,
                 sentAt.AddDays(1),
                 [
-                    RewardItem.Create(RewardType.Gold, 120),
-                    RewardItem.Create(RewardType.Gem, 15)
+                    CurrencyReward.Create(RewardType.Gold, 120),
+                    CurrencyReward.Create(RewardType.Gem, 15)
                 ]);
             var claimAllMail = Mail.Create(
                 player.Id,
@@ -96,8 +96,8 @@ public sealed class MailHttpApiIntegrationTests
                 sentAt.AddMinutes(1),
                 sentAt.AddDays(1),
                 [
-                    RewardItem.Create(RewardType.Gold, 30),
-                    RewardItem.Create(RewardType.Gem, 5)
+                    CurrencyReward.Create(RewardType.Gold, 30),
+                    CurrencyReward.Create(RewardType.Gem, 5)
                 ]);
             var expiredMail = Mail.Create(
                 player.Id,
@@ -105,14 +105,14 @@ public sealed class MailHttpApiIntegrationTests
                 "This Mail verifies the expired claim response.",
                 sentAt,
                 sentAt.AddMinutes(1),
-                [RewardItem.Create(RewardType.Gold, 999)]);
+                [CurrencyReward.Create(RewardType.Gold, 999)]);
             var otherPlayerMail = Mail.Create(
                 otherPlayer.Id,
                 "Other Player Mail",
                 "This Mail must not be exposed.",
                 sentAt,
                 sentAt.AddDays(1),
-                [RewardItem.Create(RewardType.Gold, 999)]);
+                [CurrencyReward.Create(RewardType.Gold, 999)]);
 
             arrangeDb.Mails.AddRange(
                 singleClaimMail,

@@ -17,7 +17,7 @@ internal static class MailRewardGrantRequestFactory
 
         var rewards = RewardBundle.Create(
             mail.Attachments.Select(attachment =>
-                RewardItem.Create(
+                CurrencyReward.Create(
                     attachment.Type,
                     attachment.Amount)));
 

@@ -19,9 +19,9 @@ public sealed class MailTests
             sentAt,
             expiresAt,
             [
-                RewardItem.Create(RewardType.Gold, 100),
-                RewardItem.Create(RewardType.Gold, 50),
-                RewardItem.Create(RewardType.Gem, 10)
+                CurrencyReward.Create(RewardType.Gold, 100),
+                CurrencyReward.Create(RewardType.Gold, 50),
+                CurrencyReward.Create(RewardType.Gem, 10)
             ],
             MailSourceType.Event,
             "  launch-event:2026  ");
@@ -60,8 +60,8 @@ public sealed class MailTests
             sentAt,
             sentAt.AddDays(1),
             [
-                RewardItem.Create(RewardType.Gold, 60),
-                RewardItem.Create(RewardType.Gold, 40)
+                CurrencyReward.Create(RewardType.Gold, 60),
+                CurrencyReward.Create(RewardType.Gold, 40)
             ],
             MailSourceType.Event,
             "event:100:player:1");
@@ -71,7 +71,7 @@ public sealed class MailTests
             "Claim the attached reward.",
             sentAt,
             sentAt.AddDays(1),
-            [RewardItem.Create(RewardType.Gold, 100)],
+            [CurrencyReward.Create(RewardType.Gold, 100)],
             MailSourceType.Event,
             "event:100:player:1");
         var different = Mail.Create(
@@ -80,7 +80,7 @@ public sealed class MailTests
             "Claim the attached reward.",
             sentAt,
             sentAt.AddDays(1),
-            [RewardItem.Create(RewardType.Gold, 101)],
+            [CurrencyReward.Create(RewardType.Gold, 101)],
             MailSourceType.Event,
             "event:100:player:1");
 
@@ -202,7 +202,7 @@ public sealed class MailTests
             "Claim the attached reward.",
             sentAt,
             expiresAt,
-            [RewardItem.Create(RewardType.Gold, 100)]);
+            [CurrencyReward.Create(RewardType.Gold, 100)]);
     }
 
     private static Mail CreateInventoryItemRewardMail(

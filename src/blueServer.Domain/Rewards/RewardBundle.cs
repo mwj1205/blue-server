@@ -2,16 +2,16 @@ namespace blueServer.Domain.Rewards;
 
 public sealed class RewardBundle
 {
-    private readonly IReadOnlyList<RewardItem> _items;
+    private readonly IReadOnlyList<CurrencyReward> _items;
 
-    private RewardBundle(IReadOnlyList<RewardItem> items)
+    private RewardBundle(IReadOnlyList<CurrencyReward> items)
     {
         _items = items;
     }
 
-    public IReadOnlyList<RewardItem> Items => _items;
+    public IReadOnlyList<CurrencyReward> Items => _items;
 
-    public static RewardBundle Create(IEnumerable<RewardItem> items)
+    public static RewardBundle Create(IEnumerable<CurrencyReward> items)
     {
         ArgumentNullException.ThrowIfNull(items);
 
@@ -34,8 +34,8 @@ public sealed class RewardBundle
         return new RewardBundle(Array.AsReadOnly(itemArray));
     }
 
-    public static RewardBundle Create(params RewardItem[] items)
+    public static RewardBundle Create(params CurrencyReward[] items)
     {
-        return Create((IEnumerable<RewardItem>)items);
+        return Create((IEnumerable<CurrencyReward>)items);
     }
 }

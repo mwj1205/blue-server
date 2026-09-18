@@ -15,7 +15,7 @@ public sealed class MailAttachment
         RewardType type,
         int amount)
     {
-        var reward = RewardItem.Create(type, amount);
+        var reward = CurrencyReward.Create(type, amount);
 
         return new MailAttachment
         {
@@ -24,8 +24,8 @@ public sealed class MailAttachment
         };
     }
 
-    public RewardItem ToRewardItem()
+    public CurrencyReward ToCurrencyReward()
     {
-        return RewardItem.Create(Type, Amount);
+        return CurrencyReward.Create(Type, Amount);
     }
 }

@@ -18,8 +18,8 @@ public sealed class RewardGrantRecordTests
             "Stage clear",
             grantedAt,
             RewardBundle.Create(
-                RewardItem.Create(RewardType.Gold, 100),
-                RewardItem.Create(RewardType.Gem, 10)));
+                CurrencyReward.Create(RewardType.Gold, 100),
+                CurrencyReward.Create(RewardType.Gem, 10)));
 
         Assert.Equal(1, record.PlayerId);
         Assert.Equal(requestId, record.RequestId);
@@ -48,8 +48,8 @@ public sealed class RewardGrantRecordTests
             "Mail claim",
             DateTime.UtcNow,
             RewardBundle.Create(
-                RewardItem.Create(RewardType.Gold, 100),
-                RewardItem.Create(RewardType.Gold, 50)));
+                CurrencyReward.Create(RewardType.Gold, 100),
+                CurrencyReward.Create(RewardType.Gold, 50)));
 
         var item = Assert.Single(record.Items);
         Assert.Equal(RewardType.Gold, item.Type);
@@ -65,12 +65,12 @@ public sealed class RewardGrantRecordTests
             "Mail claim",
             DateTime.UtcNow,
             RewardBundle.Create(
-                RewardItem.Create(RewardType.Gold, 100)));
+                CurrencyReward.Create(RewardType.Gold, 100)));
 
         var isSame = record.HasSameGrant(
             "Mail claim",
             RewardBundle.Create(
-                RewardItem.Create(RewardType.Gold, 101)));
+                CurrencyReward.Create(RewardType.Gold, 101)));
 
         Assert.False(isSame);
     }
