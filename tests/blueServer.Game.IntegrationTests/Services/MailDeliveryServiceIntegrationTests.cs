@@ -1,4 +1,5 @@
 using blueServer.Domain.Entities;
+using blueServer.Domain.Items;
 using blueServer.Domain.Rewards;
 using blueServer.Infrastructure;
 using blueServer.Infrastructure.Mails;
@@ -134,6 +135,113 @@ public sealed class MailDeliveryServiceIntegrationTests
     }
 
     [PostgreSqlIntegrationFact]
+    public async Task DeliverAsync_PersistsGroupedItemAttachmentsAndRejectsPayloadConflict()
+    {
+        var options = CreateDbContextOptions();
+        var suffix = Guid.NewGuid().ToString("N");
+        var sourceId = $"item-delivery:{suffix}";
+        var sentAt = DateTime.UtcNow;
+        long playerId;
+        int firstTemplateId;
+        int secondTemplateId;
+
+        await using (var arrangeDb = new GameDbContext(options))
+        {
+            firstTemplateId = await CreateUnusedTemplateIdAsync(arrangeDb);
+            secondTemplateId = await CreateUnusedTemplateIdAsync(
+                arrangeDb,
+                firstTemplateId);
+
+            var player = Player.Create(
+                $"mail-item-delivery-{suffix}",
+                "integration-test");
+            var firstTemplate = CreateTemplate(
+                firstTemplateId,
+                $"mail_item_first_{suffix}");
+            var secondTemplate = CreateTemplate(
+                secondTemplateId,
+                $"mail_item_second_{suffix}");
+
+            arrangeDb.AddRange(player, firstTemplate, secondTemplate);
+            await arrangeDb.SaveChangesAsync();
+            playerId = player.Id;
+        }
+
+        var request = CreateItemRequest(
+            playerId,
+            sourceId,
+            sentAt,
+            [
+                InventoryItemReward.Create(firstTemplateId, 600),
+                InventoryItemReward.Create(firstTemplateId, 401),
+                InventoryItemReward.Create(secondTemplateId, 3)
+            ]);
+        MailDeliveryResult firstResult;
+
+        await using (var deliveryDb = new GameDbContext(options))
+        {
+            firstResult = await new MailDeliveryService(deliveryDb)
+                .DeliverAsync(request);
+
+            Assert.Equal(MailDeliveryStatus.Delivered, firstResult.Status);
+        }
+
+        await using (var retryDb = new GameDbContext(options))
+        {
+            var retryResult = await new MailDeliveryService(retryDb)
+                .DeliverAsync(request);
+
+            Assert.Equal(
+                MailDeliveryStatus.AlreadyDelivered,
+                retryResult.Status);
+            Assert.Equal(firstResult.MailId, retryResult.MailId);
+        }
+
+        await using (var conflictDb = new GameDbContext(options))
+        {
+            var conflictResult = await new MailDeliveryService(conflictDb)
+                .DeliverAsync(CreateItemRequest(
+                    playerId,
+                    sourceId,
+                    sentAt,
+                    [
+                        InventoryItemReward.Create(firstTemplateId, 1_002),
+                        InventoryItemReward.Create(secondTemplateId, 3)
+                    ]));
+
+            Assert.Equal(
+                MailDeliveryStatus.IdempotencyConflict,
+                conflictResult.Status);
+            Assert.Equal(firstResult.MailId, conflictResult.MailId);
+        }
+
+        await using var assertDb = new GameDbContext(options);
+        var mails = await assertDb.Mails
+            .AsNoTracking()
+            .Include(mail => mail.ItemAttachments)
+            .Where(mail =>
+                mail.PlayerId == playerId &&
+                mail.SourceType == MailSourceType.Event &&
+                mail.SourceId == sourceId)
+            .ToArrayAsync();
+
+        var mail = Assert.Single(mails);
+        Assert.Equal(firstResult.MailId, mail.Id);
+        Assert.Collection(
+            mail.ItemAttachments.OrderBy(attachment => attachment.ItemTemplateId),
+            attachment =>
+            {
+                Assert.Equal(firstTemplateId, attachment.ItemTemplateId);
+                Assert.Equal(1_001, attachment.Quantity);
+            },
+            attachment =>
+            {
+                Assert.Equal(secondTemplateId, attachment.ItemTemplateId);
+                Assert.Equal(3, attachment.Quantity);
+            });
+    }
+
+    [PostgreSqlIntegrationFact]
     public async Task DeliverAsync_ConcurrentRequestsCreateOneMail()
     {
         var options = CreateDbContextOptions();
@@ -206,6 +314,54 @@ public sealed class MailDeliveryServiceIntegrationTests
             sentAt,
             sentAt.AddDays(7),
             [CurrencyReward.Create(RewardType.Gold, gold)]);
+    }
+
+    private static MailDeliveryRequest CreateItemRequest(
+        long playerId,
+        string sourceId,
+        DateTime sentAt,
+        IReadOnlyList<InventoryItemReward> itemRewards)
+    {
+        return new MailDeliveryRequest(
+            PlayerId: playerId,
+            SourceType: MailSourceType.Event,
+            SourceId: sourceId,
+            Title: "Item event reward",
+            Body: "Item event reward delivery test.",
+            SentAt: sentAt,
+            ExpiresAt: sentAt.AddDays(7),
+            Rewards: null,
+            InventoryItemRewards: itemRewards);
+    }
+
+    private static ItemTemplate CreateTemplate(int id, string code)
+    {
+        return ItemTemplate.Create(
+            id,
+            code,
+            $"item.{code}.name",
+            $"item.{code}.description",
+            ItemType.Material);
+    }
+
+    private static async Task<int> CreateUnusedTemplateIdAsync(
+        GameDbContext db,
+        params int[] excludedIds)
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var candidate = Random.Shared.Next(1, int.MaxValue);
+
+            if (!excludedIds.Contains(candidate) &&
+                !await db.ItemTemplates.AnyAsync(
+                    template => template.Id == candidate))
+            {
+                return candidate;
+            }
+        }
+
+        throw new InvalidOperationException(
+            "An unused ItemTemplate id could not be generated.");
     }
 
     private static DbContextOptions<GameDbContext> CreateDbContextOptions()
