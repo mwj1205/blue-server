@@ -23,10 +23,14 @@ public sealed class Mail
     public Player? Player { get; set; }
     public ICollection<MailAttachment> Attachments { get; set; } =
         new List<MailAttachment>();
+    public ICollection<MailItemAttachment> ItemAttachments { get; set; } =
+        new List<MailItemAttachment>();
 
     public bool IsRead => ReadAt.HasValue;
     public bool IsClaimed => ClaimedAt.HasValue;
-    public bool HasAttachments => Attachments.Count > 0;
+    public bool HasAttachments =>
+        Attachments.Count > 0 ||
+        ItemAttachments.Count > 0;
 
     public static Mail Create(
         long playerId,
@@ -36,7 +40,8 @@ public sealed class Mail
         DateTime? expiresAt = null,
         IEnumerable<RewardItem>? rewards = null,
         MailSourceType sourceType = MailSourceType.System,
-        string? sourceId = null)
+        string? sourceId = null,
+        IEnumerable<InventoryItemReward>? inventoryItemRewards = null)
     {
         if (playerId <= 0)
         {
@@ -94,30 +99,53 @@ public sealed class Mail
             ExpiresAt = expiresAt
         };
 
-        if (rewards is null)
+        if (rewards is not null)
         {
-            return mail;
+            var rewardItems = rewards.ToArray();
+
+            if (rewardItems.Any(reward => reward is null))
+            {
+                throw new ArgumentException(
+                    "Mail rewards must not contain null.",
+                    nameof(rewards));
+            }
+
+            // 발송 시점 RewardType별 합산 결과를 Attachment Snapshot으로 저장
+            foreach (var rewardGroup in rewardItems.GroupBy(reward => reward.Type))
+            {
+                var totalAmount = rewardGroup.Aggregate(
+                    0,
+                    (total, reward) => checked(total + reward.Amount));
+
+                mail.Attachments.Add(MailAttachment.Create(
+                    rewardGroup.Key,
+                    totalAmount));
+            }
         }
 
-        var rewardItems = rewards.ToArray();
-
-        if (rewardItems.Any(reward => reward is null))
+        if (inventoryItemRewards is not null)
         {
-            throw new ArgumentException(
-                "Mail rewards must not contain null.",
-                nameof(rewards));
-        }
+            var itemRewardArray = inventoryItemRewards.ToArray();
 
-        // 발송 시점 RewardType별 합산 결과를 Attachment Snapshot으로 저장
-        foreach (var rewardGroup in rewardItems.GroupBy(reward => reward.Type))
-        {
-            var totalAmount = rewardGroup.Aggregate(
-                0,
-                (total, reward) => checked(total + reward.Amount));
+            if (itemRewardArray.Any(reward => reward is null))
+            {
+                throw new ArgumentException(
+                    "Mail item rewards must not contain null.",
+                    nameof(inventoryItemRewards));
+            }
 
-            mail.Attachments.Add(MailAttachment.Create(
-                rewardGroup.Key,
-                totalAmount));
+            // 같은 ItemTemplate 보상은 Mail 한 건에서 수량 Snapshot 한 건으로 합산
+            foreach (var rewardGroup in itemRewardArray.GroupBy(
+                         reward => reward.ItemTemplateId))
+            {
+                var totalQuantity = rewardGroup.Aggregate(
+                    0,
+                    (total, reward) => checked(total + reward.Quantity));
+
+                mail.ItemAttachments.Add(MailItemAttachment.Create(
+                    rewardGroup.Key,
+                    totalQuantity));
+            }
         }
 
         return mail;
@@ -134,7 +162,8 @@ public sealed class Mail
             Body == other.Body &&
             SentAt == other.SentAt &&
             ExpiresAt == other.ExpiresAt &&
-            HasSameAttachments(other.Attachments);
+            HasSameAttachments(other.Attachments) &&
+            HasSameItemAttachments(other.ItemAttachments);
     }
 
     public bool IsExpired(DateTime currentTime)
@@ -203,6 +232,23 @@ public sealed class Mail
         var otherItems = otherAttachments
             .OrderBy(attachment => attachment.Type)
             .Select(attachment => (attachment.Type, attachment.Amount));
+
+        return currentItems.SequenceEqual(otherItems);
+    }
+
+    private bool HasSameItemAttachments(
+        IEnumerable<MailItemAttachment> otherAttachments)
+    {
+        var currentItems = ItemAttachments
+            .OrderBy(attachment => attachment.ItemTemplateId)
+            .Select(attachment => (
+                attachment.ItemTemplateId,
+                attachment.Quantity));
+        var otherItems = otherAttachments
+            .OrderBy(attachment => attachment.ItemTemplateId)
+            .Select(attachment => (
+                attachment.ItemTemplateId,
+                attachment.Quantity));
 
         return currentItems.SequenceEqual(otherItems);
     }
