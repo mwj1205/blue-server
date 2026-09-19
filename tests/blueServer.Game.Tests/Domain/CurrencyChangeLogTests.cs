@@ -93,7 +93,7 @@ public sealed class CurrencyChangeLogTests
             "Mail reward",
             createdAt,
             RewardBundle.Create(
-                RewardItem.Create(RewardType.Gold, 100)));
+                CurrencyReward.Create(RewardType.Gold, 100)));
 
         var change = CurrencyChangeLog.Create(
             1,
@@ -121,7 +121,7 @@ public sealed class CurrencyChangeLogTests
             "Mail reward",
             createdAt,
             RewardBundle.Create(
-                RewardItem.Create(RewardType.Gold, 100)));
+                CurrencyReward.Create(RewardType.Gold, 100)));
 
         Assert.Throws<ArgumentException>(() =>
             CurrencyChangeLog.Create(

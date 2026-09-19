@@ -40,8 +40,8 @@ public sealed class RewardGrantServiceIntegrationTests
         }
 
         var rewards = RewardBundle.Create(
-            RewardItem.Create(RewardType.Gold, 150),
-            RewardItem.Create(RewardType.Gem, 20));
+            CurrencyReward.Create(RewardType.Gold, 150),
+            CurrencyReward.Create(RewardType.Gem, 20));
 
         // 활성 Transaction 없이 상위 Use Case용 지급 경로를 호출하는 오류 방지 검증
         await using (var noTransactionDb = new GameDbContext(options))
@@ -120,8 +120,8 @@ public sealed class RewardGrantServiceIntegrationTests
                     requestId,
                     "Integration test",
                     RewardBundle.Create(
-                        RewardItem.Create(RewardType.Gold, 151),
-                        RewardItem.Create(RewardType.Gem, 20))),
+                        CurrencyReward.Create(RewardType.Gold, 151),
+                        CurrencyReward.Create(RewardType.Gem, 20))),
                 CancellationToken.None);
 
             Assert.Equal(
@@ -140,7 +140,7 @@ public sealed class RewardGrantServiceIntegrationTests
                     rollbackRequestId,
                     "Parent operation rollback test",
                     RewardBundle.Create(
-                        RewardItem.Create(RewardType.Gold, 999))),
+                        CurrencyReward.Create(RewardType.Gold, 999))),
                 CancellationToken.None);
 
             Assert.Equal(RewardGrantStatus.Granted, result.Status);
@@ -236,10 +236,10 @@ public sealed class RewardGrantServiceIntegrationTests
         var newRequestId = Guid.NewGuid();
         var rejectedRequestId = Guid.NewGuid();
         var existingRewards = RewardBundle.Create(
-            RewardItem.Create(RewardType.Gold, 10));
+            CurrencyReward.Create(RewardType.Gold, 10));
         var newRewards = RewardBundle.Create(
-            RewardItem.Create(RewardType.Gold, 20),
-            RewardItem.Create(RewardType.Gem, 5));
+            CurrencyReward.Create(RewardType.Gold, 20),
+            CurrencyReward.Create(RewardType.Gem, 5));
         long playerId;
 
         await using (var arrangeDb = new GameDbContext(options))
@@ -327,12 +327,12 @@ public sealed class RewardGrantServiceIntegrationTests
                         existingRequestId,
                         "Existing batch request",
                         RewardBundle.Create(
-                            RewardItem.Create(RewardType.Gold, 11))),
+                            CurrencyReward.Create(RewardType.Gold, 11))),
                     CreateRequest(
                         rejectedRequestId,
                         "Rejected batch request",
                         RewardBundle.Create(
-                            RewardItem.Create(RewardType.Gold, 999)))
+                            CurrencyReward.Create(RewardType.Gold, 999)))
                 ],
                 CancellationToken.None);
 

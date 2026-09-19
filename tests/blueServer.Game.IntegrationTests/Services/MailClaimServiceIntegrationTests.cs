@@ -46,8 +46,8 @@ public sealed class MailClaimServiceIntegrationTests
                 sentAt,
                 sentAt.AddDays(1),
                 [
-                    RewardItem.Create(RewardType.Gold, 120),
-                    RewardItem.Create(RewardType.Gem, 15)
+                    CurrencyReward.Create(RewardType.Gold, 120),
+                    CurrencyReward.Create(RewardType.Gem, 15)
                 ]);
             arrangeDb.Mails.Add(mail);
             await arrangeDb.SaveChangesAsync();
@@ -159,7 +159,7 @@ public sealed class MailClaimServiceIntegrationTests
                 "Concurrent requests must grant rewards once.",
                 sentAt,
                 sentAt.AddDays(1),
-                [RewardItem.Create(RewardType.Gold, 200)]);
+                [CurrencyReward.Create(RewardType.Gold, 200)]);
             arrangeDb.Mails.Add(mail);
             await arrangeDb.SaveChangesAsync();
 

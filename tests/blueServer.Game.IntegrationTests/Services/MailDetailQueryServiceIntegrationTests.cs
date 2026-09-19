@@ -49,8 +49,8 @@ public sealed class MailDetailQueryServiceIntegrationTests
                 sentAt,
                 expiresAt,
                 [
-                    RewardItem.Create(RewardType.Gold, 100),
-                    RewardItem.Create(RewardType.Gem, 20)
+                    CurrencyReward.Create(RewardType.Gold, 100),
+                    CurrencyReward.Create(RewardType.Gem, 20)
                 ]);
             arrangeDb.Mails.Add(mail);
             await arrangeDb.SaveChangesAsync();

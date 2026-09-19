@@ -1,8 +1,8 @@
 namespace blueServer.Domain.Rewards;
 
-public sealed record RewardItem
+public sealed record CurrencyReward
 {
-    private RewardItem(RewardType type, int amount)
+    private CurrencyReward(RewardType type, int amount)
     {
         Type = type;
         Amount = amount;
@@ -11,7 +11,7 @@ public sealed record RewardItem
     public RewardType Type { get; }
     public int Amount { get; }
 
-    public static RewardItem Create(RewardType type, int amount)
+    public static CurrencyReward Create(RewardType type, int amount)
     {
         if (!Enum.IsDefined(type))
         {
@@ -29,6 +29,6 @@ public sealed record RewardItem
                 "Reward amount must be greater than zero.");
         }
 
-        return new RewardItem(type, amount);
+        return new CurrencyReward(type, amount);
     }
 }

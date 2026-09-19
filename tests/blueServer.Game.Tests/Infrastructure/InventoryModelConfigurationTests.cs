@@ -94,6 +94,46 @@ public sealed class InventoryModelConfigurationTests
         Assert.Equal(ValueGenerated.Never, idProperty.ValueGenerated);
     }
 
+    [Fact]
+    public void MailItemAttachment_UsesUniqueMailAndTemplateIndex()
+    {
+        using var dbContext = CreateDbContext();
+        var entityType = dbContext.Model.FindEntityType(
+            typeof(MailItemAttachment));
+
+        Assert.NotNull(entityType);
+        Assert.Contains(
+            entityType.GetIndexes(),
+            index =>
+                index.IsUnique &&
+                index.Properties.Select(property => property.Name)
+                    .SequenceEqual([
+                        nameof(MailItemAttachment.MailId),
+                        nameof(MailItemAttachment.ItemTemplateId)
+                    ]));
+    }
+
+    [Fact]
+    public void MailItemAttachment_CascadesWithMailButRestrictsTemplateDeletion()
+    {
+        using var dbContext = CreateDbContext();
+        var entityType = dbContext.Model.FindEntityType(
+            typeof(MailItemAttachment));
+
+        Assert.NotNull(entityType);
+
+        var mailForeignKey = entityType.GetForeignKeys()
+            .Single(foreignKey =>
+                foreignKey.PrincipalEntityType.ClrType == typeof(Mail));
+        var templateForeignKey = entityType.GetForeignKeys()
+            .Single(foreignKey =>
+                foreignKey.PrincipalEntityType.ClrType ==
+                    typeof(ItemTemplate));
+
+        Assert.Equal(DeleteBehavior.Cascade, mailForeignKey.DeleteBehavior);
+        Assert.Equal(DeleteBehavior.Restrict, templateForeignKey.DeleteBehavior);
+    }
+
     private static GameDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<GameDbContext>()

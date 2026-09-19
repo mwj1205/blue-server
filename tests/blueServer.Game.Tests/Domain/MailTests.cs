@@ -19,9 +19,9 @@ public sealed class MailTests
             sentAt,
             expiresAt,
             [
-                RewardItem.Create(RewardType.Gold, 100),
-                RewardItem.Create(RewardType.Gold, 50),
-                RewardItem.Create(RewardType.Gem, 10)
+                CurrencyReward.Create(RewardType.Gold, 100),
+                CurrencyReward.Create(RewardType.Gold, 50),
+                CurrencyReward.Create(RewardType.Gem, 10)
             ],
             MailSourceType.Event,
             "  launch-event:2026  ");
@@ -60,8 +60,8 @@ public sealed class MailTests
             sentAt,
             sentAt.AddDays(1),
             [
-                RewardItem.Create(RewardType.Gold, 60),
-                RewardItem.Create(RewardType.Gold, 40)
+                CurrencyReward.Create(RewardType.Gold, 60),
+                CurrencyReward.Create(RewardType.Gold, 40)
             ],
             MailSourceType.Event,
             "event:100:player:1");
@@ -71,7 +71,7 @@ public sealed class MailTests
             "Claim the attached reward.",
             sentAt,
             sentAt.AddDays(1),
-            [RewardItem.Create(RewardType.Gold, 100)],
+            [CurrencyReward.Create(RewardType.Gold, 100)],
             MailSourceType.Event,
             "event:100:player:1");
         var different = Mail.Create(
@@ -80,9 +80,57 @@ public sealed class MailTests
             "Claim the attached reward.",
             sentAt,
             sentAt.AddDays(1),
-            [RewardItem.Create(RewardType.Gold, 101)],
+            [CurrencyReward.Create(RewardType.Gold, 101)],
             MailSourceType.Event,
             "event:100:player:1");
+
+        Assert.True(first.HasSameDelivery(same));
+        Assert.False(first.HasSameDelivery(different));
+    }
+
+    [Fact]
+    public void Create_AggregatesItemAttachmentsByTemplate()
+    {
+        var sentAt = DateTime.UtcNow;
+
+        var mail = Mail.Create(
+            1,
+            "Inventory overflow",
+            "Claim the overflow items.",
+            sentAt,
+            sentAt.AddDays(30),
+            sourceType: MailSourceType.System,
+            sourceId: "inventory-overflow:1",
+            inventoryItemRewards:
+            [
+                InventoryItemReward.Create(1001, 600),
+                InventoryItemReward.Create(1001, 401),
+                InventoryItemReward.Create(2001, 3)
+            ]);
+
+        Assert.True(mail.HasAttachments);
+        Assert.Empty(mail.Attachments);
+        Assert.Collection(
+            mail.ItemAttachments.OrderBy(item => item.ItemTemplateId),
+            item =>
+            {
+                Assert.Equal(1001, item.ItemTemplateId);
+                Assert.Equal(1_001, item.Quantity);
+            },
+            item =>
+            {
+                Assert.Equal(2001, item.ItemTemplateId);
+                Assert.Equal(3, item.Quantity);
+            });
+    }
+
+    [Fact]
+    public void HasSameDelivery_ComparesItemAttachments()
+    {
+        var sentAt = DateTime.UtcNow;
+        var first = CreateInventoryItemRewardMail(sentAt, 100);
+        var same = CreateInventoryItemRewardMail(sentAt, 100);
+        var different = CreateInventoryItemRewardMail(sentAt, 101);
 
         Assert.True(first.HasSameDelivery(same));
         Assert.False(first.HasSameDelivery(different));
@@ -154,6 +202,24 @@ public sealed class MailTests
             "Claim the attached reward.",
             sentAt,
             expiresAt,
-            [RewardItem.Create(RewardType.Gold, 100)]);
+            [CurrencyReward.Create(RewardType.Gold, 100)]);
+    }
+
+    private static Mail CreateInventoryItemRewardMail(
+        DateTime sentAt,
+        int quantity)
+    {
+        return Mail.Create(
+            1,
+            "Inventory overflow",
+            "Claim the overflow items.",
+            sentAt,
+            sentAt.AddDays(30),
+            sourceType: MailSourceType.System,
+            sourceId: "inventory-overflow:1",
+            inventoryItemRewards:
+            [
+                InventoryItemReward.Create(1001, quantity)
+            ]);
     }
 }

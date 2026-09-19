@@ -3,7 +3,7 @@ using Xunit;
 
 namespace blueServer.Game.Tests.Domain;
 
-public sealed class RewardItemTests
+public sealed class CurrencyRewardTests
 {
     [Theory]
     [InlineData(RewardType.Gold, 100)]
@@ -12,7 +12,7 @@ public sealed class RewardItemTests
         RewardType type,
         int amount)
     {
-        var reward = RewardItem.Create(type, amount);
+        var reward = CurrencyReward.Create(type, amount);
 
         Assert.Equal(type, reward.Type);
         Assert.Equal(amount, reward.Amount);
@@ -24,14 +24,14 @@ public sealed class RewardItemTests
     public void Create_Throws_WhenAmountIsNotPositive(int amount)
     {
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => RewardItem.Create(RewardType.Gold, amount));
+            () => CurrencyReward.Create(RewardType.Gold, amount));
     }
 
     [Fact]
     public void Create_Throws_WhenTypeIsUnknown()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => RewardItem.Create((RewardType)999, 1));
+            () => CurrencyReward.Create((RewardType)999, 1));
     }
 
     [Fact]

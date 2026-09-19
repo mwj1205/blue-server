@@ -30,6 +30,8 @@ public class GameDbContext : DbContext
     public DbSet<CurrencyChangeLog> CurrencyChangeLogs => Set<CurrencyChangeLog>();
     public DbSet<Mail> Mails => Set<Mail>();
     public DbSet<MailAttachment> MailAttachments => Set<MailAttachment>();
+    public DbSet<MailItemAttachment> MailItemAttachments =>
+        Set<MailItemAttachment>();
     public DbSet<ItemTemplate> ItemTemplates => Set<ItemTemplate>();
     public DbSet<PlayerItem> PlayerItems => Set<PlayerItem>();
 
@@ -264,6 +266,11 @@ public class GameDbContext : DbContext
                 .HasForeignKey(attachment => attachment.MailId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            entity.HasMany(mail => mail.ItemAttachments)
+                .WithOne(attachment => attachment.Mail)
+                .HasForeignKey(attachment => attachment.MailId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             entity.ToTable(table =>
             {
                 table.HasCheckConstraint(
@@ -302,6 +309,29 @@ public class GameDbContext : DbContext
                 table.HasCheckConstraint(
                     "CK_MailAttachments_Amount_Positive",
                     "\"Amount\" > 0");
+            });
+        });
+
+        modelBuilder.Entity<MailItemAttachment>(entity =>
+        {
+            // Mail 한 건에는 같은 ItemTemplate을 합산한 Snapshot 한 건만 저장
+            entity.HasIndex(attachment => new
+            {
+                attachment.MailId,
+                attachment.ItemTemplateId
+            })
+                .IsUnique();
+
+            entity.HasOne(attachment => attachment.ItemTemplate)
+                .WithMany()
+                .HasForeignKey(attachment => attachment.ItemTemplateId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_MailItemAttachments_Quantity_Positive",
+                    "\"Quantity\" > 0");
             });
         });
 
