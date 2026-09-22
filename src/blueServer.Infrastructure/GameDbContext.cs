@@ -34,6 +34,8 @@ public class GameDbContext : DbContext
         Set<MailItemAttachment>();
     public DbSet<ItemTemplate> ItemTemplates => Set<ItemTemplate>();
     public DbSet<PlayerItem> PlayerItems => Set<PlayerItem>();
+    public DbSet<InventoryItemChangeLog> InventoryItemChangeLogs =>
+        Set<InventoryItemChangeLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -219,6 +221,67 @@ public class GameDbContext : DbContext
                 table.HasCheckConstraint(
                     "CK_CurrencyChangeLogs_SourceId_NotEmpty",
                     "length(btrim(\"SourceId\")) > 0");
+            });
+        });
+
+        modelBuilder.Entity<InventoryItemChangeLog>(entity =>
+        {
+            entity.Property(change => change.ReasonType)
+                .HasConversion<int>();
+
+            entity.Property(change => change.SourceId)
+                .HasMaxLength(InventoryItemChangeLog.MaxSourceIdLength);
+
+            // 같은 업무 요청에서 ItemTemplate별 이력 중복 생성 방지
+            entity.HasIndex(change => new
+            {
+                change.PlayerId,
+                change.RequestId,
+                change.ItemTemplateId
+            })
+                .IsUnique();
+
+            // Player의 최신 Inventory 변경 이력 조회 지원
+            entity.HasIndex(change => new
+            {
+                change.PlayerId,
+                change.CreatedAt,
+                change.Id
+            });
+
+            entity.HasOne(change => change.Player)
+                .WithMany()
+                .HasForeignKey(change => change.PlayerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(change => change.ItemTemplate)
+                .WithMany()
+                .HasForeignKey(change => change.ItemTemplateId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_InventoryItemChangeLogs_Delta_NotZero",
+                    "\"Delta\" <> 0");
+                table.HasCheckConstraint(
+                    "CK_InventoryItemChangeLogs_QuantityBefore_Range",
+                    "\"QuantityBefore\" BETWEEN 0 AND 999999");
+                table.HasCheckConstraint(
+                    "CK_InventoryItemChangeLogs_QuantityAfter_Range",
+                    "\"QuantityAfter\" BETWEEN 0 AND 999999");
+                table.HasCheckConstraint(
+                    "CK_InventoryItemChangeLogs_Quantity_Consistent",
+                    "\"QuantityAfter\" = \"QuantityBefore\" + \"Delta\"");
+                table.HasCheckConstraint(
+                    "CK_InventoryItemChangeLogs_ReasonType_Valid",
+                    "\"ReasonType\" IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)");
+                table.HasCheckConstraint(
+                    "CK_InventoryItemChangeLogs_SourceId_NotEmpty",
+                    "length(btrim(\"SourceId\")) > 0");
+                table.HasCheckConstraint(
+                    "CK_InventoryItemChangeLogs_RequestId_NotEmpty",
+                    "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
             });
         });
 
