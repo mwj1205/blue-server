@@ -59,8 +59,7 @@ public sealed class InventoryChangeServiceIntegrationTests
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.IncreaseWithinCurrentTransactionAsync(
                     player,
-                    activeTemplateId,
-                    1));
+                    CreateRequest(activeTemplateId, 1, suffix)));
         }
 
         await using (var createDb = new GameDbContext(options))
@@ -72,16 +71,13 @@ public sealed class InventoryChangeServiceIntegrationTests
 
             var created = await service.IncreaseWithinCurrentTransactionAsync(
                 player,
-                activeTemplateId,
-                999_000);
+                CreateRequest(activeTemplateId, 999_000, suffix));
             var inactive = await service.IncreaseWithinCurrentTransactionAsync(
                 player,
-                inactiveTemplateId,
-                10);
+                CreateRequest(inactiveTemplateId, 10, suffix));
             var missing = await service.IncreaseWithinCurrentTransactionAsync(
                 player,
-                missingTemplateId,
-                10);
+                CreateRequest(missingTemplateId, 10, suffix));
 
             Assert.Equal(InventoryIncreaseStatus.Increased, created.Status);
             Assert.Equal(999_000, created.AppliedQuantity);
@@ -107,8 +103,7 @@ public sealed class InventoryChangeServiceIntegrationTests
 
             var increased = await service.IncreaseWithinCurrentTransactionAsync(
                 player,
-                activeTemplateId,
-                1_200);
+                CreateRequest(activeTemplateId, 1_200, suffix));
 
             Assert.Equal(InventoryIncreaseStatus.Increased, increased.Status);
             Assert.Equal(1_200, increased.RequestedQuantity);
@@ -146,6 +141,20 @@ public sealed class InventoryChangeServiceIntegrationTests
             $"item.{code}.name",
             $"item.{code}.description",
             ItemType.Material);
+    }
+
+    private static InventoryIncreaseRequest CreateRequest(
+        int itemTemplateId,
+        int amount,
+        string sourceId)
+    {
+        return new InventoryIncreaseRequest(
+            itemTemplateId,
+            amount,
+            InventoryItemChangeReasonType.AdminAdjustment,
+            sourceId,
+            Guid.NewGuid(),
+            DateTime.UtcNow);
     }
 
     private static async Task<int> CreateUnusedTemplateIdAsync(
