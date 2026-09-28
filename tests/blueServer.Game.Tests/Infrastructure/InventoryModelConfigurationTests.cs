@@ -134,6 +134,47 @@ public sealed class InventoryModelConfigurationTests
         Assert.Equal(DeleteBehavior.Restrict, templateForeignKey.DeleteBehavior);
     }
 
+    [Fact]
+    public void InventoryItemChangeLog_UsesUniqueRequestAndTemplateIndex()
+    {
+        using var dbContext = CreateDbContext();
+        var entityType = dbContext.Model.FindEntityType(
+            typeof(InventoryItemChangeLog));
+
+        Assert.NotNull(entityType);
+        Assert.Contains(
+            entityType.GetIndexes(),
+            index =>
+                index.IsUnique &&
+                index.Properties.Select(property => property.Name)
+                    .SequenceEqual([
+                        nameof(InventoryItemChangeLog.PlayerId),
+                        nameof(InventoryItemChangeLog.RequestId),
+                        nameof(InventoryItemChangeLog.ItemTemplateId)
+                    ]));
+    }
+
+    [Fact]
+    public void InventoryItemChangeLog_RestrictsPlayerAndTemplateDeletion()
+    {
+        using var dbContext = CreateDbContext();
+        var entityType = dbContext.Model.FindEntityType(
+            typeof(InventoryItemChangeLog));
+
+        Assert.NotNull(entityType);
+
+        var playerForeignKey = entityType.GetForeignKeys()
+            .Single(foreignKey =>
+                foreignKey.PrincipalEntityType.ClrType == typeof(Player));
+        var templateForeignKey = entityType.GetForeignKeys()
+            .Single(foreignKey =>
+                foreignKey.PrincipalEntityType.ClrType ==
+                    typeof(ItemTemplate));
+
+        Assert.Equal(DeleteBehavior.Restrict, playerForeignKey.DeleteBehavior);
+        Assert.Equal(DeleteBehavior.Restrict, templateForeignKey.DeleteBehavior);
+    }
+
     private static GameDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<GameDbContext>()
