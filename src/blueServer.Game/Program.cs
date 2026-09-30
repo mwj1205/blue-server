@@ -69,6 +69,7 @@ builder.Services.AddScoped<PartyService>();
 builder.Services.AddScoped<StageClearService>();
 builder.Services.AddScoped<CurrencyChangeService>();
 builder.Services.AddScoped<InventoryChangeService>();
+builder.Services.AddScoped<InventoryGrantService>();
 builder.Services.AddScoped<RewardGrantService>();
 builder.Services.AddScoped<MailDeliveryService>();
 builder.Services.AddScoped<MailClaimService>();
