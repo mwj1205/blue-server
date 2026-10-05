@@ -113,6 +113,95 @@ namespace blueServer.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("blueServer.Domain.Entities.InventoryGrantRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("GrantedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("MailId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("PayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<long>("PlayerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MailId");
+
+                    b.HasIndex("PlayerId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("InventoryGrantRecords", t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryGrantRecords_PayloadHash_Length", "length(\"PayloadHash\") = 64");
+
+                            t.HasCheckConstraint("CK_InventoryGrantRecords_RequestId_NotEmpty", "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+                        });
+                });
+
+            modelBuilder.Entity("blueServer.Domain.Entities.InventoryGrantRecordItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AppliedQuantity")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("InventoryGrantRecordId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ItemTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OverflowQuantity")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("QuantityAfter")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RequestedQuantity")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemTemplateId");
+
+                    b.HasIndex("InventoryGrantRecordId", "ItemTemplateId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_InventoryGrantRecordItems_RecordId_ItemTemplateId");
+
+                    b.ToTable("InventoryGrantRecordItems", t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryGrantRecordItems_AppliedQuantity_NonNegative", "\"AppliedQuantity\" >= 0");
+
+                            t.HasCheckConstraint("CK_InventoryGrantRecordItems_OverflowQuantity_NonNegative", "\"OverflowQuantity\" >= 0");
+
+                            t.HasCheckConstraint("CK_InventoryGrantRecordItems_QuantityAfter_Range", "\"QuantityAfter\" BETWEEN \"AppliedQuantity\" AND 999999");
+
+                            t.HasCheckConstraint("CK_InventoryGrantRecordItems_Quantity_Consistent", "\"RequestedQuantity\" = \"AppliedQuantity\" + \"OverflowQuantity\"");
+
+                            t.HasCheckConstraint("CK_InventoryGrantRecordItems_RequestedQuantity_Positive", "\"RequestedQuantity\" > 0");
+                        });
+                });
+
             modelBuilder.Entity("blueServer.Domain.Entities.InventoryItemChangeLog", b =>
                 {
                     b.Property<long>("Id")
@@ -666,6 +755,44 @@ namespace blueServer.Infrastructure.Migrations
                     b.Navigation("RewardGrantRecord");
                 });
 
+            modelBuilder.Entity("blueServer.Domain.Entities.InventoryGrantRecord", b =>
+                {
+                    b.HasOne("blueServer.Domain.Entities.Mail", "Mail")
+                        .WithMany()
+                        .HasForeignKey("MailId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("blueServer.Domain.Entities.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Mail");
+
+                    b.Navigation("Player");
+                });
+
+            modelBuilder.Entity("blueServer.Domain.Entities.InventoryGrantRecordItem", b =>
+                {
+                    b.HasOne("blueServer.Domain.Entities.InventoryGrantRecord", "InventoryGrantRecord")
+                        .WithMany("Items")
+                        .HasForeignKey("InventoryGrantRecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_InventoryGrantRecordItems_InventoryGrantRecords");
+
+                    b.HasOne("blueServer.Domain.Entities.ItemTemplate", "ItemTemplate")
+                        .WithMany()
+                        .HasForeignKey("ItemTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("InventoryGrantRecord");
+
+                    b.Navigation("ItemTemplate");
+                });
+
             modelBuilder.Entity("blueServer.Domain.Entities.InventoryItemChangeLog", b =>
                 {
                     b.HasOne("blueServer.Domain.Entities.ItemTemplate", "ItemTemplate")
@@ -833,6 +960,11 @@ namespace blueServer.Infrastructure.Migrations
                     b.Navigation("Player");
 
                     b.Navigation("StageTemplate");
+                });
+
+            modelBuilder.Entity("blueServer.Domain.Entities.InventoryGrantRecord", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("blueServer.Domain.Entities.Mail", b =>
