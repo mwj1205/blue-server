@@ -194,6 +194,209 @@ public sealed class InventoryGrantServiceIntegrationTests
         }
     }
 
+    [PostgreSqlIntegrationFact]
+    public async Task GrantWithinCurrentTransactionAsync_ReturnsStoredResultWithoutDuplicateChangesOnRetry()
+    {
+        var options = CreateOptions();
+        var suffix = Guid.NewGuid().ToString("N");
+        var sourceId = $"inventory-grant-retry:{suffix}";
+        var requestId = Guid.NewGuid();
+        var sentAt = DateTime.UtcNow;
+        long playerId;
+        int itemTemplateId;
+
+        await using (var arrangeDb = new GameDbContext(options))
+        {
+            itemTemplateId = await CreateUnusedTemplateIdAsync(arrangeDb);
+            var player = Player.Create(
+                $"inventory-grant-retry-{suffix}",
+                "integration-test");
+            var itemTemplate = CreateTemplate(
+                itemTemplateId,
+                $"integration_grant_retry_{suffix}");
+
+            arrangeDb.AddRange(player, itemTemplate);
+            await arrangeDb.SaveChangesAsync();
+
+            arrangeDb.PlayerItems.Add(PlayerItem.Create(
+                player.Id,
+                itemTemplate,
+                999_000));
+            await arrangeDb.SaveChangesAsync();
+            playerId = player.Id;
+        }
+
+        var request = CreateRequest(
+            itemTemplateId,
+            amount: 1_200,
+            sourceId,
+            requestId,
+            sentAt);
+
+        await using (var firstDb = new GameDbContext(options))
+        await using (var transaction = await firstDb.Database.BeginTransactionAsync())
+        {
+            var player = await firstDb.Players.SingleAsync(
+                candidate => candidate.Id == playerId);
+            var result = await CreateService(firstDb)
+                .GrantWithinCurrentTransactionAsync(player, request);
+
+            Assert.Equal(InventoryGrantStatus.Granted, result.Status);
+            await transaction.CommitAsync();
+        }
+
+        InventoryGrantResult retryResult;
+
+        await using (var retryDb = new GameDbContext(options))
+        await using (var transaction = await retryDb.Database.BeginTransactionAsync())
+        {
+            var player = await retryDb.Players.SingleAsync(
+                candidate => candidate.Id == playerId);
+            retryResult = await CreateService(retryDb)
+                .GrantWithinCurrentTransactionAsync(player, request);
+
+            await transaction.CommitAsync();
+        }
+
+        Assert.Equal(InventoryGrantStatus.AlreadyGranted, retryResult.Status);
+        Assert.Equal(
+            MailDeliveryStatus.AlreadyDelivered,
+            retryResult.OverflowMailResult?.Status);
+        Assert.Collection(
+            retryResult.InventoryResults,
+            item =>
+            {
+                Assert.Equal(999, item.AppliedQuantity);
+                Assert.Equal(201, item.OverflowQuantity);
+                Assert.Equal(ItemTemplate.InventoryMaxQuantity, item.QuantityAfter);
+            });
+
+        await using (var assertDb = new GameDbContext(options))
+        {
+            Assert.Equal(
+                ItemTemplate.InventoryMaxQuantity,
+                await assertDb.PlayerItems
+                    .Where(item =>
+                        item.PlayerId == playerId &&
+                        item.ItemTemplateId == itemTemplateId)
+                    .Select(item => item.Quantity)
+                    .SingleAsync());
+            Assert.Equal(
+                1,
+                await assertDb.InventoryItemChangeLogs.CountAsync(change =>
+                    change.PlayerId == playerId &&
+                    change.RequestId == requestId));
+            Assert.Equal(
+                1,
+                await assertDb.InventoryGrantRecords.CountAsync(record =>
+                    record.PlayerId == playerId &&
+                    record.RequestId == requestId));
+            Assert.Equal(
+                1,
+                await assertDb.Mails.CountAsync(mail =>
+                    mail.PlayerId == playerId &&
+                    mail.SourceType == MailSourceType.System &&
+                    mail.SourceId == sourceId));
+        }
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task GrantWithinCurrentTransactionAsync_RejectsDifferentPayloadWithSameRequestId()
+    {
+        var options = CreateOptions();
+        var suffix = Guid.NewGuid().ToString("N");
+        var sourceId = $"inventory-grant-payload-conflict:{suffix}";
+        var requestId = Guid.NewGuid();
+        var sentAt = DateTime.UtcNow;
+        long playerId;
+        int itemTemplateId;
+
+        await using (var arrangeDb = new GameDbContext(options))
+        {
+            itemTemplateId = await CreateUnusedTemplateIdAsync(arrangeDb);
+            var player = Player.Create(
+                $"inventory-grant-payload-conflict-{suffix}",
+                "integration-test");
+            var itemTemplate = CreateTemplate(
+                itemTemplateId,
+                $"grant_payload_conflict_{suffix}");
+
+            arrangeDb.AddRange(player, itemTemplate);
+            await arrangeDb.SaveChangesAsync();
+            playerId = player.Id;
+        }
+
+        await using (var firstDb = new GameDbContext(options))
+        await using (var transaction = await firstDb.Database.BeginTransactionAsync())
+        {
+            var player = await firstDb.Players.SingleAsync(
+                candidate => candidate.Id == playerId);
+            var result = await CreateService(firstDb)
+                .GrantWithinCurrentTransactionAsync(
+                    player,
+                    CreateRequest(
+                        itemTemplateId,
+                        amount: 100,
+                        sourceId,
+                        requestId,
+                        sentAt));
+
+            Assert.Equal(InventoryGrantStatus.Granted, result.Status);
+            await transaction.CommitAsync();
+        }
+
+        InventoryGrantResult conflictResult;
+
+        await using (var conflictDb = new GameDbContext(options))
+        await using (var transaction = await conflictDb.Database.BeginTransactionAsync())
+        {
+            var player = await conflictDb.Players.SingleAsync(
+                candidate => candidate.Id == playerId);
+            conflictResult = await CreateService(conflictDb)
+                .GrantWithinCurrentTransactionAsync(
+                    player,
+                    CreateRequest(
+                        itemTemplateId,
+                        amount: 101,
+                        sourceId,
+                        requestId,
+                        sentAt));
+
+            await transaction.CommitAsync();
+        }
+
+        Assert.Equal(
+            InventoryGrantStatus.IdempotencyConflict,
+            conflictResult.Status);
+        Assert.Empty(conflictResult.InventoryResults);
+
+        await using (var assertDb = new GameDbContext(options))
+        {
+            Assert.Equal(
+                100,
+                await assertDb.PlayerItems
+                    .Where(item =>
+                        item.PlayerId == playerId &&
+                        item.ItemTemplateId == itemTemplateId)
+                    .Select(item => item.Quantity)
+                    .SingleAsync());
+            Assert.Equal(
+                1,
+                await assertDb.InventoryItemChangeLogs.CountAsync(change =>
+                    change.PlayerId == playerId &&
+                    change.RequestId == requestId));
+            Assert.Equal(
+                1,
+                await assertDb.InventoryGrantRecords.CountAsync(record =>
+                    record.PlayerId == playerId &&
+                    record.RequestId == requestId));
+            Assert.False(await assertDb.Mails.AnyAsync(mail =>
+                mail.PlayerId == playerId &&
+                mail.SourceType == MailSourceType.System &&
+                mail.SourceId == sourceId));
+        }
+    }
+
     private static InventoryGrantService CreateService(GameDbContext db)
     {
         return new InventoryGrantService(
