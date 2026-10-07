@@ -43,6 +43,24 @@ public sealed class InventoryGrantService
                 "The Player must be tracked by the same GameDbContext as the inventory grant.");
         }
 
+        var requestId = request.Items[0].RequestId;
+        var payloadHash = InventoryGrantPayloadHasher.Compute(request);
+        var existingRecord = await _db.InventoryGrantRecords
+            .AsNoTracking()
+            .Include(record => record.Items)
+            .SingleOrDefaultAsync(
+                record =>
+                    record.PlayerId == player.Id &&
+                    record.RequestId == requestId,
+                cancellationToken);
+
+        if (existingRecord is not null)
+        {
+            return existingRecord.HasSamePayload(payloadHash)
+                ? CreateAlreadyGrantedResult(existingRecord, request)
+                : InventoryGrantResult.IdempotencyConflict();
+        }
+
         var inventoryResults = new List<InventoryIncreaseResult>(
             request.Items.Count);
 
@@ -70,6 +88,12 @@ public sealed class InventoryGrantService
 
         if (mailRequest is null)
         {
+            AddGrantRecord(
+                player.Id,
+                requestId,
+                payloadHash,
+                inventoryResults,
+                mailId: null);
             await _db.SaveChangesAsync(cancellationToken);
 
             return InventoryGrantResult.Granted(inventoryResults);
@@ -80,13 +104,76 @@ public sealed class InventoryGrantService
                 mailRequest,
                 cancellationToken);
 
-        return mailResult.Status == MailDeliveryStatus.Delivered
-            ? InventoryGrantResult.Granted(
-                inventoryResults,
-                mailResult)
-            : InventoryGrantResult.OverflowMailRejected(
+        if (mailResult.Status != MailDeliveryStatus.Delivered)
+        {
+            return InventoryGrantResult.OverflowMailRejected(
                 inventoryResults,
                 mailResult);
+        }
+
+        AddGrantRecord(
+            player.Id,
+            requestId,
+            payloadHash,
+            inventoryResults,
+            mailResult.MailId);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return InventoryGrantResult.Granted(
+            inventoryResults,
+            mailResult);
+    }
+
+    private void AddGrantRecord(
+        long playerId,
+        Guid requestId,
+        string payloadHash,
+        IReadOnlyList<InventoryIncreaseResult> inventoryResults,
+        long? mailId)
+    {
+        var snapshots = inventoryResults.Select(result =>
+            new InventoryGrantItemSnapshot(
+                result.ItemTemplateId,
+                result.RequestedQuantity,
+                result.AppliedQuantity,
+                result.OverflowQuantity,
+                result.QuantityAfter));
+
+        _db.InventoryGrantRecords.Add(InventoryGrantRecord.Create(
+            playerId,
+            requestId,
+            payloadHash,
+            DateTime.UtcNow,
+            mailId,
+            snapshots));
+    }
+
+    private static InventoryGrantResult CreateAlreadyGrantedResult(
+        InventoryGrantRecord record,
+        InventoryGrantRequest request)
+    {
+        var storedItems = record.Items.ToDictionary(
+            item => item.ItemTemplateId);
+        var inventoryResults = request.Items
+            .Select(item =>
+            {
+                var storedItem = storedItems[item.ItemTemplateId];
+
+                return InventoryIncreaseResult.Increased(
+                    storedItem.ItemTemplateId,
+                    storedItem.RequestedQuantity,
+                    storedItem.AppliedQuantity,
+                    storedItem.OverflowQuantity,
+                    storedItem.QuantityAfter);
+            })
+            .ToArray();
+        var mailResult = record.MailId.HasValue
+            ? MailDeliveryResult.AlreadyDelivered(record.MailId.Value)
+            : null;
+
+        return InventoryGrantResult.AlreadyGranted(
+            inventoryResults,
+            mailResult);
     }
 
     private static void ValidateRequest(InventoryGrantRequest request)
@@ -115,6 +202,26 @@ public sealed class InventoryGrantService
                 "Inventory grant items must not contain null.",
                 nameof(request));
         }
+
+        if (request.Items
+            .Select(item => item.ItemTemplateId)
+            .Distinct()
+            .Count() != request.Items.Count)
+        {
+            throw new ArgumentException(
+                "Inventory grant items must have unique item template ids.",
+                nameof(request));
+        }
+
+        var requestId = request.Items[0].RequestId;
+
+        if (requestId == Guid.Empty ||
+            request.Items.Any(item => item.RequestId != requestId))
+        {
+            throw new ArgumentException(
+                "Inventory grant items must share one non-empty request id.",
+                nameof(request));
+        }
     }
 }
 
@@ -126,7 +233,9 @@ public enum InventoryGrantStatus
 {
     Granted = 0,
     InventoryRejected = 1,
-    OverflowMailRejected = 2
+    OverflowMailRejected = 2,
+    AlreadyGranted = 3,
+    IdempotencyConflict = 4
 }
 
 public sealed record InventoryGrantResult(
@@ -134,7 +243,9 @@ public sealed record InventoryGrantResult(
     IReadOnlyList<InventoryIncreaseResult> InventoryResults,
     MailDeliveryResult? OverflowMailResult)
 {
-    public bool IsSuccess => Status == InventoryGrantStatus.Granted;
+    public bool IsSuccess => Status is
+        InventoryGrantStatus.Granted or
+        InventoryGrantStatus.AlreadyGranted;
 
     public static InventoryGrantResult Granted(
         IReadOnlyList<InventoryIncreaseResult> inventoryResults,
@@ -152,6 +263,24 @@ public sealed record InventoryGrantResult(
         return new InventoryGrantResult(
             InventoryGrantStatus.InventoryRejected,
             inventoryResults,
+            null);
+    }
+
+    public static InventoryGrantResult AlreadyGranted(
+        IReadOnlyList<InventoryIncreaseResult> inventoryResults,
+        MailDeliveryResult? overflowMailResult)
+    {
+        return new InventoryGrantResult(
+            InventoryGrantStatus.AlreadyGranted,
+            inventoryResults,
+            overflowMailResult);
+    }
+
+    public static InventoryGrantResult IdempotencyConflict()
+    {
+        return new InventoryGrantResult(
+            InventoryGrantStatus.IdempotencyConflict,
+            [],
             null);
     }
 
