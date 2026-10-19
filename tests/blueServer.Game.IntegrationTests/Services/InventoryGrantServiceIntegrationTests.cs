@@ -397,6 +397,102 @@ public sealed class InventoryGrantServiceIntegrationTests
         }
     }
 
+    [PostgreSqlIntegrationFact]
+    public async Task GrantAsync_GrantsOnlyOnceWhenSameRequestRunsConcurrently()
+    {
+        var options = CreateOptions();
+        var suffix = Guid.NewGuid().ToString("N");
+        var sourceId = $"inventory-grant-concurrent:{suffix}";
+        var requestId = Guid.NewGuid();
+        var sentAt = DateTime.UtcNow;
+        long playerId;
+        int itemTemplateId;
+
+        await using (var arrangeDb = new GameDbContext(options))
+        {
+            itemTemplateId = await CreateUnusedTemplateIdAsync(arrangeDb);
+            var player = Player.Create(
+                $"inventory-grant-concurrent-{suffix}",
+                "integration-test");
+            var itemTemplate = CreateTemplate(
+                itemTemplateId,
+                $"inventory_grant_concurrent_{suffix}");
+
+            arrangeDb.AddRange(player, itemTemplate);
+            await arrangeDb.SaveChangesAsync();
+
+            arrangeDb.PlayerItems.Add(PlayerItem.Create(
+                player.Id,
+                itemTemplate,
+                999_000));
+            await arrangeDb.SaveChangesAsync();
+            playerId = player.Id;
+        }
+
+        var request = CreateRequest(
+            itemTemplateId,
+            amount: 1_200,
+            sourceId,
+            requestId,
+            sentAt);
+        var startGate = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var firstGrant = GrantConcurrentlyAsync();
+        var secondGrant = GrantConcurrentlyAsync();
+        startGate.SetResult();
+
+        var results = await Task.WhenAll(firstGrant, secondGrant);
+
+        Assert.Equal(
+            1,
+            results.Count(result =>
+                result.Status == InventoryGrantStatus.Granted));
+        Assert.Equal(
+            1,
+            results.Count(result =>
+                result.Status == InventoryGrantStatus.AlreadyGranted));
+        Assert.All(results, result => Assert.True(result.IsSuccess));
+
+        await using (var assertDb = new GameDbContext(options))
+        {
+            Assert.Equal(
+                ItemTemplate.InventoryMaxQuantity,
+                await assertDb.PlayerItems
+                    .Where(item =>
+                        item.PlayerId == playerId &&
+                        item.ItemTemplateId == itemTemplateId)
+                    .Select(item => item.Quantity)
+                    .SingleAsync());
+            Assert.Equal(
+                1,
+                await assertDb.InventoryItemChangeLogs.CountAsync(change =>
+                    change.PlayerId == playerId &&
+                    change.RequestId == requestId));
+            Assert.Equal(
+                1,
+                await assertDb.InventoryGrantRecords.CountAsync(record =>
+                    record.PlayerId == playerId &&
+                    record.RequestId == requestId));
+            Assert.Equal(
+                1,
+                await assertDb.Mails.CountAsync(mail =>
+                    mail.PlayerId == playerId &&
+                    mail.SourceType == MailSourceType.System &&
+                    mail.SourceId == sourceId));
+        }
+
+        async Task<InventoryGrantResult> GrantConcurrentlyAsync()
+        {
+            await startGate.Task;
+            await using var grantDb = new GameDbContext(options);
+
+            return await CreateService(grantDb).GrantAsync(
+                playerId,
+                request);
+        }
+    }
+
     private static InventoryGrantService CreateService(GameDbContext db)
     {
         return new InventoryGrantService(
