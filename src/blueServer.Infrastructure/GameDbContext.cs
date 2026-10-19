@@ -36,6 +36,10 @@ public class GameDbContext : DbContext
     public DbSet<PlayerItem> PlayerItems => Set<PlayerItem>();
     public DbSet<InventoryItemChangeLog> InventoryItemChangeLogs =>
         Set<InventoryItemChangeLog>();
+    public DbSet<InventoryGrantRecord> InventoryGrantRecords =>
+        Set<InventoryGrantRecord>();
+    public DbSet<InventoryGrantRecordItem> InventoryGrantRecordItems =>
+        Set<InventoryGrantRecordItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -282,6 +286,85 @@ public class GameDbContext : DbContext
                 table.HasCheckConstraint(
                     "CK_InventoryItemChangeLogs_RequestId_NotEmpty",
                     "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+            });
+        });
+
+        modelBuilder.Entity<InventoryGrantRecord>(entity =>
+        {
+            // Player별 Request ID 하나가 하나의 완료된 Inventory 지급만 식별
+            entity.HasIndex(record => new
+            {
+                record.PlayerId,
+                record.RequestId
+            })
+                .IsUnique();
+
+            entity.Property(record => record.PayloadHash)
+                .HasMaxLength(InventoryGrantRecord.PayloadHashLength)
+                .IsFixedLength();
+
+            entity.HasOne(record => record.Player)
+                .WithMany()
+                .HasForeignKey(record => record.PlayerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(record => record.Mail)
+                .WithMany()
+                .HasForeignKey(record => record.MailId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasMany(record => record.Items)
+                .WithOne(item => item.InventoryGrantRecord)
+                .HasForeignKey(item => item.InventoryGrantRecordId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName(
+                    "FK_InventoryGrantRecordItems_InventoryGrantRecords");
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_InventoryGrantRecords_RequestId_NotEmpty",
+                    "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+                table.HasCheckConstraint(
+                    "CK_InventoryGrantRecords_PayloadHash_Length",
+                    $"length(\"PayloadHash\") = {InventoryGrantRecord.PayloadHashLength}");
+            });
+        });
+
+        modelBuilder.Entity<InventoryGrantRecordItem>(entity =>
+        {
+            // 완료된 지급 하나에는 ItemTemplate별 결과 Snapshot 한 건만 저장
+            entity.HasIndex(item => new
+            {
+                item.InventoryGrantRecordId,
+                item.ItemTemplateId
+            })
+                .IsUnique()
+                .HasDatabaseName(
+                    "UX_InventoryGrantRecordItems_RecordId_ItemTemplateId");
+
+            entity.HasOne(item => item.ItemTemplate)
+                .WithMany()
+                .HasForeignKey(item => item.ItemTemplateId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_InventoryGrantRecordItems_RequestedQuantity_Positive",
+                    "\"RequestedQuantity\" > 0");
+                table.HasCheckConstraint(
+                    "CK_InventoryGrantRecordItems_AppliedQuantity_NonNegative",
+                    "\"AppliedQuantity\" >= 0");
+                table.HasCheckConstraint(
+                    "CK_InventoryGrantRecordItems_OverflowQuantity_NonNegative",
+                    "\"OverflowQuantity\" >= 0");
+                table.HasCheckConstraint(
+                    "CK_InventoryGrantRecordItems_Quantity_Consistent",
+                    "\"RequestedQuantity\" = \"AppliedQuantity\" + \"OverflowQuantity\"");
+                table.HasCheckConstraint(
+                    "CK_InventoryGrantRecordItems_QuantityAfter_Range",
+                    "\"QuantityAfter\" BETWEEN \"AppliedQuantity\" AND 999999");
             });
         });
 
