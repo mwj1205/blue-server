@@ -22,6 +22,107 @@ public sealed class InventoryGrantService
         _mailDeliveryService = mailDeliveryService;
     }
 
+    public async Task<InventoryGrantResult> GrantAsync(
+        long playerId,
+        InventoryGrantRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (playerId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(playerId),
+                playerId,
+                "Player id must be greater than zero.");
+        }
+
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateRequest(request);
+
+        var payloadHash = InventoryGrantPayloadHasher.Compute(request);
+        var existingResult = await TryResolveExistingResultAsync(
+            playerId,
+            request,
+            payloadHash,
+            cancellationToken);
+
+        if (existingResult is not null)
+        {
+            return existingResult;
+        }
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(
+            cancellationToken);
+
+        try
+        {
+            var player = await _db.Players.SingleOrDefaultAsync(
+                player => player.Id == playerId,
+                cancellationToken);
+
+            if (player is null)
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                return InventoryGrantResult.PlayerNotFound();
+            }
+
+            var result = await GrantWithinCurrentTransactionAsync(
+                player,
+                request,
+                cancellationToken);
+
+            if (result.Status == InventoryGrantStatus.Granted)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+            else
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                _db.ChangeTracker.Clear();
+            }
+
+            return result;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            _db.ChangeTracker.Clear();
+
+            var concurrentResult = await TryResolveExistingResultAsync(
+                playerId,
+                request,
+                payloadHash,
+                CancellationToken.None);
+
+            return concurrentResult ??
+                InventoryGrantResult.ConcurrencyConflict();
+        }
+        catch (DbUpdateException)
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            _db.ChangeTracker.Clear();
+
+            // Unique Constraint 경합이면 먼저 완료된 동일 요청 결과로 복구
+            var concurrentResult = await TryResolveExistingResultAsync(
+                playerId,
+                request,
+                payloadHash,
+                CancellationToken.None);
+
+            if (concurrentResult is not null)
+            {
+                return concurrentResult;
+            }
+
+            throw;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            _db.ChangeTracker.Clear();
+            throw;
+        }
+    }
+
     public async Task<InventoryGrantResult> GrantWithinCurrentTransactionAsync(
         Player player,
         InventoryGrantRequest request,
@@ -45,20 +146,15 @@ public sealed class InventoryGrantService
 
         var requestId = request.Items[0].RequestId;
         var payloadHash = InventoryGrantPayloadHasher.Compute(request);
-        var existingRecord = await _db.InventoryGrantRecords
-            .AsNoTracking()
-            .Include(record => record.Items)
-            .SingleOrDefaultAsync(
-                record =>
-                    record.PlayerId == player.Id &&
-                    record.RequestId == requestId,
-                cancellationToken);
+        var existingResult = await TryResolveExistingResultAsync(
+            player.Id,
+            request,
+            payloadHash,
+            cancellationToken);
 
-        if (existingRecord is not null)
+        if (existingResult is not null)
         {
-            return existingRecord.HasSamePayload(payloadHash)
-                ? CreateAlreadyGrantedResult(existingRecord, request)
-                : InventoryGrantResult.IdempotencyConflict();
+            return existingResult;
         }
 
         var inventoryResults = new List<InventoryIncreaseResult>(
@@ -148,6 +244,32 @@ public sealed class InventoryGrantService
             snapshots));
     }
 
+    private async Task<InventoryGrantResult?> TryResolveExistingResultAsync(
+        long playerId,
+        InventoryGrantRequest request,
+        string payloadHash,
+        CancellationToken cancellationToken)
+    {
+        var requestId = request.Items[0].RequestId;
+        var existingRecord = await _db.InventoryGrantRecords
+            .AsNoTracking()
+            .Include(record => record.Items)
+            .SingleOrDefaultAsync(
+                record =>
+                    record.PlayerId == playerId &&
+                    record.RequestId == requestId,
+                cancellationToken);
+
+        if (existingRecord is null)
+        {
+            return null;
+        }
+
+        return existingRecord.HasSamePayload(payloadHash)
+            ? CreateAlreadyGrantedResult(existingRecord, request)
+            : InventoryGrantResult.IdempotencyConflict();
+    }
+
     private static InventoryGrantResult CreateAlreadyGrantedResult(
         InventoryGrantRecord record,
         InventoryGrantRequest request)
@@ -235,7 +357,9 @@ public enum InventoryGrantStatus
     InventoryRejected = 1,
     OverflowMailRejected = 2,
     AlreadyGranted = 3,
-    IdempotencyConflict = 4
+    IdempotencyConflict = 4,
+    PlayerNotFound = 5,
+    ConcurrencyConflict = 6
 }
 
 public sealed record InventoryGrantResult(
@@ -284,6 +408,16 @@ public sealed record InventoryGrantResult(
             null);
     }
 
+    public static InventoryGrantResult PlayerNotFound()
+    {
+        return Failure(InventoryGrantStatus.PlayerNotFound);
+    }
+
+    public static InventoryGrantResult ConcurrencyConflict()
+    {
+        return Failure(InventoryGrantStatus.ConcurrencyConflict);
+    }
+
     public static InventoryGrantResult OverflowMailRejected(
         IReadOnlyList<InventoryIncreaseResult> inventoryResults,
         MailDeliveryResult overflowMailResult)
@@ -292,5 +426,11 @@ public sealed record InventoryGrantResult(
             InventoryGrantStatus.OverflowMailRejected,
             inventoryResults,
             overflowMailResult);
+    }
+
+    private static InventoryGrantResult Failure(
+        InventoryGrantStatus status)
+    {
+        return new InventoryGrantResult(status, [], null);
     }
 }
