@@ -167,18 +167,24 @@ public sealed class MailClaimServiceIntegrationTests
             mailId = mail.Id;
         }
 
+        var interceptor = new ConcurrentSaveInterceptor();
+        var concurrentOptions = new DbContextOptionsBuilder<GameDbContext>(options)
+            .AddInterceptors(interceptor)
+            .Options;
         var results = await Task.WhenAll(
             ClaimWithNewDbContextAsync(
-                options,
+                concurrentOptions,
                 playerId,
                 mailId,
                 sentAt.AddHours(1)),
             ClaimWithNewDbContextAsync(
-                options,
+                concurrentOptions,
                 playerId,
                 mailId,
                 sentAt.AddHours(1).AddMilliseconds(1)));
 
+        Assert.True(interceptor.ConflictCount > 0,
+            "Concurrent claims must cause a real database conflict.");
         Assert.Single(
             results,
             result => result.Status == MailClaimStatus.Claimed);
