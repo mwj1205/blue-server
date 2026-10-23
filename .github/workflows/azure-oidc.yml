@@ -15,7 +15,9 @@ permissions:
 jobs:
   verify-azure-login:
     name: Verify Azure login
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      vars.AZURE_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
