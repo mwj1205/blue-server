@@ -227,18 +227,11 @@ public sealed class MailDeliveryServiceIntegrationTests
 
         var mail = Assert.Single(mails);
         Assert.Equal(firstResult.MailId, mail.Id);
-        Assert.Collection(
-            mail.ItemAttachments.OrderBy(attachment => attachment.ItemTemplateId),
-            attachment =>
-            {
-                Assert.Equal(firstTemplateId, attachment.ItemTemplateId);
-                Assert.Equal(1_001, attachment.Quantity);
-            },
-            attachment =>
-            {
-                Assert.Equal(secondTemplateId, attachment.ItemTemplateId);
-                Assert.Equal(3, attachment.Quantity);
-            });
+        Assert.Equal(2, mail.ItemAttachments.Count);
+        Assert.Equal(1_001, Assert.Single(mail.ItemAttachments,
+            attachment => attachment.ItemTemplateId == firstTemplateId).Quantity);
+        Assert.Equal(3, Assert.Single(mail.ItemAttachments,
+            attachment => attachment.ItemTemplateId == secondTemplateId).Quantity);
     }
 
     [PostgreSqlIntegrationFact]
@@ -260,10 +253,16 @@ public sealed class MailDeliveryServiceIntegrationTests
         }
 
         var request = CreateRequest(playerId, sourceId, sentAt, 100);
+        var interceptor = new ConcurrentSaveInterceptor();
+        var concurrentOptions = new DbContextOptionsBuilder<GameDbContext>(options)
+            .AddInterceptors(interceptor)
+            .Options;
         var results = await Task.WhenAll(
-            DeliverWithNewDbContextAsync(options, request),
-            DeliverWithNewDbContextAsync(options, request));
+            DeliverWithNewDbContextAsync(concurrentOptions, request),
+            DeliverWithNewDbContextAsync(concurrentOptions, request));
 
+        Assert.True(interceptor.ConflictCount > 0,
+            "Concurrent deliveries must cause a real unique constraint conflict.");
         Assert.Single(
             results,
             result => result.Status == MailDeliveryStatus.Delivered);

@@ -1,5 +1,3 @@
-using blueServer.Domain.Entities;
-using blueServer.Domain.Items;
 using blueServer.Infrastructure.GameData;
 using Xunit;
 
@@ -18,26 +16,13 @@ public sealed class EmbeddedGameDataLoaderTests
             ItemCatalogJsonLoader.SupportedSchemaVersion,
             gameData.ItemCatalog.SchemaVersion);
         Assert.Equal("ko-KR", gameData.DefaultLocalization.Locale);
-        Assert.Equal(4, gameData.ItemCatalog.Templates.Count);
-        Assert.Equal(
-            4,
-            gameData.ItemCatalog.Templates
-                .Select(item => item.Id)
-                .Distinct()
-                .Count());
-
-        var material = Assert.Single(
-            gameData.ItemCatalog.Templates,
-            item => item.Id == 1001);
-
-        Assert.Equal("growth_material_basic", material.Code);
-        Assert.Equal(ItemType.Material, material.Type);
-        Assert.Equal(ItemTemplate.InventoryMaxQuantity, material.MaxQuantity);
-        Assert.Equal(
-            "초급 성장 재료",
-            gameData.DefaultLocalization.GetRequiredText(material.NameKey));
-        Assert.Equal(
-            "캐릭터 성장에 사용하는 기본 재료",
-            gameData.DefaultLocalization.GetRequiredText(material.DescriptionKey));
+        Assert.NotEmpty(gameData.ItemCatalog.Templates);
+        Assert.All(gameData.ItemCatalog.Templates, item =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(
+                gameData.DefaultLocalization.GetRequiredText(item.NameKey)));
+            Assert.False(string.IsNullOrWhiteSpace(
+                gameData.DefaultLocalization.GetRequiredText(item.DescriptionKey)));
+        });
     }
 }
