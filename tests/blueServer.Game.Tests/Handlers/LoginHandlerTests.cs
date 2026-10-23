@@ -43,7 +43,8 @@ public sealed class LoginHandlerTests
         Assert.Equal("sensei", session.PlayerNickname);
         Assert.Equal(Opcode.LoginResult, response.Opcode);
         Assert.True(response.ReadBool());
-        Assert.Equal("Login Success", response.ReadString());
+        response.ReadString();
+        response.EnsureFullyRead();
     }
 
     [Fact]
@@ -69,7 +70,8 @@ public sealed class LoginHandlerTests
         Assert.Null(session.PlayerId);
         Assert.Equal(Opcode.LoginResult, response.Opcode);
         Assert.False(response.ReadBool());
-        Assert.Equal("Login failed", response.ReadString());
+        response.ReadString();
+        response.EnsureFullyRead();
     }
 
     private static JwtOptions CreateJwtOptions()

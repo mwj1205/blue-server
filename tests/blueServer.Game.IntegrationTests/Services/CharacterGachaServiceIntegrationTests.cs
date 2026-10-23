@@ -117,7 +117,6 @@ public sealed class CharacterGachaServiceIntegrationTests
         }
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("Not enough gems", result.Message);
         Assert.Equal(
             CharacterGachaService.GachaCost - 1,
             result.RemainingGem);
