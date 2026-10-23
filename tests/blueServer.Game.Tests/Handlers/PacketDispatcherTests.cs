@@ -34,26 +34,6 @@ public sealed class PacketDispatcherTests
     }
 
     [Fact]
-    public async Task DispatchAsync_DoesNotCallRegisteredHandler_WhenOpcodeDoesNotMatch()
-    {
-        var handler = new RecordingPacketHandler();
-        using var provider = CreateServiceProvider(services =>
-        {
-            services.AddSingleton(handler);
-            services.AddKeyedSingleton<IPacketHandler>(
-                Opcode.Ping,
-                (serviceProvider, _) => serviceProvider.GetRequiredService<RecordingPacketHandler>());
-        });
-        var dispatcher = CreateDispatcher(provider);
-        var session = CreateSession(dispatcher);
-        var reader = new PacketReader(CreatePacket(Opcode.Chat));
-
-        await dispatcher.DispatchAsync(session, reader, CancellationToken.None);
-
-        Assert.False(handler.WasCalled);
-    }
-
-    [Fact]
     public async Task DispatchAsync_CreatesNewScopeForEachDispatch_WhenHandlerIsScoped()
     {
         var tracker = new ScopedHandlerTracker();

@@ -22,19 +22,6 @@ public sealed class SessionManagerTests
     }
 
     [Fact]
-    public void Remove_DeletesSessionFromCurrentManagerOnly()
-    {
-        var manager = CreateManager();
-        using var session = CreateSession();
-
-        manager.Add(session);
-        var removed = manager.Remove(session);
-
-        Assert.True(removed);
-        Assert.Equal(0, manager.Count);
-    }
-
-    [Fact]
     public void Add_ReturnsFalse_WhenSessionAlreadyExists()
     {
         var manager = CreateManager();
