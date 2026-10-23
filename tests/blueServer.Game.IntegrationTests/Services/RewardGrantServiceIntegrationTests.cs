@@ -266,7 +266,7 @@ public sealed class RewardGrantServiceIntegrationTests
     }
 
     [PostgreSqlIntegrationFact]
-    public async Task GrantBatchWithinCurrentTransactionAsync_GrantsOnlyNewRequestsAndRejectsPayloadConflict()
+    public async Task GrantBatchWithinCurrentTransactionAsync_GrantsOnlyNewRequests()
     {
         var connectionString = Environment.GetEnvironmentVariable(
             PostgreSqlIntegrationFactAttribute.ConnectionStringEnvironmentVariable)!;
@@ -275,7 +275,6 @@ public sealed class RewardGrantServiceIntegrationTests
             .Options;
         var existingRequestId = Guid.NewGuid();
         var newRequestId = Guid.NewGuid();
-        var rejectedRequestId = Guid.NewGuid();
         var existingRewards = RewardBundle.Create(
             CurrencyReward.Create(RewardType.Gold, 10));
         var newRewards = RewardBundle.Create(
@@ -335,55 +334,6 @@ public sealed class RewardGrantServiceIntegrationTests
             await transaction.CommitAsync();
         }
 
-        // 전체 Batch 재시도에서 추가 지급이 없는지 검증
-        await using (var retryDb = new GameDbContext(options))
-        await using (var transaction = await retryDb.Database.BeginTransactionAsync())
-        {
-            var service = CreateService(retryDb);
-            var result = await service.GrantBatchWithinCurrentTransactionAsync(
-                playerId,
-                requests,
-                CancellationToken.None);
-
-            Assert.Equal(
-                RewardGrantBatchStatus.AlreadyGranted,
-                result.Status);
-            Assert.Equal(0, result.GrantedRequestCount);
-            Assert.Equal(2, result.AlreadyGrantedRequestCount);
-            Assert.Equal(Player.InitialGold + 30, result.CurrentGold);
-            Assert.Equal(Player.InitialGem + 5, result.CurrentGem);
-
-            await transaction.CommitAsync();
-        }
-
-        // 한 요청의 Payload 충돌 시 새 요청까지 전부 적용하지 않는지 검증
-        await using (var conflictDb = new GameDbContext(options))
-        await using (var transaction = await conflictDb.Database.BeginTransactionAsync())
-        {
-            var service = CreateService(conflictDb);
-            var result = await service.GrantBatchWithinCurrentTransactionAsync(
-                playerId,
-                [
-                    CreateRequest(
-                        existingRequestId,
-                        "Existing batch request",
-                        RewardBundle.Create(
-                            CurrencyReward.Create(RewardType.Gold, 11))),
-                    CreateRequest(
-                        rejectedRequestId,
-                        "Rejected batch request",
-                        RewardBundle.Create(
-                            CurrencyReward.Create(RewardType.Gold, 999)))
-                ],
-                CancellationToken.None);
-
-            Assert.Equal(
-                RewardGrantBatchStatus.IdempotencyConflict,
-                result.Status);
-
-            await transaction.RollbackAsync();
-        }
-
         await using (var assertDb = new GameDbContext(options))
         {
             var player = await assertDb.Players
@@ -403,7 +353,6 @@ public sealed class RewardGrantServiceIntegrationTests
             Assert.Equal(Player.InitialGem + 5, player.Gem);
             Assert.Contains(existingRequestId, requestIds);
             Assert.Contains(newRequestId, requestIds);
-            Assert.DoesNotContain(rejectedRequestId, requestIds);
             Assert.Equal(2, requestIds.Length);
             Assert.Equal(3, currencyChanges.Length);
             Assert.Equal(
@@ -414,10 +363,95 @@ public sealed class RewardGrantServiceIntegrationTests
                 2,
                 currencyChanges.Count(change =>
                     change.RequestId == newRequestId));
-            Assert.DoesNotContain(
-                currencyChanges,
-                change => change.RequestId == rejectedRequestId);
         }
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task GrantBatchWithinCurrentTransactionAsync_ReturnsAlreadyGrantedOnBatchRetry()
+    {
+        var options = CreateOptions();
+        var playerId = await CreatePlayerAsync(options);
+        var requests = new[]
+        {
+            CreateRequest(Guid.NewGuid(), "Batch gold", RewardBundle.Create(
+                CurrencyReward.Create(RewardType.Gold, 10))),
+            CreateRequest(Guid.NewGuid(), "Batch gold and gem", RewardBundle.Create(
+                CurrencyReward.Create(RewardType.Gold, 20),
+                CurrencyReward.Create(RewardType.Gem, 5)))
+        };
+
+        await using (var initialDb = new GameDbContext(options))
+        await using (var transaction = await initialDb.Database.BeginTransactionAsync())
+        {
+            var initial = await CreateService(initialDb).GrantBatchWithinCurrentTransactionAsync(
+                playerId, requests, CancellationToken.None);
+            Assert.Equal(RewardGrantBatchStatus.Granted, initial.Status);
+            await transaction.CommitAsync();
+        }
+
+        await using (var retryDb = new GameDbContext(options))
+        await using (var transaction = await retryDb.Database.BeginTransactionAsync())
+        {
+            var result = await CreateService(retryDb).GrantBatchWithinCurrentTransactionAsync(
+                playerId, requests, CancellationToken.None);
+
+            Assert.Equal(RewardGrantBatchStatus.AlreadyGranted, result.Status);
+            Assert.Equal(0, result.GrantedRequestCount);
+            Assert.Equal(2, result.AlreadyGrantedRequestCount);
+            Assert.Equal(Player.InitialGold + 30, result.CurrentGold);
+            Assert.Equal(Player.InitialGem + 5, result.CurrentGem);
+            await transaction.CommitAsync();
+        }
+
+        await AssertPersistedTotalsAsync(options, playerId, 30, 5, 2, 3);
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task GrantBatchWithinCurrentTransactionAsync_RejectsEntireBatchWhenPayloadConflicts()
+    {
+        var options = CreateOptions();
+        var playerId = await CreatePlayerAsync(options);
+        var existingRequest = CreateRequest(
+            Guid.NewGuid(), "Existing batch request",
+            RewardBundle.Create(CurrencyReward.Create(RewardType.Gold, 10)));
+        var rejectedRequestId = Guid.NewGuid();
+
+        await using (var initialDb = new GameDbContext(options))
+        {
+            var initial = await CreateService(initialDb).GrantAsync(
+                playerId, existingRequest, CancellationToken.None);
+            Assert.Equal(RewardGrantStatus.Granted, initial.Status);
+        }
+
+        await using (var conflictDb = new GameDbContext(options))
+        await using (var transaction = await conflictDb.Database.BeginTransactionAsync())
+        {
+            var result = await CreateService(conflictDb).GrantBatchWithinCurrentTransactionAsync(
+                playerId,
+                [
+                    CreateRequest(rejectedRequestId, "Rejected batch request",
+                        RewardBundle.Create(CurrencyReward.Create(RewardType.Gold, 999))),
+                    existingRequest with
+                    {
+                        Rewards = RewardBundle.Create(CurrencyReward.Create(RewardType.Gold, 11))
+                    }
+                ],
+                CancellationToken.None);
+
+            Assert.Equal(RewardGrantBatchStatus.IdempotencyConflict, result.Status);
+            // 상위 Rollback에만 의존하지 않고, 서비스가 변경을 적용하지 않았는지도 확인한다.
+            Assert.Equal(Player.InitialGold + 10,
+                (await conflictDb.Players.SingleAsync(player => player.Id == playerId)).Gold);
+            Assert.False(conflictDb.ChangeTracker.HasChanges());
+            await transaction.RollbackAsync();
+        }
+
+        await AssertPersistedTotalsAsync(options, playerId, 10, 0, 1, 1);
+        await using var assertDb = new GameDbContext(options);
+        Assert.False(await assertDb.RewardGrantRecords.AnyAsync(record =>
+            record.PlayerId == playerId && record.RequestId == rejectedRequestId));
+        Assert.False(await assertDb.CurrencyChangeLogs.AnyAsync(change =>
+            change.PlayerId == playerId && change.RequestId == rejectedRequestId));
     }
 
     private static RewardGrantRequest CreateRequest(
