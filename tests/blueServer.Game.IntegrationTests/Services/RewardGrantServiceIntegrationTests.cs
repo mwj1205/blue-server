@@ -19,44 +19,15 @@ public sealed class RewardGrantServiceIntegrationTests
     }
 
     [PostgreSqlIntegrationFact]
-    public async Task GrantAsync_PersistsRewardAndHandlesIdempotentRetry()
+    public async Task GrantAsync_PersistsCurrencyAndLinkedGrantHistory()
     {
-        var connectionString = Environment.GetEnvironmentVariable(
-            PostgreSqlIntegrationFactAttribute.ConnectionStringEnvironmentVariable)!;
-        var options = new DbContextOptionsBuilder<GameDbContext>()
-            .UseNpgsql(connectionString)
-            .Options;
-        var nickname = $"reward-integration-{Guid.NewGuid():N}";
+        var options = CreateOptions();
         var requestId = Guid.NewGuid();
-        var rollbackRequestId = Guid.NewGuid();
-        long playerId;
-
-        await using (var arrangeDb = new GameDbContext(options))
-        {
-            var player = Player.Create(nickname, "integration-test");
-            arrangeDb.Players.Add(player);
-            await arrangeDb.SaveChangesAsync();
-            playerId = player.Id;
-        }
+        var playerId = await CreatePlayerAsync(options);
 
         var rewards = RewardBundle.Create(
             CurrencyReward.Create(RewardType.Gold, 150),
             CurrencyReward.Create(RewardType.Gem, 20));
-
-        // 활성 Transaction 없이 상위 Use Case용 지급 경로를 호출하는 오류 방지 검증
-        await using (var noTransactionDb = new GameDbContext(options))
-        {
-            var service = CreateService(noTransactionDb);
-
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                service.GrantWithinCurrentTransactionAsync(
-                    playerId,
-                    CreateRequest(
-                        rollbackRequestId,
-                        "Missing parent transaction test",
-                        rewards),
-                    CancellationToken.None));
-        }
 
         // 최초 요청의 재화 변경과 지급 이력 저장 검증
         await using (var grantDb = new GameDbContext(options))
@@ -73,78 +44,6 @@ public sealed class RewardGrantServiceIntegrationTests
             Assert.Equal(RewardGrantStatus.Granted, result.Status);
             Assert.Equal(Player.InitialGold + 150, result.CurrentGold);
             Assert.Equal(Player.InitialGem + 20, result.CurrentGem);
-        }
-
-        // 동일 Request ID와 payload 재시도 시 중복 지급 방지 검증
-        await using (var retryDb = new GameDbContext(options))
-        {
-            var service = CreateService(retryDb);
-            var result = await service.GrantAsync(
-                playerId,
-                CreateRequest(
-                    requestId,
-                    "Integration test",
-                    rewards),
-                CancellationToken.None);
-
-            Assert.Equal(RewardGrantStatus.AlreadyGranted, result.Status);
-            Assert.Equal(Player.InitialGold + 150, result.CurrentGold);
-            Assert.Equal(Player.InitialGem + 20, result.CurrentGem);
-        }
-
-        // 동일 Request ID에 다른 이력 출처 사용 시 멱등성 충돌 검증
-        await using (var sourceConflictDb = new GameDbContext(options))
-        {
-            var service = CreateService(sourceConflictDb);
-            var result = await service.GrantAsync(
-                playerId,
-                CreateRequest(
-                    requestId,
-                    "Integration test",
-                    rewards,
-                    "different-source"),
-                CancellationToken.None);
-
-            Assert.Equal(
-                RewardGrantStatus.IdempotencyConflict,
-                result.Status);
-        }
-
-        // 동일 Request ID에 다른 payload 사용 시 멱등성 충돌 검증
-        await using (var conflictDb = new GameDbContext(options))
-        {
-            var service = CreateService(conflictDb);
-            var result = await service.GrantAsync(
-                playerId,
-                CreateRequest(
-                    requestId,
-                    "Integration test",
-                    RewardBundle.Create(
-                        CurrencyReward.Create(RewardType.Gold, 151),
-                        CurrencyReward.Create(RewardType.Gem, 20))),
-                CancellationToken.None);
-
-            Assert.Equal(
-                RewardGrantStatus.IdempotencyConflict,
-                result.Status);
-        }
-
-        // 상위 Use Case Transaction Rollback 시 보상 변경도 함께 Rollback되는지 검증
-        await using (var rollbackDb = new GameDbContext(options))
-        await using (var transaction = await rollbackDb.Database.BeginTransactionAsync())
-        {
-            var service = CreateService(rollbackDb);
-            var result = await service.GrantWithinCurrentTransactionAsync(
-                playerId,
-                CreateRequest(
-                    rollbackRequestId,
-                    "Parent operation rollback test",
-                    RewardBundle.Create(
-                        CurrencyReward.Create(RewardType.Gold, 999))),
-                CancellationToken.None);
-
-            Assert.Equal(RewardGrantStatus.Granted, result.Status);
-            await transaction.RollbackAsync();
         }
 
         await using (var assertDb = new GameDbContext(options))
@@ -168,14 +67,6 @@ public sealed class RewardGrantServiceIntegrationTests
 
             Assert.Equal(Player.InitialGold + 150, player.Gold);
             Assert.Equal(Player.InitialGem + 20, player.Gem);
-            Assert.False(await assertDb.RewardGrantRecords
-                .AnyAsync(record =>
-                    record.PlayerId == playerId &&
-                    record.RequestId == rollbackRequestId));
-            Assert.False(await assertDb.CurrencyChangeLogs
-                .AnyAsync(change =>
-                    change.PlayerId == playerId &&
-                    change.RequestId == rollbackRequestId));
             Assert.Equal("Integration test", grant.Reason);
             Assert.Collection(
                 grant.Items.OrderBy(item => item.Type),
@@ -222,6 +113,156 @@ public sealed class RewardGrantServiceIntegrationTests
                     Assert.Equal(grant.Id, change.RewardGrantRecordId);
                 });
         }
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task GrantAsync_ReturnsAlreadyGrantedWithoutDuplicateChangesOnRetry()
+    {
+        await AssertRepeatedGrantAsync(
+            request => request,
+            RewardGrantStatus.AlreadyGranted);
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task GrantAsync_RejectsDifferentSourceWithSameRequestId()
+    {
+        await AssertRepeatedGrantAsync(
+            request => request with { CurrencyChangeSourceId = "different-source" },
+            RewardGrantStatus.IdempotencyConflict);
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task GrantAsync_RejectsDifferentRewardsWithSameRequestId()
+    {
+        await AssertRepeatedGrantAsync(
+            request => request with
+            {
+                Rewards = RewardBundle.Create(
+                    CurrencyReward.Create(RewardType.Gold, 151),
+                    CurrencyReward.Create(RewardType.Gem, 20))
+            },
+            RewardGrantStatus.IdempotencyConflict);
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task GrantWithinCurrentTransactionAsync_RequiresParentTransaction()
+    {
+        var options = CreateOptions();
+        var playerId = await CreatePlayerAsync(options);
+        await using var db = new GameDbContext(options);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CreateService(db).GrantWithinCurrentTransactionAsync(
+                playerId,
+                CreateRequest(
+                    Guid.NewGuid(),
+                    "Missing parent transaction test",
+                    RewardBundle.Create(CurrencyReward.Create(RewardType.Gold, 100))),
+                CancellationToken.None));
+
+        await AssertPersistedTotalsAsync(options, playerId, 0, 0, 0, 0);
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task GrantWithinCurrentTransactionAsync_RollsBackCurrencyAndHistoryWithParent()
+    {
+        var options = CreateOptions();
+        var playerId = await CreatePlayerAsync(options);
+
+        await using (var db = new GameDbContext(options))
+        await using (var transaction = await db.Database.BeginTransactionAsync())
+        {
+            var result = await CreateService(db).GrantWithinCurrentTransactionAsync(
+                playerId,
+                CreateRequest(
+                    Guid.NewGuid(),
+                    "Parent operation rollback test",
+                    RewardBundle.Create(CurrencyReward.Create(RewardType.Gold, 999))),
+                CancellationToken.None);
+
+            Assert.Equal(RewardGrantStatus.Granted, result.Status);
+            Assert.Equal(Player.InitialGold + 999, result.CurrentGold);
+            Assert.True(await db.RewardGrantRecords.AnyAsync(record =>
+                record.PlayerId == playerId));
+            Assert.True(await db.CurrencyChangeLogs.AnyAsync(change =>
+                change.PlayerId == playerId));
+
+            await transaction.RollbackAsync();
+        }
+
+        await AssertPersistedTotalsAsync(options, playerId, 0, 0, 0, 0);
+    }
+
+    private static async Task AssertRepeatedGrantAsync(
+        Func<RewardGrantRequest, RewardGrantRequest> createRepeatedRequest,
+        RewardGrantStatus expectedStatus)
+    {
+        var options = CreateOptions();
+        var playerId = await CreatePlayerAsync(options);
+        var request = CreateRequest(
+            Guid.NewGuid(),
+            "Integration test",
+            RewardBundle.Create(
+                CurrencyReward.Create(RewardType.Gold, 150),
+                CurrencyReward.Create(RewardType.Gem, 20)));
+
+        await using (var grantDb = new GameDbContext(options))
+        {
+            var initial = await CreateService(grantDb).GrantAsync(
+                playerId, request, CancellationToken.None);
+            Assert.Equal(RewardGrantStatus.Granted, initial.Status);
+        }
+
+        await using (var retryDb = new GameDbContext(options))
+        {
+            var result = await CreateService(retryDb).GrantAsync(
+                playerId, createRepeatedRequest(request), CancellationToken.None);
+            Assert.Equal(expectedStatus, result.Status);
+
+            if (expectedStatus == RewardGrantStatus.AlreadyGranted)
+            {
+                Assert.Equal(Player.InitialGold + 150, result.CurrentGold);
+                Assert.Equal(Player.InitialGem + 20, result.CurrentGem);
+            }
+        }
+
+        await AssertPersistedTotalsAsync(options, playerId, 150, 20, 1, 2);
+    }
+
+    private static async Task AssertPersistedTotalsAsync(
+        DbContextOptions<GameDbContext> options,
+        long playerId,
+        int grantedGold,
+        int grantedGem,
+        int grantCount,
+        int changeCount)
+    {
+        await using var db = new GameDbContext(options);
+        var player = await db.Players.AsNoTracking().SingleAsync(player => player.Id == playerId);
+        Assert.Equal(Player.InitialGold + grantedGold, player.Gold);
+        Assert.Equal(Player.InitialGem + grantedGem, player.Gem);
+        Assert.Equal(grantCount, await db.RewardGrantRecords.CountAsync(record =>
+            record.PlayerId == playerId));
+        Assert.Equal(changeCount, await db.CurrencyChangeLogs.CountAsync(change =>
+            change.PlayerId == playerId));
+    }
+
+    private static DbContextOptions<GameDbContext> CreateOptions()
+    {
+        var connectionString = Environment.GetEnvironmentVariable(
+            PostgreSqlIntegrationFactAttribute.ConnectionStringEnvironmentVariable)!;
+        return new DbContextOptionsBuilder<GameDbContext>()
+            .UseNpgsql(connectionString)
+            .Options;
+    }
+
+    private static async Task<long> CreatePlayerAsync(DbContextOptions<GameDbContext> options)
+    {
+        await using var db = new GameDbContext(options);
+        var player = Player.Create($"reward-integration-{Guid.NewGuid():N}", "integration-test");
+        db.Players.Add(player);
+        await db.SaveChangesAsync();
+        return player.Id;
     }
 
     [PostgreSqlIntegrationFact]
