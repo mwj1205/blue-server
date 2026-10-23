@@ -90,7 +90,10 @@ jobs:
 
   publish-images:
     name: Push ${{ matrix.name }} image
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      vars.AZURE_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
