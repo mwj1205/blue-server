@@ -12,11 +12,7 @@ public sealed class CurrencyChangeServiceIntegrationTests
     [PostgreSqlIntegrationFact]
     public async Task ChangeWithinCurrentTransaction_ChangesAndPersistsCurrencyHistory()
     {
-        var connectionString = Environment.GetEnvironmentVariable(
-            PostgreSqlIntegrationFactAttribute.ConnectionStringEnvironmentVariable)!;
-        var options = new DbContextOptionsBuilder<GameDbContext>()
-            .UseNpgsql(connectionString)
-            .Options;
+        var options = CreateOptions();
         var changedAt = new DateTime(
             2026,
             9,
@@ -27,36 +23,7 @@ public sealed class CurrencyChangeServiceIntegrationTests
             DateTimeKind.Utc);
         var goldRequestId = Guid.NewGuid();
         var gemRequestId = Guid.NewGuid();
-        var insufficientRequestId = Guid.NewGuid();
-        long playerId;
-
-        await using (var arrangeDb = new GameDbContext(options))
-        {
-            var player = Player.Create(
-                $"currency-change-{Guid.NewGuid():N}",
-                "integration-test");
-            arrangeDb.Players.Add(player);
-            await arrangeDb.SaveChangesAsync();
-            playerId = player.Id;
-        }
-
-        await using (var noTransactionDb = new GameDbContext(options))
-        {
-            var player = await noTransactionDb.Players.SingleAsync(
-                player => player.Id == playerId);
-            var service = new CurrencyChangeService(noTransactionDb);
-
-            Assert.Throws<InvalidOperationException>(() =>
-                service.ChangeWithinCurrentTransaction(
-                    player,
-                    CreateRequest(
-                        CurrencyType.Gold,
-                        1,
-                        CurrencyChangeReasonType.AdminAdjustment,
-                        "integration:no-transaction",
-                        Guid.NewGuid(),
-                        changedAt)));
-        }
+        var playerId = await CreatePlayerAsync(options);
 
         await using (var changeDb = new GameDbContext(options))
         await using (var transaction = await changeDb.Database.BeginTransactionAsync())
@@ -83,30 +50,12 @@ public sealed class CurrencyChangeServiceIntegrationTests
                     "integration:gacha",
                     gemRequestId,
                     changedAt.AddSeconds(1)));
-            var insufficientResult = service.ChangeWithinCurrentTransaction(
-                player,
-                CreateRequest(
-                    CurrencyType.Gold,
-                    -(Player.InitialGold + 201),
-                    CurrencyChangeReasonType.ShopPurchase,
-                    "integration:insufficient-gold",
-                    insufficientRequestId,
-                    changedAt.AddSeconds(2)));
-
             Assert.Equal(CurrencyChangeStatus.Changed, goldResult.Status);
             Assert.Equal(Player.InitialGold + 200, goldResult.CurrentBalance);
             Assert.NotNull(goldResult.Change);
             Assert.Equal(CurrencyChangeStatus.Changed, gemResult.Status);
             Assert.Equal(Player.InitialGem - 100, gemResult.CurrentBalance);
             Assert.NotNull(gemResult.Change);
-            Assert.Equal(
-                CurrencyChangeStatus.InsufficientBalance,
-                insufficientResult.Status);
-            Assert.Equal(
-                Player.InitialGold + 200,
-                insufficientResult.CurrentBalance);
-            Assert.Null(insufficientResult.Change);
-
             await changeDb.SaveChangesAsync();
             await transaction.CommitAsync();
         }
@@ -142,10 +91,96 @@ public sealed class CurrencyChangeServiceIntegrationTests
                     Assert.Equal(Player.InitialGem - 100, change.BalanceAfter);
                     Assert.Equal(gemRequestId, change.RequestId);
                 });
-            Assert.DoesNotContain(
-                changes,
-                change => change.RequestId == insufficientRequestId);
         }
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task ChangeWithinCurrentTransaction_LeavesBalanceAndHistoryUnchangedWhenInsufficient()
+    {
+        var options = CreateOptions();
+        var playerId = await CreatePlayerAsync(options);
+
+        await using (var changeDb = new GameDbContext(options))
+        await using (var transaction = await changeDb.Database.BeginTransactionAsync())
+        {
+            var player = await changeDb.Players.SingleAsync(player => player.Id == playerId);
+            var result = new CurrencyChangeService(changeDb).ChangeWithinCurrentTransaction(
+                player,
+                CreateRequest(
+                    CurrencyType.Gold,
+                    -(Player.InitialGold + 1),
+                    CurrencyChangeReasonType.ShopPurchase,
+                    "integration:insufficient-gold",
+                    Guid.NewGuid(),
+                    DateTime.UtcNow));
+
+            Assert.Equal(CurrencyChangeStatus.InsufficientBalance, result.Status);
+            Assert.Equal(Player.InitialGold, result.CurrentBalance);
+            Assert.Null(result.Change);
+            Assert.False(changeDb.ChangeTracker.HasChanges());
+
+            // Rollback에 의존하지 않고 저장과 Commit 후에도 변경이 없는지 검증한다.
+            await changeDb.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+
+        await AssertInitialBalanceAndNoHistoryAsync(options, playerId);
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task ChangeWithinCurrentTransaction_RequiresParentTransaction()
+    {
+        var options = CreateOptions();
+        var playerId = await CreatePlayerAsync(options);
+
+        await using (var db = new GameDbContext(options))
+        {
+            var player = await db.Players.SingleAsync(player => player.Id == playerId);
+            var service = new CurrencyChangeService(db);
+
+            Assert.Throws<InvalidOperationException>(() =>
+                service.ChangeWithinCurrentTransaction(
+                    player,
+                    CreateRequest(
+                        CurrencyType.Gold,
+                        1,
+                        CurrencyChangeReasonType.AdminAdjustment,
+                        "integration:no-transaction",
+                        Guid.NewGuid(),
+                        DateTime.UtcNow)));
+            Assert.False(db.ChangeTracker.HasChanges());
+        }
+
+        await AssertInitialBalanceAndNoHistoryAsync(options, playerId);
+    }
+
+    private static DbContextOptions<GameDbContext> CreateOptions()
+    {
+        var connectionString = Environment.GetEnvironmentVariable(
+            PostgreSqlIntegrationFactAttribute.ConnectionStringEnvironmentVariable)!;
+        return new DbContextOptionsBuilder<GameDbContext>()
+            .UseNpgsql(connectionString)
+            .Options;
+    }
+
+    private static async Task<long> CreatePlayerAsync(DbContextOptions<GameDbContext> options)
+    {
+        await using var db = new GameDbContext(options);
+        var player = Player.Create($"currency-change-{Guid.NewGuid():N}", "integration-test");
+        db.Players.Add(player);
+        await db.SaveChangesAsync();
+        return player.Id;
+    }
+
+    private static async Task AssertInitialBalanceAndNoHistoryAsync(
+        DbContextOptions<GameDbContext> options,
+        long playerId)
+    {
+        await using var db = new GameDbContext(options);
+        var player = await db.Players.AsNoTracking().SingleAsync(player => player.Id == playerId);
+        Assert.Equal(Player.InitialGold, player.Gold);
+        Assert.Equal(Player.InitialGem, player.Gem);
+        Assert.False(await db.CurrencyChangeLogs.AnyAsync(change => change.PlayerId == playerId));
     }
 
     private static CurrencyChangeRequest CreateRequest(
