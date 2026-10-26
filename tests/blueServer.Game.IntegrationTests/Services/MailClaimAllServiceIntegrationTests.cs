@@ -108,12 +108,18 @@ public sealed class MailClaimAllServiceIntegrationTests
             otherPlayerMailId = otherPlayerMail.Id;
         }
 
-        await using (var claimDb = new GameDbContext(options))
+        var saveCounter = new SaveChangesCounterInterceptor();
+        var claimOptions = new DbContextOptionsBuilder<GameDbContext>(options)
+            .AddInterceptors(saveCounter)
+            .Options;
+        await using (var claimDb = new GameDbContext(claimOptions))
         {
             var service = CreateService(claimDb);
             var result = await service.ClaimAllAsync(
                 playerId,
                 claimedAt);
+
+            Assert.Equal(1, saveCounter.Count);
 
             Assert.Equal(MailClaimAllStatus.Claimed, result.Status);
             Assert.Equal(2, result.ClaimedMailCount);

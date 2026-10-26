@@ -122,6 +122,27 @@ public sealed class RewardGrantService
             [request],
             cancellationToken);
 
+        return ToSingleResult(batchResult);
+    }
+
+    // 같은 어셈블리의 상위 Use Case가 마지막 저장을 책임지는 경로
+    internal async Task<RewardGrantResult> PrepareWithinCurrentTransactionAsync(
+        long playerId,
+        RewardGrantRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var batchResult = await PrepareBatchWithinCurrentTransactionAsync(
+            playerId,
+            [request],
+            cancellationToken);
+
+        return ToSingleResult(batchResult);
+    }
+
+    private static RewardGrantResult ToSingleResult(RewardGrantBatchResult batchResult)
+    {
         return batchResult.Status switch
         {
             RewardGrantBatchStatus.Granted => RewardGrantResult.Granted(
@@ -162,7 +183,7 @@ public sealed class RewardGrantService
     }
 
     // 변경을 추적 상태에 반영하며 저장·Commit·Rollback은 수행하지 않음
-    private async Task<RewardGrantBatchResult> PrepareBatchWithinCurrentTransactionAsync(
+    internal async Task<RewardGrantBatchResult> PrepareBatchWithinCurrentTransactionAsync(
         long playerId,
         IReadOnlyList<RewardGrantRequest> requests,
         CancellationToken cancellationToken)

@@ -73,9 +73,9 @@ public sealed class MailClaimAllService
                 mail.Claim(claimedAt);
             }
 
-            // 모든 Mail의 보상과 지급 이력을 한 번의 SaveChanges로 저장
+            // 모든 Mail의 보상과 지급 이력 변경을 준비하며 아직 저장하지 않음
             var rewardResult = await _rewardGrantService
-                .GrantBatchWithinCurrentTransactionAsync(
+                .PrepareBatchWithinCurrentTransactionAsync(
                     playerId,
                     rewardRequests,
                     cancellationToken);
@@ -88,7 +88,7 @@ public sealed class MailClaimAllService
                 return MapRewardFailure(rewardResult.Status);
             }
 
-            // 전체 지급 이력이 기존에 존재해도 Mail Claim 상태 저장
+            // 신규·기존 지급 혼합 여부와 무관하게 모든 변경을 한 번 저장
             await _db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 

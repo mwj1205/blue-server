@@ -68,7 +68,7 @@ public sealed class MailClaimService
             // 같은 SaveChanges에 Mail 상태와 Player 재화 변경 포함
             mail.Claim(claimedAt);
             var rewardResult = await _rewardGrantService
-                .GrantWithinCurrentTransactionAsync(
+                .PrepareWithinCurrentTransactionAsync(
                     playerId,
                     rewardRequest,
                     cancellationToken);
@@ -81,7 +81,7 @@ public sealed class MailClaimService
                 return MapRewardFailure(rewardResult.Status);
             }
 
-            // 기존 지급 이력으로 복구된 경우에도 Mail Claim 상태 저장
+            // 신규 지급과 기존 이력 재사용 모두 상위 Use Case에서 한 번 저장
             await _db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
