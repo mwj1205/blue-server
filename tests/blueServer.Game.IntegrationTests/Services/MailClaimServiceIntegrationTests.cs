@@ -68,7 +68,11 @@ public sealed class MailClaimServiceIntegrationTests
             Assert.Equal(MailClaimStatus.NotFound, result.Status);
         }
 
-        await using (var claimDb = new GameDbContext(options))
+        var saveCounter = new SaveChangesCounterInterceptor();
+        var claimOptions = new DbContextOptionsBuilder<GameDbContext>(options)
+            .AddInterceptors(saveCounter)
+            .Options;
+        await using (var claimDb = new GameDbContext(claimOptions))
         {
             var service = CreateService(claimDb);
             var result = await service.ClaimAsync(
@@ -77,6 +81,7 @@ public sealed class MailClaimServiceIntegrationTests
                 claimedAt);
 
             Assert.Equal(MailClaimStatus.Claimed, result.Status);
+            Assert.Equal(1, saveCounter.Count);
             Assert.Equal(claimedAt, result.ClaimedAt);
             Assert.Equal(Player.InitialGold + 120, result.CurrentGold);
             Assert.Equal(Player.InitialGem + 15, result.CurrentGem);
