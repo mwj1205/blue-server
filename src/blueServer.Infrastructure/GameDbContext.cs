@@ -460,6 +460,12 @@ public class GameDbContext : DbContext
 
         modelBuilder.Entity<MailItemAttachment>(entity =>
         {
+            entity.Property(attachment => attachment.ClaimedQuantity)
+                .HasDefaultValue(0);
+
+            // 잔여량은 원래 수량과 누적 수령량으로 계산하며 별도 저장하지 않음
+            entity.Ignore(attachment => attachment.RemainingQuantity);
+
             // Mail 한 건에는 같은 ItemTemplate을 합산한 Snapshot 한 건만 저장
             entity.HasIndex(attachment => new
             {
@@ -478,6 +484,9 @@ public class GameDbContext : DbContext
                 table.HasCheckConstraint(
                     "CK_MailItemAttachments_Quantity_Positive",
                     "\"Quantity\" > 0");
+                table.HasCheckConstraint(
+                    "CK_MailItemAttachments_ClaimedQuantity_Range",
+                    "\"ClaimedQuantity\" BETWEEN 0 AND \"Quantity\"");
             });
         });
 

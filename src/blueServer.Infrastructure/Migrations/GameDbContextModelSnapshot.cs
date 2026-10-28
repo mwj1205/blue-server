@@ -420,6 +420,11 @@ namespace blueServer.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
+                    b.Property<int>("ClaimedQuantity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<int>("ItemTemplateId")
                         .HasColumnType("integer");
 
@@ -438,6 +443,8 @@ namespace blueServer.Infrastructure.Migrations
 
                     b.ToTable("MailItemAttachments", t =>
                         {
+                            t.HasCheckConstraint("CK_MailItemAttachments_ClaimedQuantity_Range", "\"ClaimedQuantity\" BETWEEN 0 AND \"Quantity\"");
+
                             t.HasCheckConstraint("CK_MailItemAttachments_Quantity_Positive", "\"Quantity\" > 0");
                         });
                 });
