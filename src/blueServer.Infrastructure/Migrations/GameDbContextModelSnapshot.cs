@@ -412,6 +412,100 @@ namespace blueServer.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("blueServer.Domain.Entities.MailClaimRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("CurrentGem")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CurrentGold")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("GrantedGem")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("GrantedGold")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("MailClaimedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("MailId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("PlayerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MailId");
+
+                    b.HasIndex("PlayerId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("MailClaimRecords", t =>
+                        {
+                            t.HasCheckConstraint("CK_MailClaimRecords_Gem_Range", "\"GrantedGem\" >= 0 AND \"CurrentGem\" >= \"GrantedGem\"");
+
+                            t.HasCheckConstraint("CK_MailClaimRecords_Gold_Range", "\"GrantedGold\" >= 0 AND \"CurrentGold\" >= \"GrantedGold\"");
+
+                            t.HasCheckConstraint("CK_MailClaimRecords_MailClaimedAt_Valid", "\"MailClaimedAt\" IS NULL OR \"MailClaimedAt\" <= \"ProcessedAt\"");
+
+                            t.HasCheckConstraint("CK_MailClaimRecords_RequestId_NotEmpty", "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+                        });
+                });
+
+            modelBuilder.Entity("blueServer.Domain.Entities.MailClaimRecordItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("GrantedQuantity")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ItemTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("MailClaimRecordId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("QuantityAfter")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RemainingQuantity")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemTemplateId");
+
+                    b.HasIndex("MailClaimRecordId", "ItemTemplateId")
+                        .IsUnique();
+
+                    b.ToTable("MailClaimRecordItems", t =>
+                        {
+                            t.HasCheckConstraint("CK_MailClaimRecordItems_GrantedQuantity_NonNegative", "\"GrantedQuantity\" >= 0");
+
+                            t.HasCheckConstraint("CK_MailClaimRecordItems_QuantityAfter_Range", "\"QuantityAfter\" BETWEEN \"GrantedQuantity\" AND 999999");
+
+                            t.HasCheckConstraint("CK_MailClaimRecordItems_RemainingQuantity_NonNegative", "\"RemainingQuantity\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("blueServer.Domain.Entities.MailItemAttachment", b =>
                 {
                     b.Property<long>("Id")
@@ -841,6 +935,44 @@ namespace blueServer.Infrastructure.Migrations
                     b.Navigation("Mail");
                 });
 
+            modelBuilder.Entity("blueServer.Domain.Entities.MailClaimRecord", b =>
+                {
+                    b.HasOne("blueServer.Domain.Entities.Mail", "Mail")
+                        .WithMany()
+                        .HasForeignKey("MailId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("blueServer.Domain.Entities.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Mail");
+
+                    b.Navigation("Player");
+                });
+
+            modelBuilder.Entity("blueServer.Domain.Entities.MailClaimRecordItem", b =>
+                {
+                    b.HasOne("blueServer.Domain.Entities.ItemTemplate", "ItemTemplate")
+                        .WithMany()
+                        .HasForeignKey("ItemTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("blueServer.Domain.Entities.MailClaimRecord", "MailClaimRecord")
+                        .WithMany("Items")
+                        .HasForeignKey("MailClaimRecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ItemTemplate");
+
+                    b.Navigation("MailClaimRecord");
+                });
+
             modelBuilder.Entity("blueServer.Domain.Entities.MailItemAttachment", b =>
                 {
                     b.HasOne("blueServer.Domain.Entities.ItemTemplate", "ItemTemplate")
@@ -979,6 +1111,11 @@ namespace blueServer.Infrastructure.Migrations
                     b.Navigation("Attachments");
 
                     b.Navigation("ItemAttachments");
+                });
+
+            modelBuilder.Entity("blueServer.Domain.Entities.MailClaimRecord", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("blueServer.Domain.Entities.Party", b =>

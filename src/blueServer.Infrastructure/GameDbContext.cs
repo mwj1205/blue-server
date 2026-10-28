@@ -32,6 +32,8 @@ public class GameDbContext : DbContext
     public DbSet<MailAttachment> MailAttachments => Set<MailAttachment>();
     public DbSet<MailItemAttachment> MailItemAttachments =>
         Set<MailItemAttachment>();
+    public DbSet<MailClaimRecord> MailClaimRecords => Set<MailClaimRecord>();
+    public DbSet<MailClaimRecordItem> MailClaimRecordItems => Set<MailClaimRecordItem>();
     public DbSet<ItemTemplate> ItemTemplates => Set<ItemTemplate>();
     public DbSet<PlayerItem> PlayerItems => Set<PlayerItem>();
     public DbSet<InventoryItemChangeLog> InventoryItemChangeLogs =>
@@ -455,6 +457,69 @@ public class GameDbContext : DbContext
                 table.HasCheckConstraint(
                     "CK_MailAttachments_Amount_Positive",
                     "\"Amount\" > 0");
+            });
+        });
+
+        modelBuilder.Entity<MailClaimRecord>(entity =>
+        {
+            // 같은 Player의 Request ID는 Mail이 달라도 하나의 수령 결과만 식별
+            entity.HasIndex(record => new { record.PlayerId, record.RequestId })
+                .IsUnique();
+
+            entity.HasOne(record => record.Player)
+                .WithMany()
+                .HasForeignKey(record => record.PlayerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Mail 삭제로 재요청 결과가 유실되지 않도록 자동 연쇄 삭제 금지
+            entity.HasOne(record => record.Mail)
+                .WithMany()
+                .HasForeignKey(record => record.MailId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(record => record.Items)
+                .WithOne(item => item.MailClaimRecord)
+                .HasForeignKey(item => item.MailClaimRecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_MailClaimRecords_RequestId_NotEmpty",
+                    "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+                table.HasCheckConstraint(
+                    "CK_MailClaimRecords_Gold_Range",
+                    "\"GrantedGold\" >= 0 AND \"CurrentGold\" >= \"GrantedGold\"");
+                table.HasCheckConstraint(
+                    "CK_MailClaimRecords_Gem_Range",
+                    "\"GrantedGem\" >= 0 AND \"CurrentGem\" >= \"GrantedGem\"");
+                table.HasCheckConstraint(
+                    "CK_MailClaimRecords_MailClaimedAt_Valid",
+                    "\"MailClaimedAt\" IS NULL OR \"MailClaimedAt\" <= \"ProcessedAt\"");
+            });
+        });
+
+        modelBuilder.Entity<MailClaimRecordItem>(entity =>
+        {
+            entity.HasIndex(item => new { item.MailClaimRecordId, item.ItemTemplateId })
+                .IsUnique();
+
+            entity.HasOne(item => item.ItemTemplate)
+                .WithMany()
+                .HasForeignKey(item => item.ItemTemplateId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_MailClaimRecordItems_GrantedQuantity_NonNegative",
+                    "\"GrantedQuantity\" >= 0");
+                table.HasCheckConstraint(
+                    "CK_MailClaimRecordItems_RemainingQuantity_NonNegative",
+                    "\"RemainingQuantity\" >= 0");
+                table.HasCheckConstraint(
+                    "CK_MailClaimRecordItems_QuantityAfter_Range",
+                    $"\"QuantityAfter\" BETWEEN \"GrantedQuantity\" AND {ItemTemplate.InventoryMaxQuantity}");
             });
         });
 
