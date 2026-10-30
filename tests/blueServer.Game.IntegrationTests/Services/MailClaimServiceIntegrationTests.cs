@@ -229,7 +229,8 @@ public sealed class MailClaimServiceIntegrationTests
             db,
             new RewardGrantService(
                 db,
-                new CurrencyChangeService(db)));
+                new CurrencyChangeService(db)),
+            new blueServer.Infrastructure.Items.InventoryChangeService(db));
     }
 
     private static async Task<MailClaimResult> ClaimWithNewDbContextAsync(

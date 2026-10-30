@@ -1,19 +1,23 @@
 using blueServer.Infrastructure.Rewards;
+using blueServer.Infrastructure.Items;
 using Microsoft.EntityFrameworkCore;
 
 namespace blueServer.Infrastructure.Mails;
 
-public sealed class MailClaimService
+public sealed partial class MailClaimService
 {
     private readonly GameDbContext _db;
     private readonly RewardGrantService _rewardGrantService;
+    private readonly InventoryChangeService _inventoryChangeService;
 
     public MailClaimService(
         GameDbContext db,
-        RewardGrantService rewardGrantService)
+        RewardGrantService rewardGrantService,
+        InventoryChangeService inventoryChangeService)
     {
         _db = db;
         _rewardGrantService = rewardGrantService;
+        _inventoryChangeService = inventoryChangeService;
     }
 
     public async Task<MailClaimResult> ClaimAsync(
