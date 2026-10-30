@@ -7,6 +7,7 @@ using blueServer.Infrastructure.Items;
 using blueServer.Infrastructure.Mails;
 using blueServer.Infrastructure.Rewards;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Xunit;
 
 namespace blueServer.Game.IntegrationTests.Services;
@@ -114,6 +115,146 @@ public sealed class MailItemClaimServiceIntegrationTests
         Assert.Equal(0, await assertDb.RewardGrantRecords.CountAsync(record => record.PlayerId == playerId));
     }
 
+    [PostgreSqlIntegrationFact]
+    public Task ClaimAsync_SameRequestConcurrentlyGrantsExistingItemOnce() =>
+        VerifySameRequestCollisionAsync(initialQuantity: 999000, mixedRewards: true);
+
+    [PostgreSqlIntegrationFact]
+    public Task ClaimAsync_SameRequestConcurrentlyCreatesItemOnce() =>
+        VerifySameRequestCollisionAsync(initialQuantity: 0, mixedRewards: false);
+
+    [PostgreSqlIntegrationFact]
+    public async Task ClaimAsync_DifferentRequestsForSameMailReturnConflictWithoutDoubleGrant()
+    {
+        var options = CreateOptions();
+        var (playerId, mailId, _) = await ArrangeAsync(options, 999000, mixedRewards: false);
+        var gate = new ConcurrentSaveInterceptor();
+        var concurrentOptions = new DbContextOptionsBuilder<GameDbContext>(options)
+            .AddInterceptors(gate).Options;
+        var requests = new[]
+        {
+            new MailClaimRequest(mailId, Guid.NewGuid()),
+            new MailClaimRequest(mailId, Guid.NewGuid())
+        };
+
+        var results = await Task.WhenAll(requests.Select(request =>
+            ClaimAsync(concurrentOptions, playerId, request, Now)));
+
+        Assert.Single(results, result => result.Status == MailClaimRequestStatus.PartiallyClaimed);
+        Assert.Single(results, result => result.Status == MailClaimRequestStatus.ConcurrencyConflict);
+        Assert.True(gate.ConflictCount > 0);
+        await AssertGrantCountsAsync(options, playerId, mailId, quantityAfter: 999999,
+            claimedQuantity: 999, mixedRewards: false);
+    }
+
+    [PostgreSqlIntegrationFact]
+    public async Task ClaimAsync_FailureAfterSaveRollsBackAllChangesAndAllowsRetry()
+    {
+        var options = CreateOptions();
+        var (playerId, mailId, _) = await ArrangeAsync(options, 999000, mixedRewards: true);
+        var request = new MailClaimRequest(mailId, Guid.NewGuid());
+        var failure = new FailAfterClaimSaveInterceptor();
+        var failingOptions = new DbContextOptionsBuilder<GameDbContext>(options)
+            .AddInterceptors(failure).Options;
+        await using (var db = new GameDbContext(failingOptions))
+        {
+            var service = new MailClaimService(db,
+                new RewardGrantService(db, new CurrencyChangeService(db)), new InventoryChangeService(db));
+            await Assert.ThrowsAsync<InjectedClaimFailureException>(() =>
+                service.ClaimAsync(playerId, request, Now));
+            Assert.True(failure.WasTriggered);
+            Assert.Empty(db.ChangeTracker.Entries());
+            Assert.Null(db.Database.CurrentTransaction);
+        }
+
+        await using (var db = new GameDbContext(options))
+        {
+            var mail = await db.Mails.Include(mail => mail.ItemAttachments).SingleAsync(mail => mail.Id == mailId);
+            AssertOriginalMailInformation(mail);
+            Assert.Null(mail.ReadAt);
+            Assert.Null(mail.ClaimedAt);
+            Assert.Equal(0, Assert.Single(mail.ItemAttachments).ClaimedQuantity);
+            Assert.Equal(999000, await db.PlayerItems.Where(item => item.PlayerId == playerId)
+                .Select(item => item.Quantity).SingleAsync());
+            var player = await db.Players.SingleAsync(player => player.Id == playerId);
+            Assert.Equal(Player.InitialGold, player.Gold);
+            Assert.Equal(Player.InitialGem, player.Gem);
+            Assert.Equal(0, await db.MailClaimRecords.CountAsync(record => record.PlayerId == playerId));
+            Assert.Equal(0, await db.MailClaimRecordItems.CountAsync(item => item.MailClaimRecord!.PlayerId == playerId));
+            Assert.Equal(0, await db.InventoryItemChangeLogs.CountAsync(change => change.PlayerId == playerId));
+            Assert.Equal(0, await db.CurrencyChangeLogs.CountAsync(change => change.PlayerId == playerId));
+            Assert.Equal(0, await db.RewardGrantRecords.CountAsync(record => record.PlayerId == playerId));
+            Assert.Equal(0, await db.RewardGrantItems.CountAsync(item => item.RewardGrantRecord!.PlayerId == playerId));
+        }
+
+        var retry = await ClaimAsync(options, playerId, request, Now);
+        Assert.Equal(MailClaimRequestStatus.PartiallyClaimed, retry.Status);
+        await AssertGrantCountsAsync(options, playerId, mailId, quantityAfter: 999999,
+            claimedQuantity: 999, mixedRewards: true);
+    }
+
+    private static async Task VerifySameRequestCollisionAsync(int initialQuantity, bool mixedRewards)
+    {
+        var options = CreateOptions();
+        var (playerId, mailId, _) = await ArrangeAsync(options, initialQuantity, mixedRewards);
+        var request = new MailClaimRequest(mailId, Guid.NewGuid());
+        var gate = new ConcurrentSaveInterceptor();
+        var concurrentOptions = new DbContextOptionsBuilder<GameDbContext>(options)
+            .AddInterceptors(gate).Options;
+
+        var results = await Task.WhenAll(
+            ClaimAsync(concurrentOptions, playerId, request, Now),
+            ClaimAsync(concurrentOptions, playerId, request, Now));
+
+        var expectedStatus = initialQuantity == 0
+            ? MailClaimRequestStatus.Claimed : MailClaimRequestStatus.PartiallyClaimed;
+        Assert.All(results, result => Assert.Equal(expectedStatus, result.Status));
+        Assert.Equal(results[0].Items.ToArray(), results[1].Items.ToArray());
+        Assert.Equal(results[0].ProcessedAt, results[1].ProcessedAt);
+        Assert.Equal(results[0].GrantedGold, results[1].GrantedGold);
+        Assert.Equal(results[0].GrantedGem, results[1].GrantedGem);
+        Assert.True(gate.ConflictCount > 0);
+        await AssertGrantCountsAsync(options, playerId, mailId,
+            quantityAfter: initialQuantity == 0 ? 1000 : 999999,
+            claimedQuantity: initialQuantity == 0 ? 1000 : 999, mixedRewards);
+    }
+
+    private static async Task AssertGrantCountsAsync(
+        DbContextOptions<GameDbContext> options, long playerId, long mailId,
+        int quantityAfter, int claimedQuantity, bool mixedRewards)
+    {
+        await using var db = new GameDbContext(options);
+        var mail = await db.Mails.Include(mail => mail.ItemAttachments).SingleAsync(mail => mail.Id == mailId);
+        AssertOriginalMailInformation(mail);
+        Assert.Equal(claimedQuantity, Assert.Single(mail.ItemAttachments).ClaimedQuantity);
+        Assert.Equal(claimedQuantity == 1000 ? (DateTime?)Now : null, mail.ClaimedAt);
+        Assert.Equal(quantityAfter, await db.PlayerItems.Where(item => item.PlayerId == playerId)
+            .Select(item => item.Quantity).SingleAsync());
+        var player = await db.Players.SingleAsync(player => player.Id == playerId);
+        Assert.Equal(Player.InitialGold + (mixedRewards ? 100 : 0), player.Gold);
+        Assert.Equal(Player.InitialGem + (mixedRewards ? 10 : 0), player.Gem);
+        Assert.Equal(1, await db.MailClaimRecords.CountAsync(record => record.PlayerId == playerId));
+        Assert.Equal(1, await db.MailClaimRecordItems.CountAsync(item => item.MailClaimRecord!.PlayerId == playerId));
+        Assert.Equal(1, await db.InventoryItemChangeLogs.CountAsync(change => change.PlayerId == playerId));
+        Assert.Equal(mixedRewards ? 1 : 0, await db.RewardGrantRecords.CountAsync(record => record.PlayerId == playerId));
+        Assert.Equal(mixedRewards ? 2 : 0, await db.CurrencyChangeLogs.CountAsync(change => change.PlayerId == playerId));
+    }
+
+    private sealed class InjectedClaimFailureException : Exception;
+
+    private sealed class FailAfterClaimSaveInterceptor : SaveChangesInterceptor
+    {
+        public bool WasTriggered { get; private set; }
+
+        public override ValueTask<int> SavedChangesAsync(
+            SaveChangesCompletedEventData eventData, int result,
+            CancellationToken cancellationToken = default)
+        {
+            WasTriggered = true;
+            throw new InjectedClaimFailureException();
+        }
+    }
+
     private static async Task<(long PlayerId, long MailId, int TemplateId)> ArrangeAsync(
         DbContextOptions<GameDbContext> options, int quantity, bool mixedRewards)
     {
@@ -135,7 +276,10 @@ public sealed class MailItemClaimServiceIntegrationTests
         var player = Player.Create($"mail-item-claim-{Guid.NewGuid():N}", "integration-test");
         db.AddRange(player, template);
         await db.SaveChangesAsync();
-        db.PlayerItems.Add(PlayerItem.Create(player.Id, template, quantity));
+        if (quantity > 0)
+        {
+            db.PlayerItems.Add(PlayerItem.Create(player.Id, template, quantity));
+        }
         var mail = Mail.Create(player.Id, "Original claim mail", "Preserve this body",
             Now.AddHours(-1), Now.AddDays(1),
             mixedRewards ? [CurrencyReward.Create(RewardType.Gold, 100), CurrencyReward.Create(RewardType.Gem, 10)] : null,
