@@ -142,6 +142,7 @@ public static class MailEndpoints
         ClaimsPrincipal user,
         MailClaimService mailClaimService,
         long mailId,
+        MailClaimBody request,
         CancellationToken cancellationToken)
     {
         if (!user.TryGetPlayerId(out var playerId))
@@ -154,13 +155,18 @@ public static class MailEndpoints
             return InvalidMailId();
         }
 
+        if (request.RequestId == Guid.Empty)
+        {
+            return Results.BadRequest(new { message = "Request id must not be empty." });
+        }
+
         var result = await mailClaimService.ClaimAsync(
             playerId,
-            mailId,
+            new MailClaimRequest(mailId, request.RequestId),
             DateTime.UtcNow,
             cancellationToken);
 
-        return ToResponse(result);
+        return ToResponse(result, request.RequestId);
     }
 
     private static async Task<IResult> ClaimAllMailAsync(
@@ -259,40 +265,55 @@ public static class MailEndpoints
         };
     }
 
-    private static IResult ToResponse(MailClaimResult result)
+    private static IResult ToResponse(MailClaimRequestResult result, Guid requestId)
     {
         return result.Status switch
         {
-            MailClaimStatus.Claimed when result.ClaimedAt.HasValue =>
+            MailClaimRequestStatus.Claimed or
+                MailClaimRequestStatus.PartiallyClaimed or
+                MailClaimRequestStatus.NoCapacity or
+                MailClaimRequestStatus.AlreadyClaimed =>
                 Results.Ok(new MailClaimResponse(
-                    result.ClaimedAt.Value,
+                    result.MailClaimedAt,
                     result.CurrentGold,
                     result.CurrentGem,
-                    false)),
-            MailClaimStatus.AlreadyClaimed when result.ClaimedAt.HasValue =>
-                Results.Ok(new MailClaimResponse(
-                    result.ClaimedAt.Value,
-                    result.CurrentGold,
-                    result.CurrentGem,
-                    true)),
-            MailClaimStatus.NotFound or
-                MailClaimStatus.PlayerNotFound => Results.NotFound(),
-            MailClaimStatus.Expired => Results.Conflict(new
+                    result.Status == MailClaimRequestStatus.AlreadyClaimed,
+                    requestId,
+                    result.Status.ToString(),
+                    result.ProcessedAt,
+                    result.GrantedGold,
+                    result.GrantedGem,
+                    result.Items.Select(item => new MailClaimItemResponse(
+                        item.ItemTemplateId, item.GrantedQuantity,
+                        item.RemainingQuantity, item.QuantityAfter)).ToArray())),
+            MailClaimRequestStatus.NotFound or
+                MailClaimRequestStatus.PlayerNotFound => Results.NotFound(),
+            MailClaimRequestStatus.Expired => Results.Conflict(new
             {
+                code = result.Status.ToString(),
                 message = "Mail has expired."
             }),
-            MailClaimStatus.NoRewards => Results.Conflict(new
+            MailClaimRequestStatus.NoRewards => Results.Conflict(new
             {
+                code = result.Status.ToString(),
                 message = "Mail has no rewards to claim."
             }),
-            MailClaimStatus.ConcurrencyConflict => Results.Conflict(new
+            MailClaimRequestStatus.ConcurrencyConflict => Results.Conflict(new
             {
+                code = result.Status.ToString(),
                 message = "Mail state changed. Reload the Mail and try again."
             }),
-            MailClaimStatus.IdempotencyConflict => Results.Conflict(new
+            MailClaimRequestStatus.IdempotencyConflict => Results.Conflict(new
             {
+                code = result.Status.ToString(),
                 message = "Mail reward state conflicts with the completed request."
             }),
+            MailClaimRequestStatus.ItemTemplateNotFound or
+                MailClaimRequestStatus.ItemTemplateInactive => Results.Conflict(new
+                {
+                    code = result.Status.ToString(),
+                    message = "An attached item is unavailable. No rewards were applied."
+                }),
             _ => throw new InvalidOperationException(
                 $"Unexpected Mail claim result. Status={result.Status}")
         };

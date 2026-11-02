@@ -72,7 +72,7 @@ internal static class MailPacketMapper
             MailClaimStatus.NotFound or MailClaimStatus.PlayerNotFound =>
                 MailClaimPacketStatus.NotFound,
             MailClaimStatus.Expired => MailClaimPacketStatus.Expired,
-            MailClaimStatus.NoRewards => MailClaimPacketStatus.NoRewards,
+            MailClaimStatus.NoRewards or MailClaimStatus.RequestIdRequired => MailClaimPacketStatus.NoRewards,
             MailClaimStatus.ConcurrencyConflict =>
                 MailClaimPacketStatus.ConcurrencyConflict,
             MailClaimStatus.IdempotencyConflict =>
@@ -87,7 +87,9 @@ internal static class MailPacketMapper
         {
             Success = result.IsSuccess,
             Status = status,
-            Message = GetClaimMessage(status),
+            Message = result.Status == MailClaimStatus.RequestIdRequired
+                ? "Item rewards require a RequestId-capable claim request"
+                : GetClaimMessage(status),
             ClaimedAt = result.ClaimedAt,
             CurrentGold = result.CurrentGold,
             CurrentGem = result.CurrentGem

@@ -50,6 +50,17 @@ finally {
 
 ## Mail HTTP API 통합 검증
 
+단일 수령 `POST /players/me/mails/{mailId}/claim`은 JSON 본문의 `requestId`(비어 있지 않은 GUID)가 필요하다.
+네트워크 오류 후 재시도에는 같은 ID를 사용하고, 남은 아이템을 다시 수령할 때는 새 ID를 사용한다.
+응답의 `status`는 `Claimed`, `PartiallyClaimed`, `NoCapacity`, `AlreadyClaimed`를 구분한다.
+부분 수령과 공간 부족도 처리 결과가 저장되므로 HTTP 200이며, `claimedAt`은 완료 전에는 null이다.
+`items`는 지급량·잔여량·지급 후 보유량을 반환한다. 같은 ID의 재요청은 최초 결과를 그대로 반환한다.
+`wasAlreadyClaimed`는 재요청 여부가 아니라, 최초 처리 당시 이미 완료된 Mail이었는지를 나타낸다.
+
+현재 일괄 수령은 아이템 첨부가 있는 Mail을 제외한다. RequestId 없는 기존 단일 수령 경로도
+아이템 Mail을 거절한다. TCP 패킷 확장 전까지 아이템 부분 수령은 HTTP 경로로 검증한다.
+HTTP 테스트는 인증 흐름 외에 부분 수령·재요청·일괄 수령 제외·입력 오류·만료일 보존을 확인한다.
+
 Mail HTTP API는 배포된 API의 인증 Pipeline과 PostgreSQL을 함께 사용한다. 첫 번째
 PowerShell에서 현재 코드를 API Image로 다시 빌드하고 Kubernetes Node에 적재한
 뒤 Deployment를 재시작한다.
