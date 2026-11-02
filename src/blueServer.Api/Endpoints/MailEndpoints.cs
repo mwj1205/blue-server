@@ -227,7 +227,14 @@ public static class MailEndpoints
             mail.IsClaimed,
             mail.IsExpired,
             mail.CanClaim,
-            attachments);
+            attachments)
+        {
+            ItemAttachments = mail.ItemAttachments.Select(attachment => new MailItemAttachmentResponse(
+                attachment.ItemTemplateId,
+                attachment.Quantity,
+                attachment.ClaimedQuantity,
+                attachment.RemainingQuantity)).ToArray()
+        };
     }
 
     private static IResult ToResponse(MailReadResult result)

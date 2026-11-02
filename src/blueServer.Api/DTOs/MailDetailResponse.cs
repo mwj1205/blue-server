@@ -14,8 +14,18 @@ public sealed record MailDetailResponse(
     bool IsClaimed,
     bool IsExpired,
     bool CanClaim,
-    IReadOnlyList<MailAttachmentResponse> Attachments);
+    IReadOnlyList<MailAttachmentResponse> Attachments)
+{
+    public IReadOnlyList<MailItemAttachmentResponse> ItemAttachments { get; init; } =
+        Array.Empty<MailItemAttachmentResponse>();
+}
 
 public sealed record MailAttachmentResponse(
     RewardType Type,
     int Amount);
+
+public sealed record MailItemAttachmentResponse(
+    int ItemTemplateId,
+    int Quantity,
+    int ClaimedQuantity,
+    int RemainingQuantity);

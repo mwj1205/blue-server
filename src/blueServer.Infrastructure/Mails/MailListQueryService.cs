@@ -59,7 +59,7 @@ public sealed class MailListQueryService
                 mail.ClaimedAt.HasValue,
                 mail.ExpiresAt.HasValue &&
                     mail.ExpiresAt.Value <= currentTime,
-                mail.Attachments.Count))
+                mail.Attachments.Count + mail.ItemAttachments.Count))
             .Take(pageSize + 1)
             .ToListAsync(cancellationToken);
 

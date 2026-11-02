@@ -33,6 +33,7 @@ public sealed class MailItemClaimServiceIntegrationTests
         Assert.Equal(100, partial.GrantedGold);
         Assert.Equal(10, partial.GrantedGem);
         Assert.Equal(new MailClaimItemSnapshot(templateId, 999, 1, 999999), Assert.Single(partial.Items));
+        await AssertMailQueriesAsync(options, playerId, mailId, templateId, 999, completed: false, mixedRewards: true);
         await using (var db = new GameDbContext(options))
         {
             var mail = await db.Mails.Include(mail => mail.ItemAttachments).SingleAsync(mail => mail.Id == mailId);
@@ -67,6 +68,7 @@ public sealed class MailItemClaimServiceIntegrationTests
         Assert.Equal(Player.InitialGold + 100, completed.CurrentGold);
         Assert.Equal(Player.InitialGem + 10, completed.CurrentGem);
         Assert.Equal(new MailClaimItemSnapshot(templateId, 1, 0, 999990), Assert.Single(completed.Items));
+        await AssertMailQueriesAsync(options, playerId, mailId, templateId, 1000, completed: true, mixedRewards: true);
 
         await using var assertDb = new GameDbContext(options);
         var finalMail = await assertDb.Mails.Include(mail => mail.ItemAttachments).SingleAsync(mail => mail.Id == mailId);
@@ -87,6 +89,7 @@ public sealed class MailItemClaimServiceIntegrationTests
         var first = await ClaimAsync(options, playerId, request, Now);
         Assert.Equal(MailClaimRequestStatus.NoCapacity, first.Status);
         Assert.Equal(new MailClaimItemSnapshot(templateId, 0, 1000, 999999), Assert.Single(first.Items));
+        await AssertMailQueriesAsync(options, playerId, mailId, templateId, 0, completed: false, mixedRewards: false);
 
         await using (var db = new GameDbContext(options))
         {
@@ -108,6 +111,7 @@ public sealed class MailItemClaimServiceIntegrationTests
             new MailClaimRequest(mailId, Guid.NewGuid()), Now.AddMinutes(2));
         Assert.Equal(MailClaimRequestStatus.PartiallyClaimed, next.Status);
         Assert.Equal(new MailClaimItemSnapshot(templateId, 10, 990, 999999), Assert.Single(next.Items));
+        await AssertMailQueriesAsync(options, playerId, mailId, templateId, 10, completed: false, mixedRewards: false);
 
         await using var assertDb = new GameDbContext(options);
         Assert.Equal(2, await assertDb.MailClaimRecords.CountAsync(record => record.PlayerId == playerId));
@@ -252,6 +256,40 @@ public sealed class MailItemClaimServiceIntegrationTests
         {
             WasTriggered = true;
             throw new InjectedClaimFailureException();
+        }
+    }
+
+    private static async Task AssertMailQueriesAsync(
+        DbContextOptions<GameDbContext> options, long playerId, long mailId, int templateId,
+        int claimedQuantity, bool completed, bool mixedRewards)
+    {
+        await using var db = new GameDbContext(options);
+        var list = await new MailListQueryService(db).GetAsync(playerId, Now.AddHours(1));
+        Assert.True(list.IsSuccess);
+        var listItem = Assert.Single(list.Items);
+        Assert.Equal(mailId, listItem.Id);
+        Assert.Equal(mixedRewards ? 3 : 1, listItem.AttachmentCount);
+        Assert.Equal(!completed, listItem.CanClaim);
+
+        var detail = await new MailDetailQueryService(db).GetAsync(playerId, mailId, Now.AddHours(1));
+        Assert.True(detail.IsSuccess);
+        Assert.NotNull(detail.Mail);
+        Assert.Equal(!completed, detail.Mail.CanClaim);
+        Assert.Equal(mixedRewards ? 2 : 0, detail.Mail.Attachments.Count);
+        var attachment = Assert.Single(detail.Mail.ItemAttachments);
+        Assert.Equal(templateId, attachment.ItemTemplateId);
+        Assert.Equal(1000, attachment.Quantity);
+        Assert.Equal(claimedQuantity, attachment.ClaimedQuantity);
+        Assert.Equal(1000 - claimedQuantity, attachment.RemainingQuantity);
+        Assert.Equal(Now.AddDays(1), detail.Mail.ExpiresAt);
+
+        if (!completed)
+        {
+            var expired = await new MailDetailQueryService(db).GetAsync(playerId, mailId, Now.AddDays(2));
+            Assert.NotNull(expired.Mail);
+            Assert.True(expired.Mail.IsExpired);
+            Assert.False(expired.Mail.CanClaim);
+            Assert.Equal(1000 - claimedQuantity, Assert.Single(expired.Mail.ItemAttachments).RemainingQuantity);
         }
     }
 

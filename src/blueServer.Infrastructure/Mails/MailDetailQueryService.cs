@@ -23,6 +23,8 @@ public sealed class MailDetailQueryService
         // Mail 조회
         var mail = await _db.Mails
             .AsNoTracking()
+            // 본문과 두 종류의 첨부를 동일한 조회 시점의 상태로 반환
+            .AsSingleQuery()
             .Where(mail =>
                 mail.Id == mailId &&
                 mail.PlayerId == playerId)
@@ -41,7 +43,16 @@ public sealed class MailDetailQueryService
                     .Select(attachment => new MailDetailAttachment(
                         attachment.Type,
                         attachment.Amount))
-                    .ToArray()))
+                    .ToArray())
+            {
+                ItemAttachments = mail.ItemAttachments
+                    .OrderBy(attachment => attachment.ItemTemplateId)
+                    .Select(attachment => new MailDetailItemAttachment(
+                        attachment.ItemTemplateId,
+                        attachment.Quantity,
+                        attachment.ClaimedQuantity))
+                    .ToArray()
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
         return mail is null
@@ -90,10 +101,13 @@ public sealed record MailDetail(
     bool IsExpired,
     IReadOnlyList<MailDetailAttachment> Attachments)
 {
+    public IReadOnlyList<MailDetailItemAttachment> ItemAttachments { get; init; } =
+        Array.Empty<MailDetailItemAttachment>();
+
     public bool IsRead => ReadAt.HasValue;
     public bool IsClaimed => ClaimedAt.HasValue;
     public bool CanClaim =>
-        Attachments.Count > 0 &&
+        (Attachments.Count > 0 || ItemAttachments.Any(item => item.RemainingQuantity > 0)) &&
         !IsClaimed &&
         !IsExpired;
 }
@@ -101,6 +115,14 @@ public sealed record MailDetail(
 public sealed record MailDetailAttachment(
     RewardType Type,
     int Amount);
+
+public sealed record MailDetailItemAttachment(
+    int ItemTemplateId,
+    int Quantity,
+    int ClaimedQuantity)
+{
+    public int RemainingQuantity => Quantity - ClaimedQuantity;
+}
 
 public enum MailDetailStatus
 {
