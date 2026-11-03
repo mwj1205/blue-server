@@ -5,6 +5,56 @@ namespace blueServer.Game.Handlers;
 
 internal static class MailPacketMapper
 {
+    public static MailClaimResultPacket ToPacket(
+        MailClaimRequestResult result,
+        Guid requestId)
+    {
+        var status = result.Status switch
+        {
+            MailClaimRequestStatus.Claimed => MailClaimPacketStatus.Claimed,
+            MailClaimRequestStatus.AlreadyClaimed => MailClaimPacketStatus.AlreadyClaimed,
+            MailClaimRequestStatus.PartiallyClaimed => MailClaimPacketStatus.PartiallyClaimed,
+            MailClaimRequestStatus.NoCapacity => MailClaimPacketStatus.NoCapacity,
+            MailClaimRequestStatus.NotFound or
+                MailClaimRequestStatus.PlayerNotFound => MailClaimPacketStatus.NotFound,
+            MailClaimRequestStatus.Expired => MailClaimPacketStatus.Expired,
+            MailClaimRequestStatus.NoRewards => MailClaimPacketStatus.NoRewards,
+            MailClaimRequestStatus.ConcurrencyConflict => MailClaimPacketStatus.ConcurrencyConflict,
+            MailClaimRequestStatus.IdempotencyConflict => MailClaimPacketStatus.IdempotencyConflict,
+            MailClaimRequestStatus.ItemTemplateNotFound => MailClaimPacketStatus.ItemTemplateNotFound,
+            MailClaimRequestStatus.ItemTemplateInactive => MailClaimPacketStatus.ItemTemplateInactive,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(result.Status),
+                result.Status,
+                "Unexpected Mail claim status.")
+        };
+
+        return new MailClaimResultPacket
+        {
+            Success = status is
+                MailClaimPacketStatus.Claimed or
+                MailClaimPacketStatus.AlreadyClaimed or
+                MailClaimPacketStatus.PartiallyClaimed or
+                MailClaimPacketStatus.NoCapacity,
+            Status = status,
+            Message = status.ToString(),
+            RequestId = requestId,
+            ProcessedAt = result.ProcessedAt,
+            ClaimedAt = result.MailClaimedAt,
+            GrantedGold = result.GrantedGold,
+            GrantedGem = result.GrantedGem,
+            CurrentGold = result.CurrentGold,
+            CurrentGem = result.CurrentGem,
+            Items = result.Items
+                .Select(item => new MailClaimPacketItem(
+                    item.ItemTemplateId,
+                    item.GrantedQuantity,
+                    item.RemainingQuantity,
+                    item.QuantityAfter))
+                .ToArray()
+        };
+    }
+
     public static MailListResultPacket ToPacket(MailListResult result)
     {
         return new MailListResultPacket
