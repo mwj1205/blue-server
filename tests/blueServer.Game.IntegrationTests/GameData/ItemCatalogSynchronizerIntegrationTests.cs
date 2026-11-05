@@ -7,6 +7,7 @@ using Xunit;
 
 namespace blueServer.Game.IntegrationTests.GameData;
 
+[Collection(nameof(CatalogSynchronizationCollection))]
 public sealed class ItemCatalogSynchronizerIntegrationTests
 {
     [PostgreSqlIntegrationFact]

@@ -3,6 +3,12 @@
 `RewardGrantService`의 재화 변경과 보상 지급 이력이 같은 PostgreSQL Transaction으로 저장되는지 검증한다.
 일반 `dotnet test`에서는 환경 변수가 없으면 건너뛰며, 실제 DB 검증 시에만 연결 문자열을 전달한다.
 
+Catalog 동기화 테스트는 전체 ItemTemplate 상태를 기준으로 동작하므로
+`CatalogSynchronizationCollection`의 `DisableParallelization = true`로 다른 Collection과 격리한다.
+나머지 테스트의 병렬 실행과 테스트 내부에서 명시적으로 시작하는 동시성 검증은 유지한다.
+이 설정은 같은 테스트 실행 프로세스에만 적용된다. 같은 DB를 사용하는 별도 테스트 프로세스나
+Catalog 동기화 Job을 동시에 실행하지 않는다.
+
 ## 로컬 Kubernetes 실행
 
 첫 번째 PowerShell에서 PostgreSQL Service를 로컬 포트로 전달한다.
