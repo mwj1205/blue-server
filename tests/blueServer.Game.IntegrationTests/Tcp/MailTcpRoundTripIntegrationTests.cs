@@ -13,7 +13,7 @@ using Xunit;
 
 namespace blueServer.Game.IntegrationTests.Tcp;
 
-public sealed class MailTcpRoundTripIntegrationTests
+public sealed partial class MailTcpRoundTripIntegrationTests
 {
     private const int MaxPacketSize = 4096;
 
