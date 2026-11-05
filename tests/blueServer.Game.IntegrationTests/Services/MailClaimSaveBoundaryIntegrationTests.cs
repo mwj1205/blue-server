@@ -174,7 +174,7 @@ public sealed class MailClaimSaveBoundaryIntegrationTests
         new(db, new CurrencyChangeService(db));
 
     private static MailClaimService CreateSingleService(GameDbContext db) =>
-        new(db, CreateRewardService(db));
+        new(db, CreateRewardService(db), new blueServer.Infrastructure.Items.InventoryChangeService(db));
 
     private sealed class InjectedSaveFailureException : Exception;
 

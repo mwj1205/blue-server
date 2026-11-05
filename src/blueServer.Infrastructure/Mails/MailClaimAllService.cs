@@ -42,6 +42,8 @@ public sealed class MailClaimAllService
                     !mail.ClaimedAt.HasValue &&
                     (!mail.ExpiresAt.HasValue ||
                         mail.ExpiresAt.Value > claimedAt) &&
+                    // 아이템 일괄 수령 연결 전에는 혼합 Mail도 건너뛰어 보상 유실 방지
+                    !mail.ItemAttachments.Any() &&
                     mail.Attachments.Any())
                 .OrderBy(mail => mail.SentAt)
                 .ThenBy(mail => mail.Id)

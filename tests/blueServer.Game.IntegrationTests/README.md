@@ -3,6 +3,12 @@
 `RewardGrantService`의 재화 변경과 보상 지급 이력이 같은 PostgreSQL Transaction으로 저장되는지 검증한다.
 일반 `dotnet test`에서는 환경 변수가 없으면 건너뛰며, 실제 DB 검증 시에만 연결 문자열을 전달한다.
 
+Catalog 동기화 테스트는 전체 ItemTemplate 상태를 기준으로 동작하므로
+`CatalogSynchronizationCollection`의 `DisableParallelization = true`로 다른 Collection과 격리한다.
+나머지 테스트의 병렬 실행과 테스트 내부에서 명시적으로 시작하는 동시성 검증은 유지한다.
+이 설정은 같은 테스트 실행 프로세스에만 적용된다. 같은 DB를 사용하는 별도 테스트 프로세스나
+Catalog 동기화 Job을 동시에 실행하지 않는다.
+
 ## 로컬 Kubernetes 실행
 
 첫 번째 PowerShell에서 PostgreSQL Service를 로컬 포트로 전달한다.
@@ -49,6 +55,17 @@ finally {
 - `RewardGrantRecords`, `RewardGrantItems` 지급 snapshot 저장
 
 ## Mail HTTP API 통합 검증
+
+단일 수령 `POST /players/me/mails/{mailId}/claim`은 JSON 본문의 `requestId`(비어 있지 않은 GUID)가 필요하다.
+네트워크 오류 후 재시도에는 같은 ID를 사용하고, 남은 아이템을 다시 수령할 때는 새 ID를 사용한다.
+응답의 `status`는 `Claimed`, `PartiallyClaimed`, `NoCapacity`, `AlreadyClaimed`를 구분한다.
+부분 수령과 공간 부족도 처리 결과가 저장되므로 HTTP 200이며, `claimedAt`은 완료 전에는 null이다.
+`items`는 지급량·잔여량·지급 후 보유량을 반환한다. 같은 ID의 재요청은 최초 결과를 그대로 반환한다.
+`wasAlreadyClaimed`는 재요청 여부가 아니라, 최초 처리 당시 이미 완료된 Mail이었는지를 나타낸다.
+
+현재 일괄 수령은 아이템 첨부가 있는 Mail을 제외한다. RequestId 없는 기존 단일 수령 경로도
+아이템 Mail을 거절한다. TCP 패킷 확장 전까지 아이템 부분 수령은 HTTP 경로로 검증한다.
+HTTP 테스트는 인증 흐름 외에 부분 수령·재요청·일괄 수령 제외·입력 오류·만료일 보존을 확인한다.
 
 Mail HTTP API는 배포된 API의 인증 Pipeline과 PostgreSQL을 함께 사용한다. 첫 번째
 PowerShell에서 현재 코드를 API Image로 다시 빌드하고 Kubernetes Node에 적재한
@@ -198,3 +215,11 @@ finally {
 중복 지급 방지, 다른 Player Mail 비노출을 검증한다. 마지막으로 PostgreSQL의
 Mail 상태와 Player 재화·지급 이력을 확인하며, 생성한 데이터는 테스트 후에도
 유지한다.
+
+`MailFlow_PartialItemClaimPreservesRemainderAndReplaysRequest`는 아이템 999,000개 보유 상태에서
+아이템 1,000개와 Gold 100이 첨부된 Mail을 실제 TCP로 수령한다. 최초 999개 지급·1개 보존,
+같은 RequestId 결과 복원, 공간 부족, 공간 확보 후 새 RequestId 최종 수령을 확인한다.
+공간 확보는 테스트가 DB에서 아이템 1개를 직접 차감해 준비한다. 아이템 사용 API 검증은 아니다.
+기존 RequestId 없는 요청의 아이템 Mail 거절과 완료 후 최초 요청 결과 복원도 확인한다.
+마지막으로 원래 Mail 정보·만료일·읽음 시각 보존, 재화 중복 지급 방지, 수령 기록과 인벤토리를 검사한다.
+테스트 Player·ItemTemplate·Mail·변경/수령 이력은 삭제하지 않는다.

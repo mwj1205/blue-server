@@ -1,19 +1,23 @@
 using blueServer.Infrastructure.Rewards;
+using blueServer.Infrastructure.Items;
 using Microsoft.EntityFrameworkCore;
 
 namespace blueServer.Infrastructure.Mails;
 
-public sealed class MailClaimService
+public sealed partial class MailClaimService
 {
     private readonly GameDbContext _db;
     private readonly RewardGrantService _rewardGrantService;
+    private readonly InventoryChangeService _inventoryChangeService;
 
     public MailClaimService(
         GameDbContext db,
-        RewardGrantService rewardGrantService)
+        RewardGrantService rewardGrantService,
+        InventoryChangeService inventoryChangeService)
     {
         _db = db;
         _rewardGrantService = rewardGrantService;
+        _inventoryChangeService = inventoryChangeService;
     }
 
     public async Task<MailClaimResult> ClaimAsync(
@@ -56,6 +60,12 @@ public sealed class MailClaimService
             if (mail.IsExpired(claimedAt))
             {
                 return MailClaimResult.Expired();
+            }
+
+            // RequestId 없는 기존 TCP 경로에서 아이템 Mail을 완료 처리하지 않음
+            if (await _db.MailItemAttachments.AnyAsync(item => item.MailId == mailId, cancellationToken))
+            {
+                return MailClaimResult.RequestIdRequired();
             }
 
             if (mail.Attachments.Count == 0)
@@ -238,7 +248,8 @@ public enum MailClaimStatus
     NoRewards = 4,
     PlayerNotFound = 5,
     ConcurrencyConflict = 6,
-    IdempotencyConflict = 7
+    IdempotencyConflict = 7,
+    RequestIdRequired = 8
 }
 
 public sealed record MailClaimResult(
@@ -304,6 +315,8 @@ public sealed record MailClaimResult(
     {
         return Failure(MailClaimStatus.IdempotencyConflict);
     }
+
+    public static MailClaimResult RequestIdRequired() => Failure(MailClaimStatus.RequestIdRequired);
 
     private static MailClaimResult Failure(MailClaimStatus status)
     {

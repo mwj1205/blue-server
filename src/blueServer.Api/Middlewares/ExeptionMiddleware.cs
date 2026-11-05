@@ -38,6 +38,18 @@ public class ExceptionMiddleware
                 context.Request.Path.Value,
                 context.TraceIdentifier);
         }
+        catch (BadHttpRequestException ex) when (!context.Response.HasStarted)
+        {
+            // 필수 본문 누락·잘못된 JSON 등의 입력 오류를 500으로 바꾸지 않음
+            _logger.LogWarning(
+                "Invalid HTTP request. Method={Method}, Path={Path}, RequestId={RequestId}, StatusCode={StatusCode}",
+                context.Request.Method, context.Request.Path.Value,
+                context.TraceIdentifier, ex.StatusCode);
+
+            context.Response.StatusCode = ex.StatusCode;
+            await context.Response.WriteAsJsonAsync(
+                new { message = "Invalid HTTP request." }, context.RequestAborted);
+        }
         catch (GameException ex)
         {
             _logger.LogWarning(

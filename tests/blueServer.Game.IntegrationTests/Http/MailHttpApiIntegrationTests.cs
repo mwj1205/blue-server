@@ -10,7 +10,7 @@ using Xunit;
 
 namespace blueServer.Game.IntegrationTests.Http;
 
-public sealed class MailHttpApiIntegrationTests
+public sealed partial class MailHttpApiIntegrationTests
 {
     [ApiPostgreSqlIntegrationFact]
     public async Task MailEndpoints_CompleteAuthenticatedClaimFlow()
@@ -175,9 +175,9 @@ public sealed class MailHttpApiIntegrationTests
                 otherPlayerResponse.StatusCode);
         }
 
-        using (var expiredClaimResponse = await client.PostAsync(
+        using (var expiredClaimResponse = await client.PostAsJsonAsync(
             $"/players/me/mails/{expiredMailId}/claim",
-            null))
+            new { requestId = Guid.NewGuid() }))
         {
             Assert.Equal(
                 HttpStatusCode.Conflict,
@@ -219,9 +219,10 @@ public sealed class MailHttpApiIntegrationTests
                 TimeSpan.FromMicroseconds(1));
         }
 
-        using (var claimResponse = await client.PostAsync(
+        var claimRequestId = Guid.NewGuid();
+        using (var claimResponse = await client.PostAsJsonAsync(
             $"/players/me/mails/{singleClaimMailId}/claim",
-            null))
+            new { requestId = claimRequestId }))
         {
             Assert.Equal(HttpStatusCode.OK, claimResponse.StatusCode);
             using var body = await ReadJsonAsync(claimResponse);
@@ -237,19 +238,27 @@ public sealed class MailHttpApiIntegrationTests
                 body.RootElement.GetProperty("currentGem").GetInt32());
         }
 
-        using (var retryClaimResponse = await client.PostAsync(
+        using (var retryClaimResponse = await client.PostAsJsonAsync(
             $"/players/me/mails/{singleClaimMailId}/claim",
-            null))
+            new { requestId = claimRequestId }))
         {
             Assert.Equal(HttpStatusCode.OK, retryClaimResponse.StatusCode);
             using var body = await ReadJsonAsync(retryClaimResponse);
-            Assert.True(
+            Assert.False(
                 body.RootElement
                     .GetProperty("wasAlreadyClaimed")
                     .GetBoolean());
             Assert.Equal(
                 Player.InitialGold + 120,
                 body.RootElement.GetProperty("currentGold").GetInt32());
+        }
+
+        using (var alreadyClaimedResponse = await client.PostAsJsonAsync(
+            $"/players/me/mails/{singleClaimMailId}/claim", new { requestId = Guid.NewGuid() }))
+        {
+            Assert.Equal(HttpStatusCode.OK, alreadyClaimedResponse.StatusCode);
+            using var body = await ReadJsonAsync(alreadyClaimedResponse);
+            Assert.True(body.RootElement.GetProperty("wasAlreadyClaimed").GetBoolean());
         }
 
         using (var claimAllResponse = await client.PostAsync(
