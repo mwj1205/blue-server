@@ -412,6 +412,69 @@ namespace blueServer.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("blueServer.Domain.Entities.MailClaimAllRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("CurrentGem")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CurrentGold")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("HasMore")
+                        .HasColumnType("boolean");
+
+                    b.Property<long>("PlayerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlayerId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("MailClaimAllRecords", t =>
+                        {
+                            t.HasCheckConstraint("CK_MailClaimAllRecords_CurrentGem_NonNegative", "\"CurrentGem\" >= 0");
+
+                            t.HasCheckConstraint("CK_MailClaimAllRecords_CurrentGold_NonNegative", "\"CurrentGold\" >= 0");
+
+                            t.HasCheckConstraint("CK_MailClaimAllRecords_RequestId_NotEmpty", "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+                        });
+                });
+
+            modelBuilder.Entity("blueServer.Domain.Entities.MailClaimAllRecordEntry", b =>
+                {
+                    b.Property<long>("MailClaimAllRecordId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("MailClaimRecordId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("MailClaimAllRecordId", "Position");
+
+                    b.HasIndex("MailClaimRecordId")
+                        .IsUnique();
+
+                    b.ToTable("MailClaimAllRecordEntries", t =>
+                        {
+                            t.HasCheckConstraint("CK_MailClaimAllRecordEntries_Position_Range", "\"Position\" >= 0 AND \"Position\" < 100");
+                        });
+                });
+
             modelBuilder.Entity("blueServer.Domain.Entities.MailClaimRecord", b =>
                 {
                     b.Property<long>("Id")
@@ -935,6 +998,32 @@ namespace blueServer.Infrastructure.Migrations
                     b.Navigation("Mail");
                 });
 
+            modelBuilder.Entity("blueServer.Domain.Entities.MailClaimAllRecord", b =>
+                {
+                    b.HasOne("blueServer.Domain.Entities.Player", null)
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("blueServer.Domain.Entities.MailClaimAllRecordEntry", b =>
+                {
+                    b.HasOne("blueServer.Domain.Entities.MailClaimAllRecord", null)
+                        .WithMany("Entries")
+                        .HasForeignKey("MailClaimAllRecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("blueServer.Domain.Entities.MailClaimRecord", "MailClaimRecord")
+                        .WithOne()
+                        .HasForeignKey("blueServer.Domain.Entities.MailClaimAllRecordEntry", "MailClaimRecordId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("MailClaimRecord");
+                });
+
             modelBuilder.Entity("blueServer.Domain.Entities.MailClaimRecord", b =>
                 {
                     b.HasOne("blueServer.Domain.Entities.Mail", "Mail")
@@ -1111,6 +1200,11 @@ namespace blueServer.Infrastructure.Migrations
                     b.Navigation("Attachments");
 
                     b.Navigation("ItemAttachments");
+                });
+
+            modelBuilder.Entity("blueServer.Domain.Entities.MailClaimAllRecord", b =>
+                {
+                    b.Navigation("Entries");
                 });
 
             modelBuilder.Entity("blueServer.Domain.Entities.MailClaimRecord", b =>
