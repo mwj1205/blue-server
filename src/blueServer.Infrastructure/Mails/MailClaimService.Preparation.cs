@@ -13,7 +13,7 @@ public sealed partial class MailClaimService
     // 이 메서드는 저장하지 않으며, 실패 결과를 받으면 호출자가 전체 작업을 Rollback해야 한다.
     // RequestId의 재요청 확인과 충돌 복구도 상위 작업에서 수행한다.
     // 반환 결과는 아직 확정되지 않았으며 상위 Commit 성공 후에만 Client로 전달한다.
-    internal async Task<MailClaimRequestResult> PrepareWithinCurrentTransactionAsync(
+    internal async Task<PreparedMailClaim> PrepareWithinCurrentTransactionAsync(
         long playerId,
         MailClaimRequest request,
         DateTime processedAt,
@@ -39,25 +39,44 @@ public sealed partial class MailClaimService
 
         if (mail is null)
         {
-            return MailClaimRequestResult.Failure(MailClaimRequestStatus.NotFound);
+            return new(MailClaimRequestResult.Failure(MailClaimRequestStatus.NotFound));
         }
+
+        return await PrepareTrackedMailAsync(mail, request.RequestId, processedAt, cancellationToken);
+    }
+
+    internal async Task<PreparedMailClaim> PrepareTrackedMailAsync(
+        Mail mail,
+        Guid requestId,
+        DateTime processedAt,
+        CancellationToken cancellationToken)
+    {
+        if (_db.Database.CurrentTransaction is null ||
+            _db.Entry(mail).State == EntityState.Detached ||
+            mail.Player is null)
+        {
+            throw new InvalidOperationException(
+                "Mail and its Player must be tracked in the active claim transaction.");
+        }
+
+        var player = mail.Player;
 
         if (mail.IsClaimed)
         {
-            return new MailClaimRequestResult(
+            return new(new MailClaimRequestResult(
                 MailClaimRequestStatus.AlreadyClaimed,
                 null,
                 mail.ClaimedAt,
                 0,
                 0,
-                mail.Player!.Gold,
-                mail.Player.Gem,
-                Array.Empty<MailClaimItemSnapshot>());
+                player.Gold,
+                player.Gem,
+                Array.Empty<MailClaimItemSnapshot>()));
         }
 
         if (mail.IsExpired(processedAt))
         {
-            return MailClaimRequestResult.Failure(MailClaimRequestStatus.Expired);
+            return new(MailClaimRequestResult.Failure(MailClaimRequestStatus.Expired));
         }
 
         if (processedAt < mail.SentAt)
@@ -69,7 +88,7 @@ public sealed partial class MailClaimService
 
         if (!mail.HasAttachments)
         {
-            return MailClaimRequestResult.Failure(MailClaimRequestStatus.NoRewards);
+            return new(MailClaimRequestResult.Failure(MailClaimRequestStatus.NoRewards));
         }
 
         var grantedGold = 0;
@@ -79,17 +98,17 @@ public sealed partial class MailClaimService
         {
             // 재화는 Mail 고정 키로 한 번만 지급하며 부분 수령의 RequestId와 구분
             var rewardResult = await _rewardGrantService.PrepareWithinCurrentTransactionAsync(
-                playerId,
+                mail.PlayerId,
                 MailRewardGrantRequestFactory.Create(mail),
                 cancellationToken);
 
             if (!rewardResult.IsSuccess)
             {
-                return MailClaimRequestResult.Failure(rewardResult.Status switch
+                return new(MailClaimRequestResult.Failure(rewardResult.Status switch
                 {
                     RewardGrantStatus.PlayerNotFound => MailClaimRequestStatus.PlayerNotFound,
                     _ => MailClaimRequestStatus.IdempotencyConflict
-                });
+                }));
             }
 
             if (rewardResult.Status == RewardGrantStatus.Granted)
@@ -108,25 +127,25 @@ public sealed partial class MailClaimService
                      .OrderBy(item => item.ItemTemplateId))
         {
             var increase = await _inventoryChangeService.IncreaseWithinCurrentTransactionAsync(
-                mail.Player!,
+                player,
                 new InventoryIncreaseRequest(
                     attachment.ItemTemplateId,
                     attachment.RemainingQuantity,
                     InventoryItemChangeReasonType.MailClaim,
                     $"mail:{mail.Id}",
-                    request.RequestId,
+                    requestId,
                     processedAt),
                 cancellationToken);
 
             if (!increase.IsSuccess)
             {
-                return MailClaimRequestResult.Failure(increase.Status switch
+                return new(MailClaimRequestResult.Failure(increase.Status switch
                 {
                     InventoryIncreaseStatus.ItemTemplateNotFound => MailClaimRequestStatus.ItemTemplateNotFound,
                     InventoryIncreaseStatus.ItemTemplateInactive => MailClaimRequestStatus.ItemTemplateInactive,
                     _ => throw new InvalidOperationException(
                         "Unexpected inventory increase status.")
-                });
+                }));
             }
 
             attachment.Claim(increase.AppliedQuantity);
@@ -147,18 +166,22 @@ public sealed partial class MailClaimService
         _db.Entry(mail).Property(candidate => candidate.ClaimedAt).IsModified = true;
 
         var record = MailClaimRecord.Create(
-            playerId,
+            mail.PlayerId,
             mail.Id,
-            request.RequestId,
+            requestId,
             processedAt,
             mail.ClaimedAt,
             grantedGold,
             grantedGem,
-            mail.Player!.Gold,
-            mail.Player.Gem,
+            player.Gold,
+            player.Gem,
             items);
         _db.MailClaimRecords.Add(record);
 
-        return MailClaimRequestResult.FromRecord(record);
+        return new(MailClaimRequestResult.FromRecord(record), record);
     }
 }
+
+internal sealed record PreparedMailClaim(
+    MailClaimRequestResult Result,
+    MailClaimRecord? Record = null);

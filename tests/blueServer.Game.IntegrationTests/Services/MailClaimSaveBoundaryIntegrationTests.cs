@@ -111,7 +111,7 @@ public sealed class MailClaimSaveBoundaryIntegrationTests
     {
         if (claimAll)
         {
-            var result = await new MailClaimAllService(db, CreateRewardService(db))
+            var result = await new MailClaimAllService(db, CreateRewardService(db), CreateSingleService(db))
                 .ClaimAllAsync(playerId, ClaimedAt);
             Assert.Equal(MailClaimAllStatus.Claimed, result.Status);
             Assert.Equal(mailIds.Length, result.ClaimedMailCount);

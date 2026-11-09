@@ -25,25 +25,22 @@ public sealed partial class MailClaimService
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            var result = await PrepareWithinCurrentTransactionAsync(
+            var prepared = await PrepareWithinCurrentTransactionAsync(
                 playerId,
                 request,
                 processedAt,
                 cancellationToken);
 
-            if (result.Status is not (
-                MailClaimRequestStatus.Claimed or
-                MailClaimRequestStatus.PartiallyClaimed or
-                MailClaimRequestStatus.NoCapacity))
+            if (prepared.Record is null)
             {
                 await transaction.RollbackAsync(CancellationToken.None);
                 _db.ChangeTracker.Clear();
-                return result;
+                return prepared.Result;
             }
 
             await _db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return result;
+            return prepared.Result;
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -78,7 +75,7 @@ public sealed partial class MailClaimService
             : MailClaimRequestResult.Failure(MailClaimRequestStatus.IdempotencyConflict);
     }
 
-    private static bool IsExpectedClaimCollision(DbUpdateException exception) =>
+    internal static bool IsExpectedClaimCollision(DbUpdateException exception) =>
         exception.InnerException is PostgresException
         {
             SqlState: PostgresErrorCodes.UniqueViolation,
