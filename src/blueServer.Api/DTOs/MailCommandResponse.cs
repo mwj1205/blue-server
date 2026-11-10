@@ -31,3 +31,25 @@ public sealed record MailClaimAllResponse(
     int CurrentGold,
     int CurrentGem,
     bool HasMore);
+
+public sealed record MailClaimAllBody(Guid RequestId);
+
+public sealed record MailClaimAllRequestResponse(
+    Guid RequestId,
+    string Status,
+    DateTime? ProcessedAt,
+    int ClaimedMailCount,
+    int GrantedGold,
+    int GrantedGem,
+    int CurrentGold,
+    int CurrentGem,
+    bool HasMore,
+    IReadOnlyList<MailClaimAllEntryResponse> Entries);
+
+public sealed record MailClaimAllEntryResponse(
+    long MailId,
+    string Status,
+    DateTime? ClaimedAt,
+    int GrantedGold,
+    int GrantedGem,
+    IReadOnlyList<MailClaimItemResponse> Items);

@@ -63,8 +63,15 @@ finally {
 `items`는 지급량·잔여량·지급 후 보유량을 반환한다. 같은 ID의 재요청은 최초 결과를 그대로 반환한다.
 `wasAlreadyClaimed`는 재요청 여부가 아니라, 최초 처리 당시 이미 완료된 Mail이었는지를 나타낸다.
 
-현재 일괄 수령은 아이템 첨부가 있는 Mail을 제외한다. RequestId 없는 기존 단일 수령 경로도
-아이템 Mail을 거절한다. TCP 패킷 확장 전까지 아이템 부분 수령은 HTTP 경로로 검증한다.
+일괄 수령 `POST /players/me/mails/claim-all`은 본문 없이 호출하면 기존 재화 전용 동작을 유지한다.
+아이템도 수령하려면 JSON 본문에 비어 있지 않은 GUID `requestId`를 보낸다. 본문이 있는 요청의
+JSON `null`, 잘못된 JSON, 누락·빈 ID는 재화 전용 경로로 처리하지 않는다.
+새 응답의 `entries`에는 Mail별 상태·완료 시각·지급량·잔여량이 포함된다. `claimedMailCount`는
+완료 건수만 세며, 부분 수령과 공간 부족도 HTTP 200의 Mail별 결과로 반환한다.
+같은 RequestId에는 최초 결과를 반환한다. `hasMore`는 처리 한도를 넘는 후보가 있었다는 의미이며,
+공간 부족 Mail이 같은 묶음에 계속 포함될 수 있으므로 이 값만으로 요청을 자동 반복하지 않는다.
+RequestId를 지원하지 않는 TCP 일괄 수령은 여전히 아이템 첨부 Mail을 제외한다.
+
 HTTP 테스트는 인증 흐름 외에 부분 수령·재요청·일괄 수령 제외·입력 오류·만료일 보존을 확인한다.
 
 Mail HTTP API는 배포된 API의 인증 Pipeline과 PostgreSQL을 함께 사용한다. 첫 번째

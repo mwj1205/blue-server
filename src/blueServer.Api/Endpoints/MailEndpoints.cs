@@ -2,6 +2,7 @@ using System.Security.Claims;
 using blueServer.Api.DTOs;
 using blueServer.Api.Extensions;
 using blueServer.Infrastructure.Mails;
+using Microsoft.AspNetCore.Http.Features;
 
 namespace blueServer.Api.Endpoints;
 
@@ -172,11 +173,35 @@ public static class MailEndpoints
     private static async Task<IResult> ClaimAllMailAsync(
         ClaimsPrincipal user,
         MailClaimAllService mailClaimAllService,
+        HttpRequest httpRequest,
+        MailClaimAllBody? request,
         CancellationToken cancellationToken)
     {
         if (!user.TryGetPlayerId(out var playerId))
         {
             return Results.Unauthorized();
+        }
+
+        if (request is not null)
+        {
+            if (request.RequestId == Guid.Empty)
+            {
+                return Results.BadRequest(new { message = "Request id must not be empty." });
+            }
+
+            var requestResult = await mailClaimAllService.ClaimAllAsync(
+                playerId,
+                new MailClaimAllRequest(request.RequestId),
+                DateTime.UtcNow,
+                cancellationToken);
+
+            return ToResponse(requestResult, request.RequestId);
+        }
+
+        // 본문을 보낸 요청이 JSON null 등으로 바인딩되어도 기존 지급 경로로 보내지 않는다.
+        if (httpRequest.HttpContext.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody == true)
+        {
+            return Results.BadRequest(new { message = "Request body must contain a request id." });
         }
 
         var result = await mailClaimAllService.ClaimAllAsync(
@@ -344,6 +369,59 @@ public static class MailEndpoints
             _ => throw new InvalidOperationException(
                 $"Unexpected Mail claim-all result. Status={result.Status}")
         };
+    }
+
+    private static IResult ToResponse(MailClaimAllRequestResult result, Guid requestId)
+    {
+        return result.Status switch
+        {
+            MailClaimAllRequestStatus.Processed or MailClaimAllRequestStatus.NothingToClaim =>
+                Results.Ok(new MailClaimAllRequestResponse(
+                    requestId,
+                    result.Status.ToString(),
+                    result.ProcessedAt,
+                    result.ClaimedMailCount,
+                    result.GrantedGold,
+                    result.GrantedGem,
+                    result.CurrentGold,
+                    result.CurrentGem,
+                    result.HasMore,
+                    result.Entries.Select(ToResponse).ToArray())),
+            MailClaimAllRequestStatus.PlayerNotFound => Results.NotFound(),
+            MailClaimAllRequestStatus.ConcurrencyConflict => Results.Conflict(new
+            {
+                code = result.Status.ToString(),
+                message = "Mail state changed. Reload the Mail list and try again."
+            }),
+            MailClaimAllRequestStatus.IdempotencyConflict => Results.Conflict(new
+            {
+                code = result.Status.ToString(),
+                message = "Mail reward state conflicts with a completed request."
+            }),
+            MailClaimAllRequestStatus.ItemTemplateNotFound or
+                MailClaimAllRequestStatus.ItemTemplateInactive => Results.Conflict(new
+                {
+                    code = result.Status.ToString(),
+                    message = "An attached item is unavailable. No rewards were applied."
+                }),
+            _ => throw new InvalidOperationException(
+                $"Unexpected Mail claim-all request result. Status={result.Status}")
+        };
+    }
+
+    private static MailClaimAllEntryResponse ToResponse(MailClaimAllEntryResult entry)
+    {
+        return new MailClaimAllEntryResponse(
+            entry.MailId,
+            entry.Claim.Status.ToString(),
+            entry.Claim.MailClaimedAt,
+            entry.Claim.GrantedGold,
+            entry.Claim.GrantedGem,
+            entry.Claim.Items.Select(item => new MailClaimItemResponse(
+                item.ItemTemplateId,
+                item.GrantedQuantity,
+                item.RemainingQuantity,
+                item.QuantityAfter)).ToArray());
     }
 
     private static IResult InvalidMailId()
