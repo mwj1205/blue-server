@@ -9,7 +9,7 @@ namespace blueServer.Game;
 
 public class Session : IDisposable
 {
-    private const int MaxPacketSize = 4096;
+    private const int MaxPacketSize = PacketReader.MaxPacketSize;
     private const int ReadBufferSize = 1024;
     private const int ReceiveBufferCapacity = MaxPacketSize + ReadBufferSize;
     private const int SendQueueCapacity = 256;
