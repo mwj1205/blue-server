@@ -234,6 +234,13 @@ Mail 상태와 Player 재화·지급 이력을 확인하며, 생성한 데이터
 
 ### TCP 아이템 일괄 수령 계약
 
+`MailFlow_ClaimAllReplaysSplitResponseAfterReconnectWithoutDoubleGrant`는 테스트 Mail 100건으로
+실제 분할 응답을 만든다. 첫 프레임만 소비하고 연결을 닫은 뒤, 재로그인과 같은 RequestId 재요청으로
+전체 결과를 복원하고 원래 첫 프레임 및 반복 요청 본문과 비교한다. DB의 단일 일괄 기록과 100개
+개별 기록, 지급량·잔여량·만료일·원문·읽음 시각을 검사한다. 테스트 데이터는 삭제하지 않는다.
+클라이언트가 미완성 응답을 폐기하는 상황을 검증하며, 서버 측 네트워크 장애를 주입하는 테스트는 아니다.
+재조립 코드는 크기·조각 수를 제한한 테스트 전용 구현이고 Unity나 범용 재조립기에 적용한 것은 아니다.
+
 - `MailClaimAll`(23)의 기존 빈 payload는 재화 전용이다. 확장 요청은 `ushort` 길이와
   GUID D 형식 문자열 36바이트로 된 RequestId를 보낸다. 빈 GUID 또는 다른 길이는 거절한다.
 - 기존 요청의 `MailClaimAllResult`(24) 형식은 그대로다. 확장 요청의 응답은 동일 opcode를
