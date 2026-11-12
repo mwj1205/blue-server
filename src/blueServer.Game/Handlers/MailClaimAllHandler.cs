@@ -22,7 +22,25 @@ public sealed class MailClaimAllHandler : IPacketHandler
         var playerId = session.PlayerId ??
             throw new InvalidOperationException(
                 "Mail claim-all handler requires authenticated session.");
-        MailClaimAllRequestPacket.Read(reader);
+        var request = MailClaimAllRequestPacket.Read(reader);
+
+        if (request.RequestId is { } requestId)
+        {
+            var requestResult = await _mailClaimAllService.ClaimAllAsync(
+                playerId,
+                new MailClaimAllRequest(requestId),
+                DateTime.UtcNow,
+                cancellationToken);
+
+            var packet = MailPacketMapper.ToPacket(requestResult, requestId);
+            foreach (var frame in packet.SerializeFrames(cancellationToken))
+            {
+                await session.SendAsync(frame, cancellationToken);
+            }
+
+            return;
+        }
+
         var result = await _mailClaimAllService.ClaimAllAsync(
             playerId,
             DateTime.UtcNow,

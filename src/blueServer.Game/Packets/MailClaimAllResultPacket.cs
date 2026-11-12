@@ -97,5 +97,8 @@ public enum MailClaimAllPacketStatus
     NothingToClaim = 1,
     PlayerNotFound = 2,
     ConcurrencyConflict = 3,
-    IdempotencyConflict = 4
+    IdempotencyConflict = 4,
+    Processed = 5,
+    ItemTemplateNotFound = 6,
+    ItemTemplateInactive = 7
 }

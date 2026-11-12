@@ -63,8 +63,16 @@ finally {
 `items`는 지급량·잔여량·지급 후 보유량을 반환한다. 같은 ID의 재요청은 최초 결과를 그대로 반환한다.
 `wasAlreadyClaimed`는 재요청 여부가 아니라, 최초 처리 당시 이미 완료된 Mail이었는지를 나타낸다.
 
-현재 일괄 수령은 아이템 첨부가 있는 Mail을 제외한다. RequestId 없는 기존 단일 수령 경로도
-아이템 Mail을 거절한다. TCP 패킷 확장 전까지 아이템 부분 수령은 HTTP 경로로 검증한다.
+일괄 수령 `POST /players/me/mails/claim-all`은 본문 없이 호출하면 기존 재화 전용 동작을 유지한다.
+아이템도 수령하려면 JSON 본문에 비어 있지 않은 GUID `requestId`를 보낸다. 본문이 있는 요청의
+JSON `null`, 잘못된 JSON, 누락·빈 ID는 재화 전용 경로로 처리하지 않는다.
+새 응답의 `entries`에는 Mail별 상태·완료 시각·지급량·잔여량이 포함된다. `claimedMailCount`는
+완료 건수만 세며, 부분 수령과 공간 부족도 HTTP 200의 Mail별 결과로 반환한다.
+같은 RequestId에는 최초 결과를 반환한다. `hasMore`는 처리 한도를 넘는 후보가 있었다는 의미이며,
+공간 부족 Mail이 같은 묶음에 계속 포함될 수 있으므로 이 값만으로 요청을 자동 반복하지 않는다.
+TCP 일괄 수령도 빈 요청은 기존 재화 전용 동작을 유지한다. RequestId가 있는 요청은
+아래 TCP 계약의 분할 응답을 사용한다.
+
 HTTP 테스트는 인증 흐름 외에 부분 수령·재요청·일괄 수령 제외·입력 오류·만료일 보존을 확인한다.
 
 Mail HTTP API는 배포된 API의 인증 Pipeline과 PostgreSQL을 함께 사용한다. 첫 번째
@@ -223,3 +231,30 @@ Mail 상태와 Player 재화·지급 이력을 확인하며, 생성한 데이터
 기존 RequestId 없는 요청의 아이템 Mail 거절과 완료 후 최초 요청 결과 복원도 확인한다.
 마지막으로 원래 Mail 정보·만료일·읽음 시각 보존, 재화 중복 지급 방지, 수령 기록과 인벤토리를 검사한다.
 테스트 Player·ItemTemplate·Mail·변경/수령 이력은 삭제하지 않는다.
+
+### TCP 아이템 일괄 수령 계약
+
+`MailFlow_ClaimAllReplaysSplitResponseAfterReconnectWithoutDoubleGrant`는 테스트 Mail 100건으로
+실제 분할 응답을 만든다. 첫 프레임만 소비하고 연결을 닫은 뒤, 재로그인과 같은 RequestId 재요청으로
+전체 결과를 복원하고 원래 첫 프레임 및 반복 요청 본문과 비교한다. DB의 단일 일괄 기록과 100개
+개별 기록, 지급량·잔여량·만료일·원문·읽음 시각을 검사한다. 테스트 데이터는 삭제하지 않는다.
+클라이언트가 미완성 응답을 폐기하는 상황을 검증하며, 서버 측 네트워크 장애를 주입하는 테스트는 아니다.
+재조립 코드는 크기·조각 수를 제한한 테스트 전용 구현이고 Unity나 범용 재조립기에 적용한 것은 아니다.
+
+- `MailClaimAll`(23)의 기존 빈 payload는 재화 전용이다. 확장 요청은 `ushort` 길이와
+  GUID D 형식 문자열 36바이트로 된 RequestId를 보낸다. 빈 GUID 또는 다른 길이는 거절한다.
+- 기존 요청의 `MailClaimAllResult`(24) 형식은 그대로다. 확장 요청의 응답은 동일 opcode를
+  쓰며, 각 프레임은 `[Size:ushort][Opcode:ushort][RequestId:string][PartIndex:int][PartCount:int]`
+  다음에 본문 조각을 담는다. 순번은 0부터 시작하며 헤더를 포함해 최대 4,096바이트다.
+- 본문 조각을 모두 순서대로 이어 붙인 후 읽는다. 요약은 `Status:int`, `ProcessedAt` 유무와
+  선택적 Unix milliseconds(long), `ClaimedMailCount`, `GrantedGold`, `GrantedGem`,
+  `CurrentGold`, `CurrentGem`(각 int), `HasMore:bool`, `EntryCount:int` 순서다.
+- Mail별 항목은 `MailId:long`, `Status:int`, `ClaimedAt` 유무와 선택적 Unix milliseconds(long),
+  `GrantedGold:int`, `GrantedGem:int`, `ItemCount:int` 순서다. 아이템마다 `ItemTemplateId`,
+  `GrantedQuantity`, `RemainingQuantity`, `QuantityAfter`(각 int)를 이어서 쓴다.
+- 일괄 상태 코드는 기존 0~4를 유지하며 `Processed=5`, `ItemTemplateNotFound=6`,
+  `ItemTemplateInactive=7`을 추가한다. Mail별 상태는 단일 수령과 동일하게 `Claimed=0`,
+  `PartiallyClaimed=7`, `NoCapacity=8`을 사용한다.
+- 프레임을 모두 받기 전에 연결이 끊기면 미완성 응답은 폐기하고 같은 RequestId로 재시도한다.
+  분할 전송은 이미 커밋된 한 일괄 결과를 전달하는 것이며, 각 프레임마다 보상을 지급하지 않는다.
+  `HasMore`는 다른 후보의 존재를 뜻하며 응답의 남은 프레임 수와 무관하다.

@@ -53,7 +53,10 @@ public sealed class InventoryChangeService
                 request.Amount);
         }
 
-        var playerItem = await _db.PlayerItems
+        // 일괄 지급에서 아직 저장하지 않은 신규 행과 누적 수량도 재사용한다.
+        var playerItem = _db.PlayerItems.Local.SingleOrDefault(item =>
+            item.PlayerId == player.Id && item.ItemTemplateId == request.ItemTemplateId)
+            ?? await _db.PlayerItems
             .Include(item => item.ItemTemplate)
             .SingleOrDefaultAsync(
                 item =>

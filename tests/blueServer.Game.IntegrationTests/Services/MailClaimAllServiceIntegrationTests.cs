@@ -2,6 +2,7 @@ using blueServer.Domain.Entities;
 using blueServer.Domain.Rewards;
 using blueServer.Infrastructure;
 using blueServer.Infrastructure.Currencies;
+using blueServer.Infrastructure.Items;
 using blueServer.Infrastructure.Mails;
 using blueServer.Infrastructure.Rewards;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,7 @@ using Xunit;
 
 namespace blueServer.Game.IntegrationTests.Services;
 
-public sealed class MailClaimAllServiceIntegrationTests
+public sealed partial class MailClaimAllServiceIntegrationTests
 {
     [PostgreSqlIntegrationFact]
     public async Task ClaimAllAsync_ClaimsEligibleMailsAndSkipsOthers()
@@ -296,11 +297,14 @@ public sealed class MailClaimAllServiceIntegrationTests
 
     private static MailClaimAllService CreateService(GameDbContext db)
     {
+        var rewardService = new RewardGrantService(db, new CurrencyChangeService(db));
         return new MailClaimAllService(
             db,
-            new RewardGrantService(
+            rewardService,
+            new MailClaimService(
                 db,
-                new CurrencyChangeService(db)));
+                rewardService,
+                new InventoryChangeService(db)));
     }
 
     private static async Task<MailClaimAllResult>

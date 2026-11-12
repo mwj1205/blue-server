@@ -5,19 +5,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace blueServer.Infrastructure.Mails;
 
-public sealed class MailClaimAllService
+public sealed partial class MailClaimAllService
 {
     public const int MaxClaimCount = RewardGrantService.MaxBatchSize;
 
     private readonly GameDbContext _db;
     private readonly RewardGrantService _rewardGrantService;
+    private readonly MailClaimService _mailClaimService;
 
     public MailClaimAllService(
         GameDbContext db,
-        RewardGrantService rewardGrantService)
+        RewardGrantService rewardGrantService,
+        MailClaimService mailClaimService)
     {
         _db = db;
         _rewardGrantService = rewardGrantService;
+        _mailClaimService = mailClaimService;
     }
 
     public async Task<MailClaimAllResult> ClaimAllAsync(

@@ -34,6 +34,8 @@ public class GameDbContext : DbContext
         Set<MailItemAttachment>();
     public DbSet<MailClaimRecord> MailClaimRecords => Set<MailClaimRecord>();
     public DbSet<MailClaimRecordItem> MailClaimRecordItems => Set<MailClaimRecordItem>();
+    public DbSet<MailClaimAllRecord> MailClaimAllRecords => Set<MailClaimAllRecord>();
+    public DbSet<MailClaimAllRecordEntry> MailClaimAllRecordEntries => Set<MailClaimAllRecordEntry>();
     public DbSet<ItemTemplate> ItemTemplates => Set<ItemTemplate>();
     public DbSet<PlayerItem> PlayerItems => Set<PlayerItem>();
     public DbSet<InventoryItemChangeLog> InventoryItemChangeLogs =>
@@ -520,6 +522,58 @@ public class GameDbContext : DbContext
                 table.HasCheckConstraint(
                     "CK_MailClaimRecordItems_QuantityAfter_Range",
                     $"\"QuantityAfter\" BETWEEN \"GrantedQuantity\" AND {ItemTemplate.InventoryMaxQuantity}");
+            });
+        });
+
+        modelBuilder.Entity<MailClaimAllRecord>(entity =>
+        {
+            entity.HasIndex(record => new { record.PlayerId, record.RequestId })
+                .IsUnique();
+
+            entity.HasOne<Player>()
+                .WithMany()
+                .HasForeignKey(record => record.PlayerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(record => record.Entries)
+                .WithOne()
+                .HasForeignKey(entry => entry.MailClaimAllRecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // 외부에는 읽기 전용으로 노출하고 EF는 내부 컬렉션에 연결 항목을 채운다.
+            entity.Navigation(record => record.Entries)
+                .HasField("_entries")
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_MailClaimAllRecords_RequestId_NotEmpty",
+                    "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+                table.HasCheckConstraint(
+                    "CK_MailClaimAllRecords_CurrentGold_NonNegative",
+                    "\"CurrentGold\" >= 0");
+                table.HasCheckConstraint(
+                    "CK_MailClaimAllRecords_CurrentGem_NonNegative",
+                    "\"CurrentGem\" >= 0");
+            });
+        });
+
+        modelBuilder.Entity<MailClaimAllRecordEntry>(entity =>
+        {
+            entity.HasKey(entry => new { entry.MailClaimAllRecordId, entry.Position });
+
+            // 개별 수령 기록 하나는 최대 한 일괄 결과에만 연결한다.
+            entity.HasOne(entry => entry.MailClaimRecord)
+                .WithOne()
+                .HasForeignKey<MailClaimAllRecordEntry>(entry => entry.MailClaimRecordId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_MailClaimAllRecordEntries_Position_Range",
+                    $"\"Position\" >= 0 AND \"Position\" < {MailClaimAllRecord.MaxMailCount}");
             });
         });
 

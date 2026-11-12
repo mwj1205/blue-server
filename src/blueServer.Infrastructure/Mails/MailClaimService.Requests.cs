@@ -1,8 +1,3 @@
-using blueServer.Domain.Entities;
-using blueServer.Domain.Items;
-using blueServer.Domain.Rewards;
-using blueServer.Infrastructure.Items;
-using blueServer.Infrastructure.Rewards;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -10,7 +5,7 @@ namespace blueServer.Infrastructure.Mails;
 
 public sealed partial class MailClaimService
 {
-    // RequestId를 지원하는 새 경로. HTTP/TCP 연결 전까지 기존 호출 경로와 분리한다.
+    // 단일 수령의 Transaction, 저장, 커밋 및 충돌 복구를 담당한다.
     public async Task<MailClaimRequestResult> ClaimAsync(
         long playerId,
         MailClaimRequest request,
@@ -30,106 +25,22 @@ public sealed partial class MailClaimService
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            var mail = await _db.Mails
-                .Include(mail => mail.Attachments)
-                .Include(mail => mail.ItemAttachments)
-                .Include(mail => mail.Player)
-                .AsSplitQuery()
-                .SingleOrDefaultAsync(mail => mail.Id == request.MailId && mail.PlayerId == playerId,
-                    cancellationToken);
+            var prepared = await PrepareWithinCurrentTransactionAsync(
+                playerId,
+                request,
+                processedAt,
+                cancellationToken);
 
-            if (mail is null)
+            if (prepared.Record is null)
             {
-                return MailClaimRequestResult.Failure(MailClaimRequestStatus.NotFound);
-            }
-            if (mail.IsClaimed)
-            {
-                return new MailClaimRequestResult(MailClaimRequestStatus.AlreadyClaimed,
-                    null, mail.ClaimedAt, 0, 0, mail.Player!.Gold, mail.Player.Gem,
-                    Array.Empty<MailClaimItemSnapshot>());
-            }
-            if (mail.IsExpired(processedAt))
-            {
-                return MailClaimRequestResult.Failure(MailClaimRequestStatus.Expired);
-            }
-            if (processedAt < mail.SentAt)
-            {
-                throw new ArgumentOutOfRangeException(nameof(processedAt),
-                    "Claim time must not be earlier than sent time.");
-            }
-            if (!mail.HasAttachments)
-            {
-                return MailClaimRequestResult.Failure(MailClaimRequestStatus.NoRewards);
+                await transaction.RollbackAsync(CancellationToken.None);
+                _db.ChangeTracker.Clear();
+                return prepared.Result;
             }
 
-            var grantedGold = 0;
-            var grantedGem = 0;
-            if (mail.Attachments.Count > 0)
-            {
-                // 재화는 Mail 고정 키로 한 번만 지급하며 부분 수령의 RequestId와 구분
-                var rewardResult = await _rewardGrantService.PrepareWithinCurrentTransactionAsync(
-                    playerId, MailRewardGrantRequestFactory.Create(mail), cancellationToken);
-                if (!rewardResult.IsSuccess)
-                {
-                    await transaction.RollbackAsync(CancellationToken.None);
-                    _db.ChangeTracker.Clear();
-                    return MailClaimRequestResult.Failure(rewardResult.Status switch
-                    {
-                        RewardGrantStatus.PlayerNotFound => MailClaimRequestStatus.PlayerNotFound,
-                        _ => MailClaimRequestStatus.IdempotencyConflict
-                    });
-                }
-                if (rewardResult.Status == RewardGrantStatus.Granted)
-                {
-                    grantedGold = mail.Attachments.Where(item => item.Type == RewardType.Gold)
-                        .Sum(item => item.Amount);
-                    grantedGem = mail.Attachments.Where(item => item.Type == RewardType.Gem)
-                        .Sum(item => item.Amount);
-                }
-            }
-
-            var items = new List<MailClaimItemSnapshot>();
-            foreach (var attachment in mail.ItemAttachments
-                         .Where(item => item.RemainingQuantity > 0).OrderBy(item => item.ItemTemplateId))
-            {
-                var increase = await _inventoryChangeService.IncreaseWithinCurrentTransactionAsync(
-                    mail.Player!,
-                    new InventoryIncreaseRequest(attachment.ItemTemplateId, attachment.RemainingQuantity,
-                        InventoryItemChangeReasonType.MailClaim, $"mail:{mail.Id}", request.RequestId, processedAt),
-                    cancellationToken);
-                if (!increase.IsSuccess)
-                {
-                    await transaction.RollbackAsync(CancellationToken.None);
-                    _db.ChangeTracker.Clear();
-                    return MailClaimRequestResult.Failure(increase.Status switch
-                    {
-                        InventoryIncreaseStatus.ItemTemplateNotFound => MailClaimRequestStatus.ItemTemplateNotFound,
-                        InventoryIncreaseStatus.ItemTemplateInactive => MailClaimRequestStatus.ItemTemplateInactive,
-                        _ => throw new InvalidOperationException("Unexpected inventory increase status.")
-                    });
-                }
-
-                attachment.Claim(increase.AppliedQuantity);
-                items.Add(new MailClaimItemSnapshot(attachment.ItemTemplateId,
-                    increase.AppliedQuantity, attachment.RemainingQuantity, increase.QuantityAfter));
-            }
-
-            if (mail.ItemAttachments.All(item => item.RemainingQuantity == 0))
-            {
-                mail.Claim(processedAt);
-            }
-
-            // 부분 수령에서는 값은 유지하면서 부모 Mail을 UPDATE해 xmin 경합 감지
-            // 자식 첨부만 저장하면 같은 Mail의 서로 다른 요청 간 경합을 감지할 수 없음
-            _db.Entry(mail).Property(candidate => candidate.ClaimedAt).IsModified = true;
-
-            var record = MailClaimRecord.Create(playerId, mail.Id, request.RequestId,
-                processedAt, mail.ClaimedAt, grantedGold, grantedGem,
-                mail.Player!.Gold, mail.Player.Gem, items);
-            _db.MailClaimRecords.Add(record);
             await _db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return MailClaimRequestResult.FromRecord(record);
+            return prepared.Result;
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -164,7 +75,7 @@ public sealed partial class MailClaimService
             : MailClaimRequestResult.Failure(MailClaimRequestStatus.IdempotencyConflict);
     }
 
-    private static bool IsExpectedClaimCollision(DbUpdateException exception) =>
+    internal static bool IsExpectedClaimCollision(DbUpdateException exception) =>
         exception.InnerException is PostgresException
         {
             SqlState: PostgresErrorCodes.UniqueViolation,

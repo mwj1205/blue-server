@@ -6,6 +6,7 @@ namespace blueServer.Game.Packets;
 public class PacketReader
 {
     public const int HeaderSize = 4;
+    internal const int MaxPacketSize = 4096;
 
     private readonly byte[] _buffer;
     private int _position;

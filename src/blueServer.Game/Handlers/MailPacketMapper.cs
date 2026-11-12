@@ -146,6 +146,65 @@ internal static class MailPacketMapper
         };
     }
 
+    public static MailClaimAllRequestResultPacket ToPacket(
+        MailClaimAllRequestResult result,
+        Guid requestId)
+    {
+        var status = result.Status switch
+        {
+            MailClaimAllRequestStatus.Processed => MailClaimAllPacketStatus.Processed,
+            MailClaimAllRequestStatus.NothingToClaim => MailClaimAllPacketStatus.NothingToClaim,
+            MailClaimAllRequestStatus.PlayerNotFound => MailClaimAllPacketStatus.PlayerNotFound,
+            MailClaimAllRequestStatus.ConcurrencyConflict => MailClaimAllPacketStatus.ConcurrencyConflict,
+            MailClaimAllRequestStatus.IdempotencyConflict => MailClaimAllPacketStatus.IdempotencyConflict,
+            MailClaimAllRequestStatus.ItemTemplateNotFound => MailClaimAllPacketStatus.ItemTemplateNotFound,
+            MailClaimAllRequestStatus.ItemTemplateInactive => MailClaimAllPacketStatus.ItemTemplateInactive,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(result.Status),
+                result.Status,
+                "Unexpected Mail claim-all request status.")
+        };
+
+        return new MailClaimAllRequestResultPacket(
+            requestId,
+            status,
+            result.ProcessedAt,
+            result.ClaimedMailCount,
+            result.GrantedGold,
+            result.GrantedGem,
+            result.CurrentGold,
+            result.CurrentGem,
+            result.HasMore,
+            result.Entries.Select(ToPacket).ToArray());
+    }
+
+    private static MailClaimAllPacketEntry ToPacket(MailClaimAllEntryResult entry)
+    {
+        var claim = entry.Claim;
+        var status = claim.Status switch
+        {
+            MailClaimRequestStatus.Claimed => MailClaimPacketStatus.Claimed,
+            MailClaimRequestStatus.PartiallyClaimed => MailClaimPacketStatus.PartiallyClaimed,
+            MailClaimRequestStatus.NoCapacity => MailClaimPacketStatus.NoCapacity,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(entry),
+                claim.Status,
+                "Unexpected Mail claim-all entry status.")
+        };
+
+        return new MailClaimAllPacketEntry(
+            entry.MailId,
+            status,
+            claim.MailClaimedAt,
+            claim.GrantedGold,
+            claim.GrantedGem,
+            claim.Items.Select(item => new MailClaimPacketItem(
+                item.ItemTemplateId,
+                item.GrantedQuantity,
+                item.RemainingQuantity,
+                item.QuantityAfter)).ToArray());
+    }
+
     public static MailClaimAllResultPacket ToPacket(
         MailClaimAllResult result)
     {
