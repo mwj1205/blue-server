@@ -10,7 +10,9 @@ public sealed record MailClaimAllRequestResultPacket(
     int CurrentGold,
     int CurrentGem,
     bool HasMore,
-    IReadOnlyList<MailClaimAllPacketEntry> Entries)
+    int PartiallyClaimedMailCount,
+    int NoCapacityMailCount,
+    IReadOnlyList<MailClaimAllPacketItem> Items)
 {
     private const int EnvelopeSize = PacketReader.HeaderSize + 38 + 2 * sizeof(int);
     private const int MaxChunkSize = PacketReader.MaxPacketSize - EnvelopeSize;
@@ -57,25 +59,15 @@ public sealed record MailClaimAllRequestResultPacket(
         writer.WriteInt(CurrentGold);
         writer.WriteInt(CurrentGem);
         writer.WriteBool(HasMore);
-        writer.WriteInt(Entries.Count);
+        writer.WriteInt(PartiallyClaimedMailCount);
+        writer.WriteInt(NoCapacityMailCount);
+        writer.WriteInt(Items.Count);
 
-        foreach (var entry in Entries)
+        foreach (var item in Items)
         {
-            writer.WriteLong(entry.MailId);
-            writer.WriteInt((int)entry.Status);
-            WriteOptionalTime(writer, entry.ClaimedAt);
-            writer.WriteInt(entry.GrantedGold);
-            writer.WriteInt(entry.GrantedGem);
-            writer.WriteInt(entry.Items.Count);
-
-            foreach (var item in entry.Items)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                writer.WriteInt(item.ItemTemplateId);
-                writer.WriteInt(item.GrantedQuantity);
-                writer.WriteInt(item.RemainingQuantity);
-                writer.WriteInt(item.QuantityAfter);
-            }
+            cancellationToken.ThrowIfCancellationRequested();
+            writer.WriteInt(item.ItemTemplateId);
+            writer.WriteInt(item.GrantedQuantity);
         }
 
         return writer.ToArray();
@@ -91,10 +83,4 @@ public sealed record MailClaimAllRequestResultPacket(
     }
 }
 
-public sealed record MailClaimAllPacketEntry(
-    long MailId,
-    MailClaimPacketStatus Status,
-    DateTime? ClaimedAt,
-    int GrantedGold,
-    int GrantedGem,
-    IReadOnlyList<MailClaimPacketItem> Items);
+public sealed record MailClaimAllPacketItem(int ItemTemplateId, int GrantedQuantity);

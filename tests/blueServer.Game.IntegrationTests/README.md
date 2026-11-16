@@ -237,11 +237,11 @@ Mail 상태와 Player 재화·지급 이력을 확인하며, 생성한 데이터
 
 ### TCP 아이템 일괄 수령 계약
 
-`MailFlow_ClaimAllReplaysSplitResponseAfterReconnectWithoutDoubleGrant`는 테스트 Mail 100건으로
-실제 분할 응답을 만든다. 첫 프레임만 소비하고 연결을 닫은 뒤, 재로그인과 같은 RequestId 재요청으로
-전체 결과를 복원하고 원래 첫 프레임 및 반복 요청 본문과 비교한다. DB의 단일 일괄 기록과 100개
+`MailFlow_ClaimAllReplaysSummaryAfterReconnectWithoutDoubleGrant`는 같은 아이템의 Mail 100건을
+104바이트의 한 프레임 요약으로 받는다. 연결을 닫은 뒤 재로그인과 같은 RequestId 재요청으로
+최초 요약과 반복 요청 본문을 비교한다. DB의 단일 일괄 기록과 100개
 개별 기록, 지급량·잔여량·만료일·원문·읽음 시각을 검사한다. 테스트 데이터는 삭제하지 않는다.
-클라이언트가 미완성 응답을 폐기하는 상황을 검증하며, 서버 측 네트워크 장애를 주입하는 테스트는 아니다.
+재연결 후 지급 결과 복원을 검증하며, 응답 유실이나 서버 측 네트워크 장애를 주입하는 테스트는 아니다.
 재조립 코드는 크기·조각 수를 제한한 테스트 전용 구현이고 Unity나 범용 재조립기에 적용한 것은 아니다.
 
 - `MailClaimAll`(23)의 기존 빈 payload는 재화 전용이다. 확장 요청은 `ushort` 길이와
@@ -251,13 +251,15 @@ Mail 상태와 Player 재화·지급 이력을 확인하며, 생성한 데이터
   다음에 본문 조각을 담는다. 순번은 0부터 시작하며 헤더를 포함해 최대 4,096바이트다.
 - 본문 조각을 모두 순서대로 이어 붙인 후 읽는다. 요약은 `Status:int`, `ProcessedAt` 유무와
   선택적 Unix milliseconds(long), `ClaimedMailCount`, `GrantedGold`, `GrantedGem`,
-  `CurrentGold`, `CurrentGem`(각 int), `HasMore:bool`, `EntryCount:int` 순서다.
-- Mail별 항목은 `MailId:long`, `Status:int`, `ClaimedAt` 유무와 선택적 Unix milliseconds(long),
-  `GrantedGold:int`, `GrantedGem:int`, `ItemCount:int` 순서다. 아이템마다 `ItemTemplateId`,
-  `GrantedQuantity`, `RemainingQuantity`, `QuantityAfter`(각 int)를 이어서 쓴다.
+  `CurrentGold`, `CurrentGem`(각 int), `HasMore:bool`, `PartiallyClaimedMailCount:int`,
+  `NoCapacityMailCount:int`, `ItemCount:int` 순서다.
+- 아이템 항목은 `ItemTemplateId:int`, `GrantedQuantity:int`다. 실제 지급량을 ID별로 합산하며
+  0 지급 항목을 생략한다. Mail별 잔여량은 상세 조회로 확인한다.
+  이전 Mail별 응답 본문과 호환되지 않으므로 클라이언트 파서를 변경해야 한다.
+  본문은 처리 시각이 있으면 46 + 8 × 아이템 종류 수 바이트다. 500종은 한 프레임,
+  501종부터 기존 4KB 분할을 사용한다. 요약이 항상 한 프레임이라는 보장은 없다.
 - 일괄 상태 코드는 기존 0~4를 유지하며 `Processed=5`, `ItemTemplateNotFound=6`,
-  `ItemTemplateInactive=7`을 추가한다. Mail별 상태는 단일 수령과 동일하게 `Claimed=0`,
-  `PartiallyClaimed=7`, `NoCapacity=8`을 사용한다.
+  `ItemTemplateInactive=7`을 추가한다. Mail별 상태는 응답에 포함하지 않는다.
 - 프레임을 모두 받기 전에 연결이 끊기면 미완성 응답은 폐기하고 같은 RequestId로 재시도한다.
   분할 전송은 이미 커밋된 한 일괄 결과를 전달하는 것이며, 각 프레임마다 보상을 지급하지 않는다.
   `HasMore`는 다른 후보의 존재를 뜻하며 응답의 남은 프레임 수와 무관하다.
