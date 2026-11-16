@@ -373,20 +373,26 @@ public static class MailEndpoints
 
     private static IResult ToResponse(MailClaimAllRequestResult result, Guid requestId)
     {
-        return result.Status switch
+        var summary = MailClaimAllSummary.FromResult(result);
+
+        return summary.Status switch
         {
             MailClaimAllRequestStatus.Processed or MailClaimAllRequestStatus.NothingToClaim =>
                 Results.Ok(new MailClaimAllRequestResponse(
                     requestId,
-                    result.Status.ToString(),
-                    result.ProcessedAt,
-                    result.ClaimedMailCount,
-                    result.GrantedGold,
-                    result.GrantedGem,
-                    result.CurrentGold,
-                    result.CurrentGem,
-                    result.HasMore,
-                    result.Entries.Select(ToResponse).ToArray())),
+                    summary.Status.ToString(),
+                    summary.ProcessedAt,
+                    summary.ClaimedMailCount,
+                    summary.GrantedGold,
+                    summary.GrantedGem,
+                    summary.CurrentGold,
+                    summary.CurrentGem,
+                    summary.HasMore,
+                    summary.PartiallyClaimedMailCount,
+                    summary.NoCapacityMailCount,
+                    summary.Items.Select(item => new MailClaimAllItemResponse(
+                        item.ItemTemplateId,
+                        item.GrantedQuantity)).ToArray())),
             MailClaimAllRequestStatus.PlayerNotFound => Results.NotFound(),
             MailClaimAllRequestStatus.ConcurrencyConflict => Results.Conflict(new
             {
@@ -407,21 +413,6 @@ public static class MailEndpoints
             _ => throw new InvalidOperationException(
                 $"Unexpected Mail claim-all request result. Status={result.Status}")
         };
-    }
-
-    private static MailClaimAllEntryResponse ToResponse(MailClaimAllEntryResult entry)
-    {
-        return new MailClaimAllEntryResponse(
-            entry.MailId,
-            entry.Claim.Status.ToString(),
-            entry.Claim.MailClaimedAt,
-            entry.Claim.GrantedGold,
-            entry.Claim.GrantedGem,
-            entry.Claim.Items.Select(item => new MailClaimItemResponse(
-                item.ItemTemplateId,
-                item.GrantedQuantity,
-                item.RemainingQuantity,
-                item.QuantityAfter)).ToArray());
     }
 
     private static IResult InvalidMailId()

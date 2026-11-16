@@ -63,10 +63,24 @@ public sealed partial class MailHttpApiIntegrationTests
                 playerId,
                 "HTTP item claim all",
                 "Keep the remaining quantity",
-                sentAt,
+                sentAt.AddSeconds(1),
                 expiresAt,
                 [CurrencyReward.Create(RewardType.Gold, 100)],
                 inventoryItemRewards: [InventoryItemReward.Create(templateId, 1000)]);
+            var firstItemMail = Mail.Create(
+                playerId,
+                "HTTP completed item Mail",
+                "Aggregate the same item across Mails",
+                sentAt,
+                expiresAt,
+                inventoryItemRewards: [InventoryItemReward.Create(templateId, 500)]);
+            var blockedItemMail = Mail.Create(
+                playerId,
+                "HTTP blocked item Mail",
+                "No capacity after earlier Mails",
+                sentAt.AddSeconds(2),
+                expiresAt,
+                inventoryItemRewards: [InventoryItemReward.Create(templateId, 10)]);
             var currencyMail = Mail.Create(
                 playerId,
                 "HTTP legacy claim all",
@@ -74,7 +88,7 @@ public sealed partial class MailHttpApiIntegrationTests
                 sentAt,
                 expiresAt,
                 [CurrencyReward.Create(RewardType.Gold, 30)]);
-            db.Mails.AddRange(itemMail, currencyMail);
+            db.Mails.AddRange(firstItemMail, itemMail, blockedItemMail, currencyMail);
             await db.SaveChangesAsync();
             mailId = itemMail.Id;
         }
@@ -106,18 +120,24 @@ public sealed partial class MailHttpApiIntegrationTests
         var result = first.RootElement;
         Assert.Equal(requestId, result.GetProperty("requestId").GetGuid());
         Assert.Equal("Processed", result.GetProperty("status").GetString());
-        Assert.Equal(0, result.GetProperty("claimedMailCount").GetInt32());
+        Assert.Equal(1, result.GetProperty("claimedMailCount").GetInt32());
+        Assert.Equal(1, result.GetProperty("partiallyClaimedMailCount").GetInt32());
+        Assert.Equal(1, result.GetProperty("noCapacityMailCount").GetInt32());
         Assert.Equal(100, result.GetProperty("grantedGold").GetInt32());
         Assert.Equal(Player.InitialGold + 130, result.GetProperty("currentGold").GetInt32());
-        var entry = Assert.Single(result.GetProperty("entries").EnumerateArray());
-        Assert.Equal(mailId, entry.GetProperty("mailId").GetInt64());
-        Assert.Equal("PartiallyClaimed", entry.GetProperty("status").GetString());
-        Assert.Equal(JsonValueKind.Null, entry.GetProperty("claimedAt").ValueKind);
-        var item = Assert.Single(entry.GetProperty("items").EnumerateArray());
+        Assert.False(result.TryGetProperty("entries", out _));
+        var item = Assert.Single(result.GetProperty("items").EnumerateArray());
         Assert.Equal(templateId, item.GetProperty("itemTemplateId").GetInt32());
         Assert.Equal(999, item.GetProperty("grantedQuantity").GetInt32());
-        Assert.Equal(1, item.GetProperty("remainingQuantity").GetInt32());
-        Assert.Equal(999999, item.GetProperty("quantityAfter").GetInt32());
+        Assert.False(item.TryGetProperty("remainingQuantity", out _));
+        Assert.False(item.TryGetProperty("quantityAfter", out _));
+
+        // 요약에 없는 Mail별 잔여 상태는 상세를 다시 조회한다.
+        using var detailResponse = await client.GetAsync($"/players/me/mails/{mailId}");
+        Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
+        using var detail = await ReadJsonAsync(detailResponse);
+        var attachment = Assert.Single(detail.RootElement.GetProperty("itemAttachments").EnumerateArray());
+        Assert.Equal(501, attachment.GetProperty("remainingQuantity").GetInt32());
 
         using var replayResponse = await client.PostAsJsonAsync(uri, new { requestId });
         Assert.Equal(HttpStatusCode.OK, replayResponse.StatusCode);
@@ -128,8 +148,10 @@ public sealed partial class MailHttpApiIntegrationTests
         Assert.Equal(HttpStatusCode.OK, fullResponse.StatusCode);
         using var full = await ReadJsonAsync(fullResponse);
         Assert.Equal(0, full.RootElement.GetProperty("grantedGold").GetInt32());
-        var fullEntry = Assert.Single(full.RootElement.GetProperty("entries").EnumerateArray());
-        Assert.Equal("NoCapacity", fullEntry.GetProperty("status").GetString());
+        Assert.Equal(2, full.RootElement.GetProperty("noCapacityMailCount").GetInt32());
+        Assert.Equal(0, full.RootElement.GetProperty("partiallyClaimedMailCount").GetInt32());
+        Assert.Equal(0, full.RootElement.GetProperty("claimedMailCount").GetInt32());
+        Assert.Empty(full.RootElement.GetProperty("items").EnumerateArray());
 
         await using var finalDb = new GameDbContext(options);
         Assert.Equal(2, await finalDb.MailClaimAllRecords.CountAsync(record => record.PlayerId == playerId));
@@ -137,6 +159,6 @@ public sealed partial class MailHttpApiIntegrationTests
             .SingleAsync(mail => mail.Id == mailId);
         Assert.Equal(expiresAt, finalMail.ExpiresAt);
         Assert.Null(finalMail.ClaimedAt);
-        Assert.Equal(1, Assert.Single(finalMail.ItemAttachments).RemainingQuantity);
+        Assert.Equal(501, Assert.Single(finalMail.ItemAttachments).RemainingQuantity);
     }
 }

@@ -66,8 +66,11 @@ finally {
 일괄 수령 `POST /players/me/mails/claim-all`은 본문 없이 호출하면 기존 재화 전용 동작을 유지한다.
 아이템도 수령하려면 JSON 본문에 비어 있지 않은 GUID `requestId`를 보낸다. 본문이 있는 요청의
 JSON `null`, 잘못된 JSON, 누락·빈 ID는 재화 전용 경로로 처리하지 않는다.
-새 응답의 `entries`에는 Mail별 상태·완료 시각·지급량·잔여량이 포함된다. `claimedMailCount`는
-완료 건수만 세며, 부분 수령과 공간 부족도 HTTP 200의 Mail별 결과로 반환한다.
+HTTP 응답은 Mail별 `entries` 대신 `items`에 ItemTemplateId별 실제 지급량 합계를 담는다.
+각 항목은 `itemTemplateId`, `grantedQuantity`만 포함하며 0 지급 항목은 생략한다.
+`claimedMailCount`, `partiallyClaimedMailCount`, `noCapacityMailCount`는 완료·부분 수령·
+지급 불가 Mail 수다. 부분 수령과 공간 부족도 HTTP 200이며 Mail별 잔여 상태는 목록/상세를
+재조회한다. 내부 Mail별 지급 이력은 유지한다. 이전 entries 응답을 사용한 클라이언트는 수정해야 한다.
 같은 RequestId에는 최초 결과를 반환한다. `hasMore`는 처리 한도를 넘는 후보가 있었다는 의미이며,
 공간 부족 Mail이 같은 묶음에 계속 포함될 수 있으므로 이 값만으로 요청을 자동 반복하지 않는다.
 TCP 일괄 수령도 빈 요청은 기존 재화 전용 동작을 유지한다. RequestId가 있는 요청은
