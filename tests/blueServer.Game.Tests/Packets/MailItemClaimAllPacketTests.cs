@@ -36,8 +36,8 @@ public sealed class MailItemClaimAllPacketTests
     {
         var requestId = Guid.NewGuid();
         var processedAt = new DateTime(2026, 11, 10, 0, 0, 0, DateTimeKind.Utc);
-        var items = Enumerable.Range(1, 4200)
-            .Select(id => new MailClaimPacketItem(id, 2, 1, 999999))
+        var items = Enumerable.Range(1, 8400)
+            .Select(id => new MailClaimAllPacketItem(id, 2))
             .ToArray();
         var packet = new MailClaimAllRequestResultPacket(
             requestId,
@@ -49,7 +49,9 @@ public sealed class MailItemClaimAllPacketTests
             CurrentGold: 1030,
             CurrentGem: 500,
             HasMore: true,
-            [new MailClaimAllPacketEntry(42, MailClaimPacketStatus.PartiallyClaimed, null, 30, 0, items)]);
+            PartiallyClaimedMailCount: 1,
+            NoCapacityMailCount: 2,
+            items);
 
         var frames = packet.SerializeFrames().ToArray();
 
@@ -82,18 +84,12 @@ public sealed class MailItemClaimAllPacketTests
         Assert.Equal(500, body.ReadInt32());
         Assert.True(body.ReadBoolean());
         Assert.Equal(1, body.ReadInt32());
-        Assert.Equal(42, body.ReadInt64());
-        Assert.Equal((int)MailClaimPacketStatus.PartiallyClaimed, body.ReadInt32());
-        Assert.False(body.ReadBoolean());
-        Assert.Equal(30, body.ReadInt32());
-        Assert.Equal(0, body.ReadInt32());
+        Assert.Equal(2, body.ReadInt32());
         Assert.Equal(items.Length, body.ReadInt32());
         foreach (var item in items)
         {
             Assert.Equal(item.ItemTemplateId, body.ReadInt32());
             Assert.Equal(item.GrantedQuantity, body.ReadInt32());
-            Assert.Equal(item.RemainingQuantity, body.ReadInt32());
-            Assert.Equal(item.QuantityAfter, body.ReadInt32());
         }
 
         Assert.Equal(payload.Length, payload.Position);
@@ -113,6 +109,8 @@ public sealed class MailItemClaimAllPacketTests
             CurrentGold: 0,
             CurrentGem: 0,
             HasMore: false,
+            PartiallyClaimedMailCount: 0,
+            NoCapacityMailCount: 0,
             []);
 
         var reader = new PacketReader(Assert.Single(packet.SerializeFrames()));
@@ -122,5 +120,32 @@ public sealed class MailItemClaimAllPacketTests
         Assert.Equal(1, reader.ReadInt());
         Assert.Equal((int)MailClaimAllPacketStatus.ItemTemplateInactive, reader.ReadInt());
         Assert.False(reader.ReadBool());
+    }
+
+    [Fact]
+    public void Response_SingleItemSummary_Uses104Bytes()
+    {
+        var packet = new MailClaimAllRequestResultPacket(
+            Guid.NewGuid(), MailClaimAllPacketStatus.Processed, DateTime.UtcNow,
+            1, 130, 0, 1130, 500, false, 1, 98,
+            [new MailClaimAllPacketItem(1001, 999)]);
+
+        Assert.Equal(104, Assert.Single(packet.SerializeFrames()).Length);
+    }
+
+    [Theory]
+    [InlineData(500, 1)]
+    [InlineData(501, 2)]
+    public void Response_DistinctItemCount_DeterminesFrameBoundary(int itemCount, int frameCount)
+    {
+        var packet = new MailClaimAllRequestResultPacket(
+            Guid.NewGuid(), MailClaimAllPacketStatus.Processed, DateTime.UtcNow,
+            1, 0, 0, 1000, 500, false, 0, 0,
+            Enumerable.Range(1, itemCount).Select(id => new MailClaimAllPacketItem(id, 1)).ToArray());
+
+        var frames = packet.SerializeFrames().ToArray();
+
+        Assert.Equal(frameCount, frames.Length);
+        Assert.Equal(4096, frames[0].Length);
     }
 }

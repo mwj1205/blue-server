@@ -14,7 +14,7 @@ namespace blueServer.Game.IntegrationTests.Tcp;
 public sealed partial class MailTcpRoundTripIntegrationTests
 {
     [GameTcpPostgreSqlIntegrationFact]
-    public async Task MailFlow_ClaimAllReplaysSplitResponseAfterReconnectWithoutDoubleGrant()
+    public async Task MailFlow_ClaimAllReplaysSummaryAfterReconnectWithoutDoubleGrant()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         var cancellationToken = timeout.Token;
@@ -94,9 +94,9 @@ public sealed partial class MailTcpRoundTripIntegrationTests
             Assert.Equal(Opcode.MailClaimAllResult, header.Opcode);
             Assert.Equal(requestId.ToString("D"), header.ReadString());
             Assert.Equal(0, header.ReadInt());
-            Assert.True(header.ReadInt() > 1);
-            Assert.Equal(4096, interruptedFirstFrame.Length);
-            // 첫 조각만 소비하고 연결을 닫는다. 전체 결과는 아직 클라이언트에 없다.
+            Assert.Equal(1, header.ReadInt());
+            Assert.Equal(104, interruptedFirstFrame.Length);
+            // 응답을 받은 뒤 연결을 닫아 새 세션에서도 같은 지급 요약이 복원되는지 확인한다.
         }
 
         using var reconnected = await ConnectBatchTestClientAsync(token, cancellationToken);
@@ -104,7 +104,7 @@ public sealed partial class MailTcpRoundTripIntegrationTests
         await WritePacketAsync(replayStream, request, cancellationToken);
         var replay = await ReadBatchFramesAsync(replayStream, requestId, cancellationToken);
         Assert.Equal(interruptedFirstFrame, replay.FirstFrame);
-        Assert.True(replay.PartCount > 1);
+        Assert.Equal(1, replay.PartCount);
         var result = ParseBatchPayload(replay.Payload);
         Assert.Equal(MailClaimAllPacketStatus.Processed, result.Status);
         Assert.NotNull(result.ProcessedAt);
@@ -114,23 +114,11 @@ public sealed partial class MailTcpRoundTripIntegrationTests
         Assert.Equal(Player.InitialGold + 130, result.CurrentGold);
         Assert.Equal(Player.InitialGem, result.CurrentGem);
         Assert.False(result.HasMore);
-        Assert.Equal(100, result.Entries.Count);
-        Assert.Equal(MailClaimPacketStatus.Claimed, result.Entries[0].Status);
-        Assert.NotNull(result.Entries[0].ClaimedAt);
+        Assert.Equal(1, result.PartiallyClaimedMailCount);
+        Assert.Equal(98, result.NoCapacityMailCount);
         Assert.Equal(
-            new MailClaimPacketItem(templateId, 500, 0, 999500),
-            Assert.Single(result.Entries[0].Items));
-        Assert.Equal(MailClaimPacketStatus.PartiallyClaimed, result.Entries[1].Status);
-        Assert.Null(result.Entries[1].ClaimedAt);
-        Assert.Equal(
-            new MailClaimPacketItem(templateId, 499, 501, 999999),
-            Assert.Single(result.Entries[1].Items));
-        Assert.All(result.Entries.Skip(2), entry =>
-        {
-            Assert.Equal(MailClaimPacketStatus.NoCapacity, entry.Status);
-            Assert.Null(entry.ClaimedAt);
-            Assert.Equal(new MailClaimPacketItem(templateId, 0, 1, 999999), Assert.Single(entry.Items));
-        });
+            new MailClaimAllPacketItem(templateId, 999),
+            Assert.Single(result.Items));
 
         await WritePacketAsync(replayStream, request, cancellationToken);
         var repeated = await ReadBatchFramesAsync(replayStream, requestId, cancellationToken);
@@ -157,7 +145,6 @@ public sealed partial class MailTcpRoundTripIntegrationTests
         for (var index = 0; index < mails.Length; index++)
         {
             var mail = mails[index];
-            Assert.Equal(mail.Id, result.Entries[index].MailId);
             Assert.Equal($"TCP batch Mail {index}", mail.Title);
             Assert.Equal("Preserve the Mail while collecting item rewards", mail.Body);
             Assert.Equal($"{sourcePrefix}-{index}", mail.SourceId);
@@ -246,35 +233,14 @@ public sealed partial class MailTcpRoundTripIntegrationTests
         var currentGold = reader.ReadInt32();
         var currentGem = reader.ReadInt32();
         var hasMore = ReadBatchBoolean(reader);
-        var entryCount = reader.ReadInt32();
-        Assert.InRange(entryCount, 0, 100);
-        var entries = new List<MailClaimAllPacketEntry>();
-        for (var index = 0; index < entryCount; index++)
+        var partiallyClaimedCount = reader.ReadInt32();
+        var noCapacityCount = reader.ReadInt32();
+        var itemCount = reader.ReadInt32();
+        Assert.InRange(itemCount, 0, 1000);
+        var items = new List<MailClaimAllPacketItem>();
+        for (var index = 0; index < itemCount; index++)
         {
-            var mailId = reader.ReadInt64();
-            var entryStatus = (MailClaimPacketStatus)reader.ReadInt32();
-            var claimedAt = ReadBatchOptionalTime(reader);
-            var gold = reader.ReadInt32();
-            var gem = reader.ReadInt32();
-            var itemCount = reader.ReadInt32();
-            Assert.InRange(itemCount, 0, 1000);
-            var items = new List<MailClaimPacketItem>();
-            for (var itemIndex = 0; itemIndex < itemCount; itemIndex++)
-            {
-                items.Add(new MailClaimPacketItem(
-                    reader.ReadInt32(),
-                    reader.ReadInt32(),
-                    reader.ReadInt32(),
-                    reader.ReadInt32()));
-            }
-
-            entries.Add(new MailClaimAllPacketEntry(
-                mailId,
-                entryStatus,
-                claimedAt,
-                gold,
-                gem,
-                items));
+            items.Add(new MailClaimAllPacketItem(reader.ReadInt32(), reader.ReadInt32()));
         }
 
         Assert.Equal(stream.Length, stream.Position);
@@ -287,7 +253,9 @@ public sealed partial class MailTcpRoundTripIntegrationTests
             currentGold,
             currentGem,
             hasMore,
-            entries);
+            partiallyClaimedCount,
+            noCapacityCount,
+            items);
     }
 
     private static bool ReadBatchBoolean(BinaryReader reader)
@@ -313,5 +281,7 @@ public sealed partial class MailTcpRoundTripIntegrationTests
         int CurrentGold,
         int CurrentGem,
         bool HasMore,
-        IReadOnlyList<MailClaimAllPacketEntry> Entries);
+        int PartiallyClaimedMailCount,
+        int NoCapacityMailCount,
+        IReadOnlyList<MailClaimAllPacketItem> Items);
 }

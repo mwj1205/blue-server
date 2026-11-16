@@ -44,12 +44,10 @@ public sealed record MailClaimAllRequestResponse(
     int CurrentGold,
     int CurrentGem,
     bool HasMore,
-    IReadOnlyList<MailClaimAllEntryResponse> Entries);
+    int PartiallyClaimedMailCount,
+    int NoCapacityMailCount,
+    IReadOnlyList<MailClaimAllItemResponse> Items);
 
-public sealed record MailClaimAllEntryResponse(
-    long MailId,
-    string Status,
-    DateTime? ClaimedAt,
-    int GrantedGold,
-    int GrantedGem,
-    IReadOnlyList<MailClaimItemResponse> Items);
+public sealed record MailClaimAllItemResponse(
+    int ItemTemplateId,
+    int GrantedQuantity);

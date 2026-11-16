@@ -150,6 +150,7 @@ internal static class MailPacketMapper
         MailClaimAllRequestResult result,
         Guid requestId)
     {
+        var summary = MailClaimAllSummary.FromResult(result);
         var status = result.Status switch
         {
             MailClaimAllRequestStatus.Processed => MailClaimAllPacketStatus.Processed,
@@ -168,41 +169,18 @@ internal static class MailPacketMapper
         return new MailClaimAllRequestResultPacket(
             requestId,
             status,
-            result.ProcessedAt,
-            result.ClaimedMailCount,
-            result.GrantedGold,
-            result.GrantedGem,
-            result.CurrentGold,
-            result.CurrentGem,
-            result.HasMore,
-            result.Entries.Select(ToPacket).ToArray());
-    }
-
-    private static MailClaimAllPacketEntry ToPacket(MailClaimAllEntryResult entry)
-    {
-        var claim = entry.Claim;
-        var status = claim.Status switch
-        {
-            MailClaimRequestStatus.Claimed => MailClaimPacketStatus.Claimed,
-            MailClaimRequestStatus.PartiallyClaimed => MailClaimPacketStatus.PartiallyClaimed,
-            MailClaimRequestStatus.NoCapacity => MailClaimPacketStatus.NoCapacity,
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(entry),
-                claim.Status,
-                "Unexpected Mail claim-all entry status.")
-        };
-
-        return new MailClaimAllPacketEntry(
-            entry.MailId,
-            status,
-            claim.MailClaimedAt,
-            claim.GrantedGold,
-            claim.GrantedGem,
-            claim.Items.Select(item => new MailClaimPacketItem(
+            summary.ProcessedAt,
+            summary.ClaimedMailCount,
+            summary.GrantedGold,
+            summary.GrantedGem,
+            summary.CurrentGold,
+            summary.CurrentGem,
+            summary.HasMore,
+            summary.PartiallyClaimedMailCount,
+            summary.NoCapacityMailCount,
+            summary.Items.Select(item => new MailClaimAllPacketItem(
                 item.ItemTemplateId,
-                item.GrantedQuantity,
-                item.RemainingQuantity,
-                item.QuantityAfter)).ToArray());
+                item.GrantedQuantity)).ToArray());
     }
 
     public static MailClaimAllResultPacket ToPacket(
