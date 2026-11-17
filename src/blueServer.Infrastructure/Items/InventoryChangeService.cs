@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace blueServer.Infrastructure.Items;
 
-public sealed class InventoryChangeService
+public sealed partial class InventoryChangeService
 {
     private readonly GameDbContext _db;
 
