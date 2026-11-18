@@ -23,6 +23,34 @@
       "type": "Consumable"
     },
     {
+      "id": 3101,
+      "code": "gold_box_fixed",
+      "nameKey": "item.gold_box.fixed.name",
+      "descriptionKey": "item.gold_box.fixed.description",
+      "type": "Consumable"
+    },
+    {
+      "id": 3102,
+      "code": "gem_box_fixed",
+      "nameKey": "item.gem_box.fixed.name",
+      "descriptionKey": "item.gem_box.fixed.description",
+      "type": "Consumable"
+    },
+    {
+      "id": 3103,
+      "code": "gold_box_random",
+      "nameKey": "item.gold_box.random.name",
+      "descriptionKey": "item.gold_box.random.description",
+      "type": "Consumable"
+    },
+    {
+      "id": 3104,
+      "code": "gem_box_random",
+      "nameKey": "item.gem_box.random.name",
+      "descriptionKey": "item.gem_box.random.description",
+      "type": "Consumable"
+    },
+    {
       "id": 4001,
       "code": "test_event_token",
       "nameKey": "item.test_event_token.name",

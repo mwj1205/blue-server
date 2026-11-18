@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "boxes": [
+    {
+      "itemTemplateId": 3101,
+      "currencyType": "Gold",
+      "amountMode": "Fixed",
+      "minAmount": 100,
+      "maxAmount": 100
+    },
+    {
+      "itemTemplateId": 3102,
+      "currencyType": "Gem",
+      "amountMode": "Fixed",
+      "minAmount": 100,
+      "maxAmount": 100
+    },
+    {
+      "itemTemplateId": 3103,
+      "currencyType": "Gold",
+      "amountMode": "UniformRandom",
+      "minAmount": 20,
+      "maxAmount": 200
+    },
+    {
+      "itemTemplateId": 3104,
+      "currencyType": "Gem",
+      "amountMode": "UniformRandom",
+      "minAmount": 20,
+      "maxAmount": 200
+    }
+  ]
+}

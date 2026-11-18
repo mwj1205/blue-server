@@ -13,6 +13,8 @@
   <ItemGroup>
     <EmbeddedResource Include="..\..\game-data\items\item-templates.v1.json"
                       LogicalName="blueServer.GameData.Items.item-templates.v1.json" />
+    <EmbeddedResource Include="..\..\game-data\items\currency-boxes.v1.json"
+                      LogicalName="blueServer.GameData.Items.currency-boxes.v1.json" />
     <EmbeddedResource Include="..\..\game-data\localization\ko-KR.v1.json"
                       LogicalName="blueServer.GameData.Localization.ko-KR.v1.json" />
   </ItemGroup>

@@ -6,6 +6,8 @@ public sealed class EmbeddedGameDataLoader
         "blueServer.GameData.Items.item-templates.v1.json";
     private const string DefaultLocalizationResourceName =
         "blueServer.GameData.Localization.ko-KR.v1.json";
+    private const string CurrencyBoxResourceName =
+        "blueServer.GameData.Items.currency-boxes.v1.json";
 
     public async Task<GameDataCatalog> LoadAsync(
         CancellationToken cancellationToken = default)
@@ -17,6 +19,8 @@ public sealed class EmbeddedGameDataLoader
         await using var localizationStream = assembly.GetManifestResourceStream(
             DefaultLocalizationResourceName) ??
             throw CreateMissingResourceException(DefaultLocalizationResourceName);
+        await using var boxStream = assembly.GetManifestResourceStream(CurrencyBoxResourceName) ??
+            throw CreateMissingResourceException(CurrencyBoxResourceName);
 
         var itemCatalog = await ItemCatalogJsonLoader.LoadAsync(
             itemStream,
@@ -25,7 +29,9 @@ public sealed class EmbeddedGameDataLoader
             localizationStream,
             cancellationToken);
 
-        return GameDataCatalog.Create(itemCatalog, localization);
+        var boxes = await CurrencyBoxCatalogJsonLoader.LoadAsync(boxStream, cancellationToken);
+
+        return GameDataCatalog.Create(itemCatalog, localization, boxes);
     }
 
     private static InvalidOperationException CreateMissingResourceException(

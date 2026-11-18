@@ -32,7 +32,7 @@ public sealed class GameDataCatalogTests
                 }));
 
         var exception = Assert.Throws<InvalidDataException>(
-            () => GameDataCatalog.Create(itemCatalog, localization));
+            () => GameDataCatalog.Create(itemCatalog, localization, new CurrencyBoxCatalog(1, [])));
 
         Assert.Contains("item.material.description", exception.Message);
     }
