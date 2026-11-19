@@ -11,5 +11,6 @@ public enum InventoryItemChangeReasonType
     Compensation = 7,
     AdminAdjustment = 8,
     Expiration = 9,
-    Refund = 10
+    Refund = 10,
+    ItemUseCost = 11
 }
