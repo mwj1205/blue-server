@@ -46,6 +46,81 @@ namespace blueServer.Infrastructure.Migrations
                     b.ToTable("CharacterTemplates");
                 });
 
+            modelBuilder.Entity("blueServer.Domain.Entities.CurrencyBoxUseRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("CurrencyType")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CurrentGem")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CurrentGold")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("GrantedAmount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ItemTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("PlayerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("QuantityAfter")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RewardRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("UsedQuantity")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemTemplateId");
+
+                    b.HasIndex("PlayerId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("PlayerId", "RewardRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("PlayerId", "ProcessedAt", "Id");
+
+                    b.ToTable("CurrencyBoxUseRecords", t =>
+                        {
+                            t.HasCheckConstraint("CK_CurrencyBoxUseRecords_CurrencyType_Valid", "\"CurrencyType\" IN (1, 2)");
+
+                            t.HasCheckConstraint("CK_CurrencyBoxUseRecords_CurrentBalances_NonNegative", "\"CurrentGold\" >= 0 AND \"CurrentGem\" >= 0");
+
+                            t.HasCheckConstraint("CK_CurrencyBoxUseRecords_GrantedAmount_Positive", "\"GrantedAmount\" > 0");
+
+                            t.HasCheckConstraint("CK_CurrencyBoxUseRecords_QuantityAfter_Range", "\"QuantityAfter\" BETWEEN 0 AND 999999");
+
+                            t.HasCheckConstraint("CK_CurrencyBoxUseRecords_QuantityBefore_Range", "\"UsedQuantity\"::bigint + \"QuantityAfter\" <= 999999");
+
+                            t.HasCheckConstraint("CK_CurrencyBoxUseRecords_RequestId_NotEmpty", "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+
+                            t.HasCheckConstraint("CK_CurrencyBoxUseRecords_RewardBalance_Consistent", "(\"CurrencyType\" = 1 AND \"CurrentGold\" >= \"GrantedAmount\") OR (\"CurrencyType\" = 2 AND \"CurrentGem\" >= \"GrantedAmount\")");
+
+                            t.HasCheckConstraint("CK_CurrencyBoxUseRecords_RewardRequestId_NotEmpty", "\"RewardRequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+
+                            t.HasCheckConstraint("CK_CurrencyBoxUseRecords_UsedQuantity_Range", "\"UsedQuantity\" BETWEEN 1 AND 999999");
+                        });
+                });
+
             modelBuilder.Entity("blueServer.Domain.Entities.CurrencyChangeLog", b =>
                 {
                     b.Property<long>("Id")
@@ -107,7 +182,7 @@ namespace blueServer.Infrastructure.Migrations
 
                             t.HasCheckConstraint("CK_CurrencyChangeLogs_Delta_NotZero", "\"Delta\" <> 0");
 
-                            t.HasCheckConstraint("CK_CurrencyChangeLogs_ReasonType_Valid", "\"ReasonType\" IN (1, 2, 3, 4, 5, 6, 7, 8)");
+                            t.HasCheckConstraint("CK_CurrencyChangeLogs_ReasonType_Valid", "\"ReasonType\" IN (1, 2, 3, 4, 5, 6, 7, 8, 9)");
 
                             t.HasCheckConstraint("CK_CurrencyChangeLogs_SourceId_NotEmpty", "length(btrim(\"SourceId\")) > 0");
                         });
@@ -258,7 +333,7 @@ namespace blueServer.Infrastructure.Migrations
 
                             t.HasCheckConstraint("CK_InventoryItemChangeLogs_Quantity_Consistent", "\"QuantityAfter\" = \"QuantityBefore\" + \"Delta\"");
 
-                            t.HasCheckConstraint("CK_InventoryItemChangeLogs_ReasonType_Valid", "\"ReasonType\" IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)");
+                            t.HasCheckConstraint("CK_InventoryItemChangeLogs_ReasonType_Valid", "\"ReasonType\" IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)");
 
                             t.HasCheckConstraint("CK_InventoryItemChangeLogs_RequestId_NotEmpty", "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
 
@@ -899,6 +974,25 @@ namespace blueServer.Infrastructure.Migrations
                             RewardGem = 10,
                             RewardGold = 100
                         });
+                });
+
+            modelBuilder.Entity("blueServer.Domain.Entities.CurrencyBoxUseRecord", b =>
+                {
+                    b.HasOne("blueServer.Domain.Entities.ItemTemplate", "ItemTemplate")
+                        .WithMany()
+                        .HasForeignKey("ItemTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("blueServer.Domain.Entities.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ItemTemplate");
+
+                    b.Navigation("Player");
                 });
 
             modelBuilder.Entity("blueServer.Domain.Entities.CurrencyChangeLog", b =>
