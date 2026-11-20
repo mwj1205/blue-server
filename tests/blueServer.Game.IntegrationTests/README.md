@@ -54,6 +54,16 @@ finally {
 - 동일 Request ID에 다른 payload 사용 시 멱등성 충돌
 - `RewardGrantRecords`, `RewardGrantItems` 지급 snapshot 저장
 
+## 재화 상자 사용 서비스 검증
+
+`CurrencyBoxUseServiceIntegrationTests`는 적용된 `AddCurrencyBoxUseRecords` Migration과
+Catalog 상자 3101~3104가 있는 PostgreSQL을 사용한다. API/Game 실행은 필요 없다.
+일반 DB 테스트와 같은 연결 환경 변수를 설정하고 필터에 해당 클래스 이름을 지정한다.
+상자 4종의 소비·재화 지급·사용/변경 이력, 같은 RequestId의 최초 결과 복원,
+다른 사용 개수의 충돌, 보유량 부족 시 추첨 미호출, 재화 overflow 시 전체 롤백을 확인한다.
+랜덤 보상은 고정된 테스트 난수원으로 검증하며, 생성한 Player와 이력은 삭제하지 않는다.
+실제 동시 사용 경합과 커밋 후 응답 유실 장애 주입은 별도 후속 검증이다.
+
 ## Mail HTTP API 통합 검증
 
 단일 수령 `POST /players/me/mails/{mailId}/claim`은 JSON 본문의 `requestId`(비어 있지 않은 GUID)가 필요하다.
