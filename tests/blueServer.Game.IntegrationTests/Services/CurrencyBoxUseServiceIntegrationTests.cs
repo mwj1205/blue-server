@@ -11,7 +11,7 @@ using Xunit;
 
 namespace blueServer.Game.IntegrationTests.Services;
 
-public sealed class CurrencyBoxUseServiceIntegrationTests
+public sealed partial class CurrencyBoxUseServiceIntegrationTests
 {
     [PostgreSqlIntegrationFact]
     public async Task Use_AllFourBoxes_ConsumePayAndReplayOriginalSnapshot()
