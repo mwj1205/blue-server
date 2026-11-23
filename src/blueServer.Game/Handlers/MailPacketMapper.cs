@@ -79,7 +79,7 @@ internal static class MailPacketMapper
         };
     }
 
-    public static MailDetailResultPacket ToPacket(MailDetailResult result)
+    public static MailDetailResultPacket ToPacket(MailDetailResult result, bool includeItemAttachments = false)
     {
         if (result.Mail is null)
         {
@@ -109,6 +109,12 @@ internal static class MailPacketMapper
                         (int)attachment.Type,
                         attachment.Amount))
                     .ToArray())
+            {
+                ItemAttachments = includeItemAttachments
+                    ? result.Mail.ItemAttachments.Select(item => new MailDetailItemAttachmentPacket(
+                        item.ItemTemplateId, item.Quantity, item.ClaimedQuantity, item.RemainingQuantity)).ToArray()
+                    : null
+            }
         };
     }
 

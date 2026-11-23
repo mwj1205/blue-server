@@ -33,7 +33,7 @@ public sealed class MailDetailHandler : IPacketHandler
             cancellationToken);
 
         await session.SendAsync(
-            MailPacketMapper.ToPacket(result).Serialize(),
+            MailPacketMapper.ToPacket(result, request.IncludeItemAttachments).Serialize(),
             cancellationToken);
     }
 }

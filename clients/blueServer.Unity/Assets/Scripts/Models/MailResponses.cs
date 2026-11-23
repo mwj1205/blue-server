@@ -118,6 +118,7 @@ namespace BlueServer.Client.Models
         public bool IsExpired { get; private set; }
         public bool CanClaim { get; private set; }
         public IReadOnlyList<MailAttachment> Attachments { get; private set; }
+        public IReadOnlyList<MailItemAttachment> ItemAttachments { get; set; } = new MailItemAttachment[0];
     }
 
     public sealed class MailDetailResponse

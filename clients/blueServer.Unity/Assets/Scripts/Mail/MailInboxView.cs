@@ -16,6 +16,13 @@ namespace BlueServer.Client.Mail
         private Vector2 _listScrollPosition;
         private Vector2 _detailScrollPosition;
         private bool _initialized;
+        private int _boxIndex;
+        private string _boxQuantity = "20";
+        private int _tab;
+        private Vector2 _resultScrollPosition;
+        private Vector2 _resourceScrollPosition;
+        private float _layoutHeight;
+        private GUIStyle _resourceValueStyle;
 
         public void Initialize(
             MailInboxState state,
@@ -39,17 +46,49 @@ namespace BlueServer.Client.Mail
 
         private void OnGUI()
         {
-            if (!_initialized)
+            if (!_initialized || Screen.width <= 0 || Screen.height <= 0)
             {
                 return;
             }
 
-            var width = Mathf.Min(WindowWidth, Screen.width - 20f);
-            var area = new Rect(10f, 10f, width, Screen.height - 20f);
+            // 작은 Game View에서도 두 패널이 겹치지 않도록 최소 논리 폭에 맞춰 축소한다.
+            var scale = Mathf.Min(1f, Screen.width / 720f);
+            var canvasWidth = Screen.width / scale;
+            _layoutHeight = Screen.height / scale;
+            var previousMatrix = GUI.matrix;
+            GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
+            try
+            {
+                var resources = new Rect(canvasWidth - 230f, 10f, 220f, _layoutHeight - 20f);
+                DrawResources(resources);
+                var width = Mathf.Min(WindowWidth, canvasWidth - 250f);
+                DrawMainArea(new Rect(10f, 10f, width, _layoutHeight - 20f));
+            }
+            finally
+            {
+                GUI.matrix = previousMatrix;
+            }
+        }
 
+        private void DrawMainArea(Rect area)
+        {
             GUILayout.BeginArea(area, GUI.skin.window);
             DrawHeader();
             DrawStatus();
+            _tab = GUILayout.Toolbar(_tab, new[] { "Mail", "Inventory / Box Use" });
+            if (!string.IsNullOrEmpty(_state.ItemMessage))
+            {
+                _resultScrollPosition = GUILayout.BeginScrollView(_resultScrollPosition,
+                    GUI.skin.box, GUILayout.Height(Mathf.Min(110f, _layoutHeight * 0.2f)));
+                GUILayout.Label(_state.ItemMessage);
+                GUILayout.EndScrollView();
+            }
+            if (_tab == 1)
+            {
+                DrawBoxUse();
+                GUILayout.EndArea();
+                return;
+            }
 
             GUILayout.Space(8f);
             GUILayout.BeginHorizontal();
@@ -71,6 +110,12 @@ namespace BlueServer.Client.Mail
                 ClaimAll();
             }
 
+            GUI.enabled = commandsEnabled && !_state.IsBusy && _state.CanUseItems && _state.CanRetryClaimAll;
+            if (GUILayout.Button("Retry Claim All", GUILayout.Width(130f)))
+            {
+                RetryClaimAll();
+            }
+
             GUI.enabled = commandsEnabled;
             GUILayout.EndHorizontal();
             GUILayout.Space(8f);
@@ -84,14 +129,43 @@ namespace BlueServer.Client.Mail
         private void DrawHeader()
         {
             GUILayout.Label("Blue Server Mail", GUI.skin.box);
+        }
 
-            if (_state.HasCurrentBalance)
+        private void DrawResources(Rect area)
+        {
+            if (_resourceValueStyle == null)
             {
-                GUILayout.Label(string.Format(
-                    "Gold: {0:N0}    Gem: {1:N0}",
-                    _state.CurrentGold,
-                    _state.CurrentGem));
+                _resourceValueStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 20,
+                    fontStyle = FontStyle.Bold,
+                    wordWrap = true
+                };
             }
+            GUILayout.BeginArea(area, GUI.skin.window);
+            GUILayout.Label("Player Resources", GUI.skin.box);
+            _resourceScrollPosition = GUILayout.BeginScrollView(_resourceScrollPosition);
+            GUILayout.Label("Gold");
+            GUILayout.Label(_state.HasCurrentBalance ? _state.CurrentGold.ToString("N0") : "Unknown", _resourceValueStyle);
+            GUILayout.Label("Gem");
+            GUILayout.Label(_state.HasCurrentBalance ? _state.CurrentGem.ToString("N0") : "Unknown", _resourceValueStyle);
+            GUILayout.Space(10f);
+            GUILayout.Label("Boxes / last observed");
+            var names = new[] { "Gold 100", "Gem 100", "Gold 20-200", "Gem 20-200" };
+            for (var i = 0; i < names.Length; i++)
+            {
+                var itemId = 3101 + i;
+                int quantity;
+                GUILayout.BeginVertical(GUI.skin.box);
+                GUILayout.Label(itemId + " / " + names[i]);
+                GUILayout.Label(_state.KnownQuantities.TryGetValue(itemId, out quantity)
+                    ? quantity.ToString("N0") : "Unknown", _resourceValueStyle);
+                GUILayout.EndVertical();
+            }
+            GUILayout.Label(_state.IsBusy ? "Updating..." : "Claim/use results update this panel.");
+            GUILayout.Label("Unknown is not zero. Claim All reports grants, not inventory totals.");
+            GUILayout.EndScrollView();
+            GUILayout.EndArea();
         }
 
         private void DrawStatus()
@@ -135,8 +209,8 @@ namespace BlueServer.Client.Mail
             var listHeight = _state.SelectedMail == null
                 ? GUILayout.ExpandHeight(true)
                 : GUILayout.Height(Mathf.Min(
-                    260f,
-                    Screen.height * 0.35f));
+                    160f,
+                    _layoutHeight * 0.22f));
 
             _listScrollPosition = GUILayout.BeginScrollView(
                 _listScrollPosition,
@@ -213,6 +287,7 @@ namespace BlueServer.Client.Mail
             GUILayout.Label(mail.Title);
             GUILayout.Label(mail.Body);
             GUILayout.Label("Sent: " + mail.SentAt.ToString("u"));
+            GUILayout.Label("Expires: " + (mail.ExpiresAt.HasValue ? mail.ExpiresAt.Value.ToString("u") : "No expiry"));
 
             if (mail.ReadAt.HasValue)
             {
@@ -234,6 +309,11 @@ namespace BlueServer.Client.Mail
                     "- {0}: {1:N0}",
                     FormatRewardType(attachment.RewardType),
                     attachment.Amount));
+            }
+            foreach (var item in mail.ItemAttachments)
+            {
+                GUILayout.Label(string.Format("- Item {0}: total {1:N0}, claimed {2:N0}, remaining {3:N0}",
+                    item.ItemTemplateId, item.Quantity, item.ClaimedQuantity, item.RemainingQuantity));
             }
 
             GUILayout.Space(6f);
@@ -277,6 +357,35 @@ namespace BlueServer.Client.Mail
                 _cancellationToken));
         }
 
+        private void DrawBoxUse()
+        {
+            if (!_state.CanUseItems) return;
+            GUILayout.BeginVertical(GUI.skin.box);
+            GUILayout.Label("Currency boxes (server test)");
+            _boxIndex = GUILayout.SelectionGrid(_boxIndex,
+                new[] { "3101 Gold100", "3102 Gem100", "3103 Gold20-200", "3104 Gem20-200" }, 2);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Use quantity", GUILayout.Width(90f));
+            _boxQuantity = GUILayout.TextField(_boxQuantity, 6, GUILayout.Width(80f));
+            int quantity;
+            var valid = int.TryParse(_boxQuantity, out quantity) && quantity >= 1 && quantity <= 999999;
+            var previous = GUI.enabled;
+            GUI.enabled = previous && !_state.IsBusy && valid;
+            if (GUILayout.Button("Use (new request)")) UseBox(3101 + _boxIndex, quantity, false);
+            GUI.enabled = previous && !_state.IsBusy && _state.CanRetryUse;
+            if (GUILayout.Button("Retry last request")) UseBox(0, 0, true);
+            GUI.enabled = previous;
+            GUILayout.EndHorizontal();
+            if (_state.KnownQuantities.Count == 0)
+                GUILayout.Label("No current quantity observation. Single claim/use reports inventory totals; Claim All reports grants only.");
+            GUILayout.EndVertical();
+        }
+
+        private async void UseBox(int itemId, int quantity, bool retry)
+        {
+            await ExecuteAsync(() => _state.UseBoxAsync(itemId, quantity, retry, _cancellationToken));
+        }
+
         private async void LoadNextPage()
         {
             await ExecuteAsync(() => _state.LoadNextPageAsync(
@@ -316,6 +425,11 @@ namespace BlueServer.Client.Mail
                     PageSize,
                     _cancellationToken));
             }
+        }
+
+        private async void RetryClaimAll()
+        {
+            await ExecuteAsync(() => _state.ClaimAllItemsAsync(true, _cancellationToken));
         }
 
         private static string FormatMailState(MailListItem item)
