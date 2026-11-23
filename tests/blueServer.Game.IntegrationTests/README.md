@@ -54,6 +54,68 @@ finally {
 - 동일 Request ID에 다른 payload 사용 시 멱등성 충돌
 - `RewardGrantRecords`, `RewardGrantItems` 지급 snapshot 저장
 
+## 재화 상자 사용 서비스 검증
+
+`CurrencyBoxUseServiceIntegrationTests`는 적용된 `AddCurrencyBoxUseRecords` Migration과
+Catalog 상자 3101~3104가 있는 PostgreSQL을 사용한다. API/Game 실행은 필요 없다.
+일반 DB 테스트와 같은 연결 환경 변수를 설정하고 필터에 해당 클래스 이름을 지정한다.
+상자 4종의 소비·재화 지급·사용/변경 이력, 같은 RequestId의 최초 결과 복원,
+다른 사용 개수의 충돌, 보유량 부족 시 추첨 미호출, 재화 overflow 시 전체 롤백을 확인한다.
+랜덤 보상은 고정된 테스트 난수원으로 검증하며, 생성한 Player와 이력은 삭제하지 않는다.
+동시 요청은 저장 직전 Interceptor로 두 요청을 맞춰 검증한다. 같은 ID·같은 payload는
+승자의 랜덤 결과로 복원하고, 같은 ID·다른 payload는 충돌로 거절한다. 서로 다른 ID는
+한 요청만 커밋하며 패자의 소비·지급·이력이 남지 않는지, 재시도 시 보유량 부족인지 확인한다.
+커밋 후 응답 유실 장애 주입은 별도 후속 검증이다.
+
+## 재화 상자 HTTP API 통합 검증
+
+`POST /players/me/currency-boxes/{itemTemplateId}/use`는 JWT 인증이 필요하다.
+Player ID와 처리 시각은 서버에서 결정하며, 요청 본문은 다음과 같다.
+
+```json
+{
+  "quantity": 2,
+  "requestId": "dbe8219c-d86d-4f2c-a6de-a7b5cf98094c"
+}
+```
+
+- `quantity`: 1~999999, `requestId`: 비어 있지 않은 GUID. 재전송은 같은 ID와 같은 개수를 사용한다.
+- 200: `requestId`, `itemTemplateId`, `usedQuantity`, `quantityAfter`, `currencyType`(Gold/Gem),
+  `grantedAmount`, `currentGold`, `currentGem`, `processedAt`를 반환한다. 완료 재요청은 최초 응답을 복원한다.
+- 400: 잘못된 ID/개수/본문, 401: 인증 실패, 404: Player 또는 상자 정의 없음.
+- 409: 보유량 부족, DB 아이템 정의 없음/비활성, 멱등성 충돌, 동시 수정 충돌.
+  실패 응답의 `code`로 구분한다. `ConcurrencyConflict`는 같은 ID로 재시도하고,
+  `IdempotencyConflict`는 기존 요청과 다른 내용을 같은 ID로 보내지 않았는지 확인한다.
+- API는 시작 시 내장 Catalog를 한 번 검증/로드한다. DB Migration과 Catalog 동기화는 실행하지 않는다.
+  새 정의를 배포할 때는 기존 Migration Job을 먼저 실행해야 한다.
+
+`CurrencyBoxHttpApiIntegrationTests`는 DB 연결 문자열과 `BLUE_SERVER_API_BASE_ADDRESS`,
+최신 API 실행이 필요하다. 로그인에는 API의 Redis 연결도 필요하다. 테스트 필터는
+`FullyQualifiedName~CurrencyBoxHttpApiIntegrationTests`다.
+실제 회원가입/JWT 로그인, 인증 거절, 입력 거절과 DB 무변경, 상자 4종 사용,
+완료 응답 복원, 다른 개수의 충돌, 최종 잔액·소비·지급 이력을 확인한다.
+랜덤의 정확한 추첨값은 서비스 테스트에서 고정 난수원으로 확인하고,
+HTTP에서는 실제 난수원의 합계 범위(2개 사용 시 40~400)를 확인한다.
+테스트 Player와 이력은 삭제하지 않는다.
+
+## 재화 상자 TCP 통합 검증
+
+`CurrencyBoxTcpIntegrationTests`는 DB 연결 문자열, `BLUE_SERVER_API_BASE_ADDRESS`,
+`BLUE_SERVER_GAME_PORT`가 필요하다. `BLUE_SERVER_GAME_HOST` 기본값은 `127.0.0.1`이다.
+최신 API와 Game이 같은 DB·JWT Key/Issuer/Audience를 사용해야 한다. API 로그인에는 Redis도 필요하다.
+필터는 `FullyQualifiedName~CurrencyBoxTcpIntegrationTests`다.
+
+- 회원가입/HTTP 로그인 → JWT로 TCP 로그인 → 상자 4종 각 2개 사용.
+- 미인증 사용 요청은 처리하지 않고 후속 Ping과 로그인은 정상 동작하는지 확인.
+- 동일 요청의 TCP 응답 바이트 일치, 같은 ID의 다른 개수/상자 종류 충돌 확인.
+- TCP 성공 결과를 HTTP에서도 복원하고 재화·소비·지급·사용 기록이 중복되지 않는지 확인.
+- 수량 부족/비상자 실패와 최종 잔액·보유량·이력 건수 확인.
+
+요청은 두 번의 Write로 전송하지만 실제 TCP 분할/합침 경계는 운영체제가 결정한다.
+응답은 ReadExactlyAsync로 헤더/본문을 읽고 길이를 4~4096으로 제한한다.
+이 테스트는 네트워크 장애 주입이나 응답 유실을 강제로 재현하는 테스트는 아니다.
+생성한 테스트 Player와 이력은 삭제하지 않으며 수동 테스트 계정과 분리한다.
+
 ## Mail HTTP API 통합 검증
 
 단일 수령 `POST /players/me/mails/{mailId}/claim`은 JSON 본문의 `requestId`(비어 있지 않은 GUID)가 필요하다.

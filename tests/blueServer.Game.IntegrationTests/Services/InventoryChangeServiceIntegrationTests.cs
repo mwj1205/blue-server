@@ -7,7 +7,7 @@ using Xunit;
 
 namespace blueServer.Game.IntegrationTests.Services;
 
-public sealed class InventoryChangeServiceIntegrationTests
+public sealed partial class InventoryChangeServiceIntegrationTests
 {
     [PostgreSqlIntegrationFact]
     public async Task IncreaseWithinCurrentTransactionAsync_PersistsQuantityAndReturnsOverflow()

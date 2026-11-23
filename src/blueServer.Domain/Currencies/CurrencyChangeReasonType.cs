@@ -9,5 +9,6 @@ public enum CurrencyChangeReasonType
     ShopPurchase = 5,
     MailCampaignReward = 6,
     Compensation = 7,
-    AdminAdjustment = 8
+    AdminAdjustment = 8,
+    ItemUseReward = 9
 }

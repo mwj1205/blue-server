@@ -37,5 +37,8 @@ public enum Opcode : ushort
     MailRead = 25,
     MailReadResult = 26,
 
+    CurrencyBoxUse = 27,
+    CurrencyBoxUseResult = 28,
+
     ChatMessage = 1000  // S -> C
 }

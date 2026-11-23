@@ -27,6 +27,38 @@
       "value": "일부 자원을 회복하는 소모품"
     },
     {
+      "key": "item.gold_box.fixed.name",
+      "value": "골드 상자"
+    },
+    {
+      "key": "item.gold_box.fixed.description",
+      "value": "사용하면 골드 100개를 획득합니다."
+    },
+    {
+      "key": "item.gem_box.fixed.name",
+      "value": "젬 상자"
+    },
+    {
+      "key": "item.gem_box.fixed.description",
+      "value": "사용하면 젬 100개를 획득합니다."
+    },
+    {
+      "key": "item.gold_box.random.name",
+      "value": "랜덤 골드 상자"
+    },
+    {
+      "key": "item.gold_box.random.description",
+      "value": "사용하면 골드 20~200개 중 하나의 수량을 동일한 확률로 획득합니다."
+    },
+    {
+      "key": "item.gem_box.random.name",
+      "value": "랜덤 젬 상자"
+    },
+    {
+      "key": "item.gem_box.random.description",
+      "value": "사용하면 젬 20~200개 중 하나의 수량을 동일한 확률로 획득합니다."
+    },
+    {
       "key": "item.test_event_token.name",
       "value": "이벤트 토큰"
     },

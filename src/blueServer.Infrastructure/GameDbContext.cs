@@ -44,6 +44,7 @@ public class GameDbContext : DbContext
         Set<InventoryGrantRecord>();
     public DbSet<InventoryGrantRecordItem> InventoryGrantRecordItems =>
         Set<InventoryGrantRecordItem>();
+    public DbSet<CurrencyBoxUseRecord> CurrencyBoxUseRecords => Set<CurrencyBoxUseRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -225,7 +226,7 @@ public class GameDbContext : DbContext
                     "\"BalanceAfter\" = \"BalanceBefore\" + \"Delta\"");
                 table.HasCheckConstraint(
                     "CK_CurrencyChangeLogs_ReasonType_Valid",
-                    "\"ReasonType\" IN (1, 2, 3, 4, 5, 6, 7, 8)");
+                    "\"ReasonType\" IN (1, 2, 3, 4, 5, 6, 7, 8, 9)");
                 table.HasCheckConstraint(
                     "CK_CurrencyChangeLogs_SourceId_NotEmpty",
                     "length(btrim(\"SourceId\")) > 0");
@@ -283,13 +284,65 @@ public class GameDbContext : DbContext
                     "\"QuantityAfter\" = \"QuantityBefore\" + \"Delta\"");
                 table.HasCheckConstraint(
                     "CK_InventoryItemChangeLogs_ReasonType_Valid",
-                    "\"ReasonType\" IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)");
+                    "\"ReasonType\" IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)");
                 table.HasCheckConstraint(
                     "CK_InventoryItemChangeLogs_SourceId_NotEmpty",
                     "length(btrim(\"SourceId\")) > 0");
                 table.HasCheckConstraint(
                     "CK_InventoryItemChangeLogs_RequestId_NotEmpty",
                     "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+            });
+        });
+
+        modelBuilder.Entity<CurrencyBoxUseRecord>(entity =>
+        {
+            entity.Property(record => record.CurrencyType).HasConversion<int>();
+
+            entity.HasIndex(record => new { record.PlayerId, record.RequestId }).IsUnique();
+            // 하나의 내부 지급 요청이 여러 상자 사용 결과에 연결되지 않도록 한다.
+            entity.HasIndex(record => new { record.PlayerId, record.RewardRequestId }).IsUnique();
+            entity.HasIndex(record => new { record.PlayerId, record.ProcessedAt, record.Id });
+
+            entity.HasOne(record => record.Player)
+                .WithMany()
+                .HasForeignKey(record => record.PlayerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(record => record.ItemTemplate)
+                .WithMany()
+                .HasForeignKey(record => record.ItemTemplateId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // 완료 후 갱신하지 않는 결과 기록이다. 중복 INSERT는 Unique Index로 제어한다.
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_CurrencyBoxUseRecords_RequestId_NotEmpty",
+                    "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+                table.HasCheckConstraint(
+                    "CK_CurrencyBoxUseRecords_RewardRequestId_NotEmpty",
+                    "\"RewardRequestId\" <> '00000000-0000-0000-0000-000000000000'::uuid");
+                table.HasCheckConstraint(
+                    "CK_CurrencyBoxUseRecords_UsedQuantity_Range",
+                    "\"UsedQuantity\" BETWEEN 1 AND 999999");
+                table.HasCheckConstraint(
+                    "CK_CurrencyBoxUseRecords_QuantityAfter_Range",
+                    "\"QuantityAfter\" BETWEEN 0 AND 999999");
+                table.HasCheckConstraint(
+                    "CK_CurrencyBoxUseRecords_QuantityBefore_Range",
+                    "\"UsedQuantity\"::bigint + \"QuantityAfter\" <= 999999");
+                table.HasCheckConstraint(
+                    "CK_CurrencyBoxUseRecords_CurrencyType_Valid",
+                    "\"CurrencyType\" IN (1, 2)");
+                table.HasCheckConstraint(
+                    "CK_CurrencyBoxUseRecords_GrantedAmount_Positive",
+                    "\"GrantedAmount\" > 0");
+                table.HasCheckConstraint(
+                    "CK_CurrencyBoxUseRecords_CurrentBalances_NonNegative",
+                    "\"CurrentGold\" >= 0 AND \"CurrentGem\" >= 0");
+                table.HasCheckConstraint(
+                    "CK_CurrencyBoxUseRecords_RewardBalance_Consistent",
+                    "(\"CurrencyType\" = 1 AND \"CurrentGold\" >= \"GrantedAmount\") OR " +
+                    "(\"CurrencyType\" = 2 AND \"CurrentGem\" >= \"GrantedAmount\")");
             });
         });
 
