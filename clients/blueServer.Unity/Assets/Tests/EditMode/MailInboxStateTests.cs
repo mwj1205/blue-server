@@ -15,6 +15,19 @@ namespace BlueServer.Client.Tests
             new DateTime(2026, 9, 2, 8, 0, 0, DateTimeKind.Utc);
 
         [Test]
+        public void InitialBalance_IsVisibleBeforeAnyClaimAndCannotOverwriteLaterBalance()
+        {
+            var state = new MailInboxState(new FakeMailQueryClient());
+            Assert.Throws<ArgumentOutOfRangeException>(() => state.SetInitialBalance(-1, 500));
+            Assert.That(state.HasCurrentBalance, Is.False);
+            state.SetInitialBalance(1000, 500);
+            Assert.That(state.HasCurrentBalance, Is.True);
+            Assert.That(state.CurrentGold, Is.EqualTo(1000));
+            Assert.That(state.CurrentGem, Is.EqualTo(500));
+            Assert.Throws<InvalidOperationException>(() => state.SetInitialBalance(0, 0));
+        }
+
+        [Test]
         public void LoadFirstPageAsync_ReplacesInboxAndStoresCursor()
         {
             var nextCursor = new MailListCursor(SentAt, 2);

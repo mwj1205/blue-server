@@ -7,9 +7,10 @@ using BlueServer.Client.Protocol;
 
 namespace BlueServer.Client.Network
 {
-    public sealed class GameTcpClient :
+    public sealed partial class GameTcpClient :
         IMailQueryClient,
         IMailCommandClient,
+        IItemUseClient,
         IDisposable
     {
         private readonly string _host;
@@ -136,7 +137,7 @@ namespace BlueServer.Client.Network
             CancellationToken cancellationToken)
         {
             var response = await ExchangeAsync(
-                MailPacketCodec.BuildDetailRequest(mailId),
+                MailPacketCodec.BuildDetailRequest(mailId, true),
                 cancellationToken);
 
             return MailPacketCodec.ParseDetailResponse(response);
@@ -216,7 +217,8 @@ namespace BlueServer.Client.Network
 
         private async Task<byte[]> ExchangeAsync(
             byte[] request,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            Func<NetworkStream, CancellationToken, Task<byte[]>> responseReader = null)
         {
             ThrowIfDisposed();
 
@@ -230,15 +232,26 @@ namespace BlueServer.Client.Network
 
             try
             {
-                await _stream.WriteAsync(
-                    request,
-                    0,
-                    request.Length,
-                    cancellationToken);
-
-                return await ReadPacketAsync(
-                    _stream,
-                    cancellationToken);
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                using (timeout.Token.Register(() => Dispose()))
+                {
+                    timeout.CancelAfter(TimeSpan.FromSeconds(15));
+                    await _stream.WriteAsync(request, 0, request.Length, timeout.Token);
+                    return responseReader == null
+                        ? await ReadPacketAsync(_stream, timeout.Token)
+                        : await responseReader(_stream, timeout.Token);
+                }
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                Dispose();
+                throw new TimeoutException("TCP request timed out. The result may be committed; reuse the same RequestId.");
+            }
+            catch
+            {
+                // 송수신 도중 실패하면 응답 경계가 불명확하므로 같은 연결을 재사용하지 않는다.
+                Dispose();
+                throw;
             }
             finally
             {

@@ -159,6 +159,7 @@ namespace BlueServer.Client.Tests
             var request = await ReadRequestAsync(stream, GameOpcode.MailDetail);
 
             Assert.That(request.ReadLong(), Is.EqualTo(MailId));
+            Assert.That(request.ReadBool(), Is.True);
             request.EnsureFullyConsumed();
 
             using (var writer = new GamePacketWriter())

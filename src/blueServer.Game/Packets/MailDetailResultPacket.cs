@@ -39,9 +39,24 @@ public sealed class MailDetailResultPacket
                 bodyWriter.WriteInt(attachment.RewardType);
                 bodyWriter.WriteInt(attachment.Amount);
             }
+            if (Mail.ItemAttachments is { } items)
+            {
+                bodyWriter.WriteInt(items.Count);
+                foreach (var item in items)
+                {
+                    bodyWriter.WriteInt(item.ItemTemplateId);
+                    bodyWriter.WriteInt(item.Quantity);
+                    bodyWriter.WriteInt(item.ClaimedQuantity);
+                    bodyWriter.WriteInt(item.RemainingQuantity);
+                }
+            }
         }
 
         var body = bodyWriter.ToArray();
+        if (body.Length + 2 > PacketReader.MaxPacketSize)
+        {
+            throw new PacketProtocolException("Mail detail exceeds maximum packet size.");
+        }
         var finalWriter = new PacketWriter();
 
         finalWriter.WriteUShort(checked((ushort)(body.Length + 2)));
@@ -74,7 +89,12 @@ public sealed record MailDetailPacketItem(
     DateTime? ClaimedAt,
     bool IsExpired,
     bool CanClaim,
-    IReadOnlyList<MailAttachmentPacketItem> Attachments);
+    IReadOnlyList<MailAttachmentPacketItem> Attachments)
+{
+    public IReadOnlyList<MailDetailItemAttachmentPacket>? ItemAttachments { get; init; }
+}
+
+public sealed record MailDetailItemAttachmentPacket(int ItemTemplateId, int Quantity, int ClaimedQuantity, int RemainingQuantity);
 
 public sealed record MailAttachmentPacketItem(
     int RewardType,

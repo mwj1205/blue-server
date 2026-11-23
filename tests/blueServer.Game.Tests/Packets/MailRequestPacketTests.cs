@@ -74,6 +74,7 @@ public sealed class MailRequestPacketTests
         bodyWriter.WriteUShort((ushort)Opcode.MailDetail);
         bodyWriter.WriteLong(10);
         bodyWriter.WriteBool(true);
+        bodyWriter.WriteBool(true); // 첫 bool은 아이템 첨부 요청 옵션, 그 뒤는 여분이다.
 
         var body = bodyWriter.ToArray();
         var packetWriter = new PacketWriter();

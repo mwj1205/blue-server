@@ -40,7 +40,11 @@ namespace BlueServer.Client
         private async void ConnectAndLoadProfile(string accessToken)
         {
             _lifetimeCts = new CancellationTokenSource();
-            _client = new GameTcpClient("127.0.0.1", 7777);
+            var host = Environment.GetEnvironmentVariable("BLUE_SERVER_GAME_HOST") ?? "127.0.0.1";
+            int port;
+            var text = Environment.GetEnvironmentVariable("BLUE_SERVER_GAME_PORT");
+            if (!int.TryParse(text, out port)) port = 7777;
+            _client = new GameTcpClient(host, port);
 
             try
             {
@@ -80,6 +84,7 @@ namespace BlueServer.Client
                         profile.TotalStageClearCount));
 
                 var mailState = new MailInboxState(_client);
+                mailState.SetInitialBalance(profile.Gold, profile.Gem);
                 var mailView = gameObject.AddComponent<MailInboxView>();
                 mailView.Initialize(mailState, _lifetimeCts.Token);
 

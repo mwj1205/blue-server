@@ -34,9 +34,15 @@ namespace BlueServer.Client.Protocol
             }
         }
 
-        public static byte[] BuildDetailRequest(long mailId)
+        public static byte[] BuildDetailRequest(long mailId, bool includeItems = false)
         {
-            return BuildMailIdRequest(GameOpcode.MailDetail, mailId);
+            ValidateId(mailId, nameof(mailId));
+            using (var writer = new GamePacketWriter())
+            {
+                writer.WriteLong(mailId);
+                if (includeItems) writer.WriteBool(true);
+                return writer.BuildPacket(GameOpcode.MailDetail);
+            }
         }
 
         public static byte[] BuildReadRequest(long mailId)
@@ -178,6 +184,10 @@ namespace BlueServer.Client.Protocol
                     isExpired,
                     canClaim,
                     attachments.AsReadOnly());
+                if (reader.RemainingBytes > 0)
+                {
+                    mail.ItemAttachments = ItemUsePacketCodec.ReadDetailItems(reader);
+                }
             }
 
             reader.EnsureFullyConsumed();

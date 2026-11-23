@@ -18,7 +18,7 @@ namespace BlueServer.Client.Mail
         Disconnected
     }
 
-    public sealed class MailInboxState
+    public sealed partial class MailInboxState
     {
         private readonly IMailQueryClient _client;
         private readonly IMailCommandClient _commandClient;
@@ -52,6 +52,15 @@ namespace BlueServer.Client.Mail
         public int CurrentGem { get; private set; }
         public bool HasCurrentBalance { get; private set; }
         public bool RequiresRefresh { get; private set; }
+
+        public void SetInitialBalance(int gold, int gem)
+        {
+            if (gold < 0) throw new ArgumentOutOfRangeException(nameof(gold));
+            if (gem < 0) throw new ArgumentOutOfRangeException(nameof(gem));
+            if (HasCurrentBalance) throw new InvalidOperationException("Initial balance is already set.");
+            SetCurrentBalance(gold, gem);
+            NotifyChanged();
+        }
 
         public bool CanExecuteCommands
         {
@@ -172,6 +181,10 @@ namespace BlueServer.Client.Mail
             long mailId,
             CancellationToken cancellationToken)
         {
+            if (_client is IItemUseClient)
+            {
+                return await ClaimItemsAsync(mailId, cancellationToken);
+            }
             ValidateMailId(mailId);
             var commandClient = GetCommandClient();
 
@@ -224,6 +237,10 @@ namespace BlueServer.Client.Mail
         public async Task<bool> ClaimAllAsync(
             CancellationToken cancellationToken)
         {
+            if (_client is IItemUseClient)
+            {
+                return await ClaimAllItemsAsync(false, cancellationToken);
+            }
             var commandClient = GetCommandClient();
 
             if (!TryBeginRequest())
@@ -480,7 +497,10 @@ namespace BlueServer.Client.Mail
                 claimedAt,
                 mail.IsExpired,
                 canClaim,
-                mail.Attachments);
+                mail.Attachments)
+            {
+                ItemAttachments = mail.ItemAttachments
+            };
         }
 
         private void SetCurrentBalance(int gold, int gem)
@@ -562,6 +582,7 @@ namespace BlueServer.Client.Mail
         {
             return exception is IOException ||
                 exception is SocketException ||
+                exception is TimeoutException ||
                 exception is ObjectDisposedException;
         }
     }

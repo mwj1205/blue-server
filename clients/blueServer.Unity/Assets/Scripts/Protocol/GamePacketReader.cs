@@ -39,6 +39,22 @@ namespace BlueServer.Client.Protocol
 
         public GameOpcode Opcode { get; private set; }
 
+        internal GamePacketReader(byte[] payload, GameOpcode opcode)
+        {
+            _buffer = payload;
+            Opcode = opcode;
+            _position = 0;
+        }
+
+        public byte[] ReadBytes(int count)
+        {
+            EnsureAvailable(count);
+            var result = new byte[count];
+            Buffer.BlockCopy(_buffer, _position, result, 0, count);
+            _position += count;
+            return result;
+        }
+
         public bool IsConsumed
         {
             get { return _position == _buffer.Length; }
