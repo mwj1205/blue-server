@@ -98,6 +98,24 @@ Player ID와 처리 시각은 서버에서 결정하며, 요청 본문은 다음
 HTTP에서는 실제 난수원의 합계 범위(2개 사용 시 40~400)를 확인한다.
 테스트 Player와 이력은 삭제하지 않는다.
 
+## 재화 상자 TCP 통합 검증
+
+`CurrencyBoxTcpIntegrationTests`는 DB 연결 문자열, `BLUE_SERVER_API_BASE_ADDRESS`,
+`BLUE_SERVER_GAME_PORT`가 필요하다. `BLUE_SERVER_GAME_HOST` 기본값은 `127.0.0.1`이다.
+최신 API와 Game이 같은 DB·JWT Key/Issuer/Audience를 사용해야 한다. API 로그인에는 Redis도 필요하다.
+필터는 `FullyQualifiedName~CurrencyBoxTcpIntegrationTests`다.
+
+- 회원가입/HTTP 로그인 → JWT로 TCP 로그인 → 상자 4종 각 2개 사용.
+- 미인증 사용 요청은 처리하지 않고 후속 Ping과 로그인은 정상 동작하는지 확인.
+- 동일 요청의 TCP 응답 바이트 일치, 같은 ID의 다른 개수/상자 종류 충돌 확인.
+- TCP 성공 결과를 HTTP에서도 복원하고 재화·소비·지급·사용 기록이 중복되지 않는지 확인.
+- 수량 부족/비상자 실패와 최종 잔액·보유량·이력 건수 확인.
+
+요청은 두 번의 Write로 전송하지만 실제 TCP 분할/합침 경계는 운영체제가 결정한다.
+응답은 ReadExactlyAsync로 헤더/본문을 읽고 길이를 4~4096으로 제한한다.
+이 테스트는 네트워크 장애 주입이나 응답 유실을 강제로 재현하는 테스트는 아니다.
+생성한 테스트 Player와 이력은 삭제하지 않으며 수동 테스트 계정과 분리한다.
+
 ## Mail HTTP API 통합 검증
 
 단일 수령 `POST /players/me/mails/{mailId}/claim`은 JSON 본문의 `requestId`(비어 있지 않은 GUID)가 필요하다.
