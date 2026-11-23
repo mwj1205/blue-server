@@ -67,6 +67,37 @@ Catalog 상자 3101~3104가 있는 PostgreSQL을 사용한다. API/Game 실행�
 한 요청만 커밋하며 패자의 소비·지급·이력이 남지 않는지, 재시도 시 보유량 부족인지 확인한다.
 커밋 후 응답 유실 장애 주입은 별도 후속 검증이다.
 
+## 재화 상자 HTTP API 통합 검증
+
+`POST /players/me/currency-boxes/{itemTemplateId}/use`는 JWT 인증이 필요하다.
+Player ID와 처리 시각은 서버에서 결정하며, 요청 본문은 다음과 같다.
+
+```json
+{
+  "quantity": 2,
+  "requestId": "dbe8219c-d86d-4f2c-a6de-a7b5cf98094c"
+}
+```
+
+- `quantity`: 1~999999, `requestId`: 비어 있지 않은 GUID. 재전송은 같은 ID와 같은 개수를 사용한다.
+- 200: `requestId`, `itemTemplateId`, `usedQuantity`, `quantityAfter`, `currencyType`(Gold/Gem),
+  `grantedAmount`, `currentGold`, `currentGem`, `processedAt`를 반환한다. 완료 재요청은 최초 응답을 복원한다.
+- 400: 잘못된 ID/개수/본문, 401: 인증 실패, 404: Player 또는 상자 정의 없음.
+- 409: 보유량 부족, DB 아이템 정의 없음/비활성, 멱등성 충돌, 동시 수정 충돌.
+  실패 응답의 `code`로 구분한다. `ConcurrencyConflict`는 같은 ID로 재시도하고,
+  `IdempotencyConflict`는 기존 요청과 다른 내용을 같은 ID로 보내지 않았는지 확인한다.
+- API는 시작 시 내장 Catalog를 한 번 검증/로드한다. DB Migration과 Catalog 동기화는 실행하지 않는다.
+  새 정의를 배포할 때는 기존 Migration Job을 먼저 실행해야 한다.
+
+`CurrencyBoxHttpApiIntegrationTests`는 DB 연결 문자열과 `BLUE_SERVER_API_BASE_ADDRESS`,
+최신 API 실행이 필요하다. 로그인에는 API의 Redis 연결도 필요하다. 테스트 필터는
+`FullyQualifiedName~CurrencyBoxHttpApiIntegrationTests`다.
+실제 회원가입/JWT 로그인, 인증 거절, 입력 거절과 DB 무변경, 상자 4종 사용,
+완료 응답 복원, 다른 개수의 충돌, 최종 잔액·소비·지급 이력을 확인한다.
+랜덤의 정확한 추첨값은 서비스 테스트에서 고정 난수원으로 확인하고,
+HTTP에서는 실제 난수원의 합계 범위(2개 사용 시 40~400)를 확인한다.
+테스트 Player와 이력은 삭제하지 않는다.
+
 ## Mail HTTP API 통합 검증
 
 단일 수령 `POST /players/me/mails/{mailId}/claim`은 JSON 본문의 `requestId`(비어 있지 않은 GUID)가 필요하다.

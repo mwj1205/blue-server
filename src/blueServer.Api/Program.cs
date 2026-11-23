@@ -3,6 +3,7 @@ using blueServer.Api.Extensions;
 using blueServer.Api.Middlewares;
 using blueServer.Api.Services;
 using blueServer.Infrastructure.Currencies;
+using blueServer.Infrastructure.GameData;
 using blueServer.Infrastructure.Items;
 using blueServer.Infrastructure.Mails;
 using blueServer.Infrastructure.Rewards;
@@ -57,6 +58,14 @@ builder.Services.AddScoped<RewardGrantService>();
 builder.Services.AddScoped<MailClaimService>();
 builder.Services.AddScoped<MailClaimAllService>();
 
+// 배포된 어셈블리의 정의를 시작 시 검증한다. DB 동기화는 Migration Job의 책임이다.
+var gameData = await new EmbeddedGameDataLoader().LoadAsync();
+
+builder.Services.AddSingleton(gameData.CurrencyBoxCatalog);
+builder.Services.AddSingleton<ICurrencyBoxRandom, CryptographicCurrencyBoxRandom>();
+builder.Services.AddSingleton<CurrencyBoxRewardCalculator>();
+builder.Services.AddScoped<CurrencyBoxUseService>();
+
 if (orleansEnabled)
 {
     builder.Services.AddScoped<
@@ -80,5 +89,6 @@ app.UseAuthorization();
 app.MapPlayerEndpoints();
 app.MapAuthEndpoints();
 app.MapMailEndpoints();
+app.MapCurrencyBoxEndpoints();
 
 app.Run();
