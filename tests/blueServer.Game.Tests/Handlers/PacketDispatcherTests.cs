@@ -58,20 +58,22 @@ public sealed class PacketDispatcherTests
         Assert.Equal(2, tracker.HandledInstanceIds.Distinct().Count());
     }
 
-    [Fact]
-    public async Task DispatchAsync_DoesNotCallHandler_WhenSessionIsUnauthenticatedAndOpcodeRequiresLogin()
+    [Theory]
+    [InlineData(Opcode.Chat)]
+    [InlineData(Opcode.CurrencyBoxUse)]
+    public async Task DispatchAsync_DoesNotCallHandler_WhenSessionIsUnauthenticatedAndOpcodeRequiresLogin(Opcode opcode)
     {
         var handler = new RecordingPacketHandler();
         using var provider = CreateServiceProvider(services =>
         {
             services.AddSingleton(handler);
             services.AddKeyedSingleton<IPacketHandler>(
-                Opcode.Chat,
+                opcode,
                 (serviceProvider, _) => serviceProvider.GetRequiredService<RecordingPacketHandler>());
         });
         var dispatcher = CreateDispatcher(provider);
         var session = CreateSession(dispatcher);
-        var reader = new PacketReader(CreatePacket(Opcode.Chat));
+        var reader = new PacketReader(CreatePacket(opcode));
 
         await dispatcher.DispatchAsync(session, reader, CancellationToken.None);
 

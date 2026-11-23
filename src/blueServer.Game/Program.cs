@@ -12,6 +12,7 @@ using blueServer.Game.Services;
 using Microsoft.Extensions.Configuration;
 using blueServer.Infrastructure.Security;
 using blueServer.Infrastructure.Currencies;
+using blueServer.Infrastructure.GameData;
 using blueServer.Infrastructure.Items;
 using blueServer.Infrastructure.Mails;
 using blueServer.Infrastructure.Rewards;
@@ -79,6 +80,13 @@ builder.Services.AddScoped<MailDetailQueryService>();
 builder.Services.AddScoped<MailReadService>();
 builder.Services.AddScoped<GameJwtValidator>();
 
+// API와 같은 배포 Catalog를 사용하되 DB 동기화는 Migration Job에서만 수행한다.
+var gameData = await new EmbeddedGameDataLoader().LoadAsync();
+builder.Services.AddSingleton(gameData.CurrencyBoxCatalog);
+builder.Services.AddSingleton<ICurrencyBoxRandom, CryptographicCurrencyBoxRandom>();
+builder.Services.AddSingleton<CurrencyBoxRewardCalculator>();
+builder.Services.AddScoped<CurrencyBoxUseService>();
+
 if (orleansEnabled)
 {
     builder.Services.AddScoped<
@@ -106,6 +114,7 @@ builder.Services.AddKeyedScoped<IPacketHandler, MailDetailHandler>(Opcode.MailDe
 builder.Services.AddKeyedScoped<IPacketHandler, MailClaimHandler>(Opcode.MailClaim);
 builder.Services.AddKeyedScoped<IPacketHandler, MailClaimAllHandler>(Opcode.MailClaimAll);
 builder.Services.AddKeyedScoped<IPacketHandler, MailReadHandler>(Opcode.MailRead);
+builder.Services.AddKeyedScoped<IPacketHandler, CurrencyBoxUseHandler>(Opcode.CurrencyBoxUse);
 
 builder.Services.AddSingleton<PacketDispatcher>();
 builder.Services.AddSingleton<SessionFactory>();
