@@ -317,6 +317,26 @@ Mail 상태와 Player 재화·지급 이력을 확인하며, 생성한 데이터
 마지막으로 원래 Mail 정보·만료일·읽음 시각 보존, 재화 중복 지급 방지, 수령 기록과 인벤토리를 검사한다.
 테스트 Player·ItemTemplate·Mail·변경/수령 이력은 삭제하지 않는다.
 
+### HTTP 인벤토리 전체 조회
+
+`GET /players/me/inventory`는 JWT 소유자의 수량이 양수인 아이템 전체를 반환한다.
+응답은 `items` 배열이며 각 항목은 `itemTemplateId`, `quantity`, `type`(문자열),
+`isActive`다. 페이지나 커서는 없으며, 비활성 아이템도 보유 중이면 표시한다.
+미인증은 401, 빈 인벤토리는 200과 빈 배열, Player 미존재는 404다.
+기술적 상한 10,000종 초과는 500과 `code: InventoryTooLarge`로 처리하며 일부 목록을 반환하지 않는다.
+이는 요청 본문 크기 초과(413)나 게임 보유 한도 정책을 뜻하지 않는다.
+
+API와 PostgreSQL 실행 조건을 준비한 뒤 다음 필터로 검증한다.
+
+```powershell
+dotnet test tests/blueServer.Game.IntegrationTests/blueServer.Game.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~InventoryHttpApiIntegrationTests"
+```
+
+테스트는 회원가입·로그인 후 빈 목록, 60종 전체 반환, JWT 소유 조건, 수량0 제외,
+비활성 표시, DB 수량 변경 후 재조회를 확인한다. 테스트 Player와 전용 ItemTemplate,
+PlayerItem은 남겨두며 기존 데이터를 수정하지 않는다. Player 미존재와 10,000종 경계는
+조회 서비스 PostgreSQL 테스트에서도 검증하지만 해당 HTTP 오류 응답은 이 테스트에서 실행하지 않는다.
+
 ### TCP 아이템 일괄 수령 계약
 
 `MailFlow_ClaimAllReplaysSummaryAfterReconnectWithoutDoubleGrant`는 같은 아이템의 Mail 100건을
