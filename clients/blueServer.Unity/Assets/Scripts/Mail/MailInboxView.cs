@@ -23,6 +23,8 @@ namespace BlueServer.Client.Mail
         private Vector2 _resourceScrollPosition;
         private float _layoutHeight;
         private GUIStyle _resourceValueStyle;
+        private int _inventoryCategory;
+        private Vector2 _inventoryScrollPosition;
 
         public void Initialize(
             MailInboxState state,
@@ -86,6 +88,7 @@ namespace BlueServer.Client.Mail
             if (_tab == 1)
             {
                 DrawBoxUse();
+                DrawInventory();
                 GUILayout.EndArea();
                 return;
             }
@@ -150,7 +153,7 @@ namespace BlueServer.Client.Mail
             GUILayout.Label("Gem");
             GUILayout.Label(_state.HasCurrentBalance ? _state.CurrentGem.ToString("N0") : "Unknown", _resourceValueStyle);
             GUILayout.Space(10f);
-            GUILayout.Label("Boxes / last observed");
+            GUILayout.Label("Boxes / server inventory");
             var names = new[] { "Gold 100", "Gem 100", "Gold 20-200", "Gem 20-200" };
             for (var i = 0; i < names.Length; i++)
             {
@@ -158,12 +161,14 @@ namespace BlueServer.Client.Mail
                 int quantity;
                 GUILayout.BeginVertical(GUI.skin.box);
                 GUILayout.Label(itemId + " / " + names[i]);
-                GUILayout.Label(_state.KnownQuantities.TryGetValue(itemId, out quantity)
+                GUILayout.Label(_state.TryGetInventoryQuantity(itemId, out quantity)
                     ? quantity.ToString("N0") : "Unknown", _resourceValueStyle);
                 GUILayout.EndVertical();
             }
-            GUILayout.Label(_state.IsBusy ? "Updating..." : "Claim/use results update this panel.");
-            GUILayout.Label("Unknown is not zero. Claim All reports grants, not inventory totals.");
+            GUILayout.Label(_state.IsInventoryLoading ? "Loading inventory..." :
+                _state.IsInventoryFresh ? "Server snapshot loaded." : "Inventory needs refresh.");
+            if (!string.IsNullOrEmpty(_state.InventoryError)) GUILayout.Label(_state.InventoryError);
+            GUILayout.Label("Unknown is not zero. Successful claims/use refresh the full inventory.");
             GUILayout.EndScrollView();
             GUILayout.EndArea();
         }
@@ -370,15 +375,51 @@ namespace BlueServer.Client.Mail
             int quantity;
             var valid = int.TryParse(_boxQuantity, out quantity) && quantity >= 1 && quantity <= 999999;
             var previous = GUI.enabled;
-            GUI.enabled = previous && !_state.IsBusy && valid;
+            GUI.enabled = previous && !_state.IsBusy && valid && _state.IsInventoryFresh;
             if (GUILayout.Button("Use (new request)")) UseBox(3101 + _boxIndex, quantity, false);
             GUI.enabled = previous && !_state.IsBusy && _state.CanRetryUse;
             if (GUILayout.Button("Retry last request")) UseBox(0, 0, true);
             GUI.enabled = previous;
             GUILayout.EndHorizontal();
-            if (_state.KnownQuantities.Count == 0)
-                GUILayout.Label("No current quantity observation. Single claim/use reports inventory totals; Claim All reports grants only.");
             GUILayout.EndVertical();
+        }
+
+        private void DrawInventory()
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Inventory / " + _state.InventoryItems.Count + " types");
+            var previous = GUI.enabled;
+            GUI.enabled = previous && !_state.IsBusy && _state.CanQueryInventory;
+            if (GUILayout.Button("Refresh inventory", GUILayout.Width(150f))) RefreshInventory();
+            GUI.enabled = previous;
+            GUILayout.EndHorizontal();
+            if (_state.IsInventoryLoading) GUILayout.Label("Loading full inventory...");
+            else if (!_state.IsInventoryFresh) GUILayout.Label("Not current. Refresh inventory; reconnect if the connection was lost.");
+            if (!string.IsNullOrEmpty(_state.InventoryError)) GUILayout.Label(_state.InventoryError);
+
+            // 카테고리는 이미 수신한 전체 목록만 필터링한다. 전환 시 서버 요청은 없다.
+            _inventoryCategory = GUILayout.Toolbar(_inventoryCategory,
+                new[] { "All", "Materials", "Shards", "Consumables", "Event" });
+            _inventoryScrollPosition = GUILayout.BeginScrollView(
+                _inventoryScrollPosition, GUI.skin.box, GUILayout.ExpandHeight(true));
+            var visibleCount = 0;
+            foreach (var item in _state.InventoryItems)
+            {
+                if (_inventoryCategory != 0 && (int)item.Type != _inventoryCategory) continue;
+                visibleCount++;
+                GUILayout.BeginHorizontal(GUI.skin.box);
+                GUILayout.Label(item.ItemTemplateId + " / " + item.Type);
+                GUILayout.Label(item.Quantity.ToString("N0") + (_state.IsInventoryFresh ? "" : " (stale)"));
+                if (!item.IsActive) GUILayout.Label("Inactive");
+                GUILayout.EndHorizontal();
+            }
+            if (visibleCount == 0) GUILayout.Label(_state.IsInventoryFresh ? "No items in this category." : "No inventory snapshot.");
+            GUILayout.EndScrollView();
+        }
+
+        private async void RefreshInventory()
+        {
+            await ExecuteAsync(() => _state.RefreshInventoryAsync(_cancellationToken));
         }
 
         private async void UseBox(int itemId, int quantity, bool retry)

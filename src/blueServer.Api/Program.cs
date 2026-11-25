@@ -53,6 +53,7 @@ builder.Services.AddScoped<MailReadService>();
 builder.Services.AddScoped<MailDeliveryService>();
 builder.Services.AddScoped<CurrencyChangeService>();
 builder.Services.AddScoped<InventoryChangeService>();
+builder.Services.AddScoped<InventoryListQueryService>();
 builder.Services.AddScoped<InventoryGrantService>();
 builder.Services.AddScoped<RewardGrantService>();
 builder.Services.AddScoped<MailClaimService>();
@@ -90,5 +91,6 @@ app.MapPlayerEndpoints();
 app.MapAuthEndpoints();
 app.MapMailEndpoints();
 app.MapCurrencyBoxEndpoints();
+app.MapInventoryEndpoints();
 
 app.Run();

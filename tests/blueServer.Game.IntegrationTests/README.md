@@ -54,6 +54,47 @@ finally {
 - 동일 Request ID에 다른 payload 사용 시 멱등성 충돌
 - `RewardGrantRecords`, `RewardGrantItems` 지급 snapshot 저장
 
+## 인벤토리 조회 서비스 검증
+
+`InventoryListQueryServiceIntegrationTests`는 DB 연결 문자열만 필요하며 API/Game 실행은 필요 없다.
+Inventory 테이블과 기존 Catalog 아이템 1001/3101/3102가 있는 로컬 PostgreSQL을 사용한다.
+필터는 `FullyQualifiedName~InventoryListQueryServiceIntegrationTests`다.
+
+- Player 소유 조건, ItemTemplateId 오름차순 전체 목록과 ItemType 반환 확인.
+- 수량 0 제외, 보유 중인 비활성 아이템 반환과 활성 여부 확인.
+- 같은 조회 DbContext에서도 외부 변경 후 최신 수량 반환 및 변경 추적 없음 확인.
+- 빈 인벤토리와 없는 Player 구분.
+- 10,000종 전체 반환과 10,001종의 `InventoryTooLarge` 실패(부분 목록 없음) 확인.
+
+테스트는 별도의 Player와 비활성 ItemTemplate을 추가하고 기존 Catalog 정의는 변경하지 않는다.
+일반 사례의 데이터는 삭제하지 않는다. 대량 경계 사례는 테스트 전용 Transaction에서
+정의와 보유 데이터를 만들고 전체 롤백하므로 기존 데이터에는 영향을 주지 않는다.
+이번 기능에 새 Migration은 없다. 조회 목록은 한 SELECT의 결과로 고정하며,
+수령/사용 후 UI를 갱신할 때는 전체를 재조회해 교체하는 방향이다.
+10,000종은 기술적 응답 보호 상한이지 게임의 보유 한도가 아니다.
+HTTP/TCP는 전체 조회 서비스에 연결되어 있다. Unity 연결은 아직 미구현이다.
+
+### TCP 인벤토리 전체 조회 검증
+
+`InventoryTcpIntegrationTests`는 실제 API의 회원가입·로그인으로 받은 JWT로 Game에 로그인한다.
+DB/API/Game 환경 변수를 준비한 뒤 다음 필터로 실행한다.
+
+```powershell
+dotnet test tests/blueServer.Game.IntegrationTests/blueServer.Game.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~InventoryTcpIntegrationTests"
+```
+
+- 미인증 조회 뒤 Ping 응답으로 조회 거절과 연결 유지를 확인한다.
+- 빈 목록과 311종의 두 프레임 응답을 수신하고 RequestId/순번/전체 개수/프레임 길이를 검사한다.
+- 4가지 ItemType, 비활성 표시, 수량0 및 다른 Player 아이템 제외를 확인한다.
+- DB에서 테스트 아이템 수량을 변경한 뒤 같은 RequestId로 재조회해 최신 값을 확인한다.
+  조회 RequestId는 응답 식별용이며 최초 결과를 재생하는 지급 멱등성 키가 아니다.
+- 테스트 Player·ItemTemplate·PlayerItem을 남겨둔다. 기존 데이터는 수정하지 않는다.
+  수량 변경은 테스트 전용 데이터 준비이며 실제 아이템 소비 기능 검증은 아니다.
+
+응답 파서는 길이4096/전체10000종/최대33프레임을 제한하는 테스트 전용 구현이다.
+Unity 재조립기나 범용 전송 계층을 구현한 것은 아니다. 요청을 두 번 Write하지만 실제 TCP
+세그먼트 경계는 보장하지 않는다. 전송 중 종료·응답 유실·느린 수신자 장애 주입은 검증하지 않는다.
+
 ## 재화 상자 사용 서비스 검증
 
 `CurrencyBoxUseServiceIntegrationTests`는 적용된 `AddCurrencyBoxUseRecords` Migration과
@@ -296,6 +337,26 @@ Mail 상태와 Player 재화·지급 이력을 확인하며, 생성한 데이터
 기존 RequestId 없는 요청의 아이템 Mail 거절과 완료 후 최초 요청 결과 복원도 확인한다.
 마지막으로 원래 Mail 정보·만료일·읽음 시각 보존, 재화 중복 지급 방지, 수령 기록과 인벤토리를 검사한다.
 테스트 Player·ItemTemplate·Mail·변경/수령 이력은 삭제하지 않는다.
+
+### HTTP 인벤토리 전체 조회
+
+`GET /players/me/inventory`는 JWT 소유자의 수량이 양수인 아이템 전체를 반환한다.
+응답은 `items` 배열이며 각 항목은 `itemTemplateId`, `quantity`, `type`(문자열),
+`isActive`다. 페이지나 커서는 없으며, 비활성 아이템도 보유 중이면 표시한다.
+미인증은 401, 빈 인벤토리는 200과 빈 배열, Player 미존재는 404다.
+기술적 상한 10,000종 초과는 500과 `code: InventoryTooLarge`로 처리하며 일부 목록을 반환하지 않는다.
+이는 요청 본문 크기 초과(413)나 게임 보유 한도 정책을 뜻하지 않는다.
+
+API와 PostgreSQL 실행 조건을 준비한 뒤 다음 필터로 검증한다.
+
+```powershell
+dotnet test tests/blueServer.Game.IntegrationTests/blueServer.Game.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~InventoryHttpApiIntegrationTests"
+```
+
+테스트는 회원가입·로그인 후 빈 목록, 60종 전체 반환, JWT 소유 조건, 수량0 제외,
+비활성 표시, DB 수량 변경 후 재조회를 확인한다. 테스트 Player와 전용 ItemTemplate,
+PlayerItem은 남겨두며 기존 데이터를 수정하지 않는다. Player 미존재와 10,000종 경계는
+조회 서비스 PostgreSQL 테스트에서도 검증하지만 해당 HTTP 오류 응답은 이 테스트에서 실행하지 않는다.
 
 ### TCP 아이템 일괄 수령 계약
 

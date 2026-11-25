@@ -40,5 +40,8 @@ public enum Opcode : ushort
     CurrencyBoxUse = 27,
     CurrencyBoxUseResult = 28,
 
+    InventoryList = 29,
+    InventoryListResult = 30,
+
     ChatMessage = 1000  // S -> C
 }

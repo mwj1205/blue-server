@@ -49,6 +49,7 @@ namespace BlueServer.Client.Mail
             try
             {
                 _claimAllUncertain = true;
+                InvalidateInventory();
                 ItemMessage = "Claim All request=" + _claimAllRequestId.ToString("D");
                 var result = await client.ClaimAllMailItemsAsync(_claimAllRequestId, ct);
                 LastItemClaimAllResult = result;
@@ -71,11 +72,15 @@ namespace BlueServer.Client.Mail
                     if (i < 8) ItemMessage += string.Format("\nItem {0}: received +{1:N0}", item.ItemTemplateId, item.GrantedQuantity);
                 }
                 if (result.Items.Count > 8) ItemMessage += "\nAdditional item types: " + (result.Items.Count - 8);
-                if (result.Items.Count > 0) ItemMessage += "\nInventory totals need a fresh single claim/use observation.";
                 if (result.HasMore) ItemMessage += "\nMore candidates exist. Free capacity if needed, then start a NEW Claim All.";
                 var profile = await client.GetPlayerProfileAsync(ct);
                 if (!profile.Success) throw new GameProtocolException(profile.Message);
                 SetCurrentBalance(profile.Gold, profile.Gem);
+                if (!await RefreshInventoryCoreAsync(ct))
+                {
+                    SetServerFailure("Claim All confirmed; " + InventoryError);
+                    return false;
+                }
                 RequiresRefresh = true;
                 CompleteRequest();
                 // 자동 반복하지 않는다. 공간 부족 Mail이 계속 후보가 될 수 있다.
@@ -104,6 +109,7 @@ namespace BlueServer.Client.Mail
             try
             {
                 ItemMessage = "Claim request=" + id.ToString("D");
+                InvalidateInventory();
                 var result = await ((IItemUseClient)_client).ClaimMailItemsAsync(mailId, id, ct);
                 ItemMessage = "Claim: " + result.Message + " / RequestId=" + id.ToString("D");
                 if (!result.Success)
@@ -121,6 +127,11 @@ namespace BlueServer.Client.Mail
                         item.ItemTemplateId, item.GrantedQuantity, item.RemainingQuantity, item.QuantityAfter);
                 }
                 // 부분 수령 여부와 만료 시각은 서버에서 다시 읽는다. 클라이언트에서 완료로 추정하지 않는다.
+                if (!await RefreshInventoryCoreAsync(ct))
+                {
+                    SetServerFailure("Claim confirmed; " + InventoryError);
+                    return false;
+                }
                 RequiresRefresh = true;
                 CompleteRequest();
                 return await LoadDetailAsync(mailId, ct);
@@ -165,6 +176,7 @@ namespace BlueServer.Client.Mail
             try
             {
                 _useUncertain = true;
+                InvalidateInventory();
                 ItemMessage = "Box request=" + _useRequestId.ToString("D");
                 var result = await client.UseCurrencyBoxAsync(itemId, quantity, _useRequestId, ct);
                 _useUncertain = result.Status == 7;
@@ -182,6 +194,11 @@ namespace BlueServer.Client.Mail
                 var profile = await client.GetPlayerProfileAsync(ct);
                 if (!profile.Success) throw new GameProtocolException(profile.Message);
                 SetCurrentBalance(profile.Gold, profile.Gem);
+                if (!await RefreshInventoryCoreAsync(ct))
+                {
+                    SetServerFailure("Box use confirmed; " + InventoryError);
+                    return false;
+                }
                 RequiresRefresh = true;
                 CompleteRequest();
                 return true;

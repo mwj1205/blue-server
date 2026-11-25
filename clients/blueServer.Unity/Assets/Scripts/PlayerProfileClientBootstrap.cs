@@ -91,6 +91,7 @@ namespace BlueServer.Client
                 await mailState.LoadFirstPageAsync(
                     MailPacketCodec.DefaultPageSize,
                     _lifetimeCts.Token);
+                await mailState.RefreshInventoryAsync(_lifetimeCts.Token);
             }
             catch (OperationCanceledException)
             {

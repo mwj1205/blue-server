@@ -61,6 +61,7 @@ public sealed class PacketDispatcherTests
     [Theory]
     [InlineData(Opcode.Chat)]
     [InlineData(Opcode.CurrencyBoxUse)]
+    [InlineData(Opcode.InventoryList)]
     public async Task DispatchAsync_DoesNotCallHandler_WhenSessionIsUnauthenticatedAndOpcodeRequiresLogin(Opcode opcode)
     {
         var handler = new RecordingPacketHandler();
