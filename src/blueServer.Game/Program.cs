@@ -70,6 +70,7 @@ builder.Services.AddScoped<PartyService>();
 builder.Services.AddScoped<StageClearService>();
 builder.Services.AddScoped<CurrencyChangeService>();
 builder.Services.AddScoped<InventoryChangeService>();
+builder.Services.AddScoped<InventoryListQueryService>();
 builder.Services.AddScoped<InventoryGrantService>();
 builder.Services.AddScoped<RewardGrantService>();
 builder.Services.AddScoped<MailDeliveryService>();
@@ -115,6 +116,7 @@ builder.Services.AddKeyedScoped<IPacketHandler, MailClaimHandler>(Opcode.MailCla
 builder.Services.AddKeyedScoped<IPacketHandler, MailClaimAllHandler>(Opcode.MailClaimAll);
 builder.Services.AddKeyedScoped<IPacketHandler, MailReadHandler>(Opcode.MailRead);
 builder.Services.AddKeyedScoped<IPacketHandler, CurrencyBoxUseHandler>(Opcode.CurrencyBoxUse);
+builder.Services.AddKeyedScoped<IPacketHandler, InventoryListHandler>(Opcode.InventoryList);
 
 builder.Services.AddSingleton<PacketDispatcher>();
 builder.Services.AddSingleton<SessionFactory>();
