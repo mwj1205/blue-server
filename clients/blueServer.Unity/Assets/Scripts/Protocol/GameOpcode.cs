@@ -17,6 +17,8 @@ namespace BlueServer.Client.Protocol
         MailRead = 25,
         MailReadResult = 26,
         CurrencyBoxUse = 27,
-        CurrencyBoxUseResult = 28
+        CurrencyBoxUseResult = 28,
+        InventoryList = 29,
+        InventoryListResult = 30
     }
 }

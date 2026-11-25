@@ -35,6 +35,10 @@ namespace BlueServer.Client.Tests
                 Assert.That((await client.LoginAsync(token, ct)).Success, Is.True);
                 var state = new MailInboxState(client);
                 Assert.That(await state.LoadFirstPageAsync(20, ct), Is.True);
+                Assert.That(await state.RefreshInventoryAsync(ct), Is.True);
+                Assert.That(state.IsInventoryFresh, Is.True);
+                Assert.That(state.KnownQuantities[3101], Is.EqualTo(999990));
+                Assert.That(state.InventoryItems.Select(item => item.Type).Distinct().Count(), Is.EqualTo(4));
                 var mail = state.Items.Single(item => item.Title == "Unity box overflow 3101");
                 Assert.That(await state.LoadDetailAsync(mail.Id, ct), Is.True);
                 var expiresAt = state.SelectedMail.ExpiresAt;
@@ -74,7 +78,8 @@ namespace BlueServer.Client.Tests
                 Assert.That(state.LastItemClaimAllResult.ClaimedMailCount, Is.EqualTo(1));
                 Assert.That(state.LastItemClaimAllResult.NoCapacityMailCount, Is.EqualTo(2));
                 Assert.That(state.LastItemClaimAllResult.Items.Single().GrantedQuantity, Is.EqualTo(11));
-                Assert.That(state.KnownQuantities.ContainsKey(3102), Is.False);
+                Assert.That(state.IsInventoryFresh, Is.True);
+                Assert.That(state.KnownQuantities[3102], Is.EqualTo(999990));
                 Assert.That(await state.LoadDetailAsync(gemMail.Id, ct), Is.True);
                 Assert.That(state.SelectedMail.ItemAttachments.Single().RemainingQuantity, Is.EqualTo(0));
                 Assert.That(state.SelectedMail.ExpiresAt, Is.EqualTo(gemExpiry));
