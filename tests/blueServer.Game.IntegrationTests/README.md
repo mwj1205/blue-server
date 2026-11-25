@@ -54,6 +54,26 @@ finally {
 - 동일 Request ID에 다른 payload 사용 시 멱등성 충돌
 - `RewardGrantRecords`, `RewardGrantItems` 지급 snapshot 저장
 
+## 인벤토리 조회 서비스 검증
+
+`InventoryListQueryServiceIntegrationTests`는 DB 연결 문자열만 필요하며 API/Game 실행은 필요 없다.
+Inventory 테이블과 기존 Catalog 아이템 1001/3101/3102가 있는 로컬 PostgreSQL을 사용한다.
+필터는 `FullyQualifiedName~InventoryListQueryServiceIntegrationTests`다.
+
+- Player 소유 조건, ItemTemplateId 오름차순 전체 목록과 ItemType 반환 확인.
+- 수량 0 제외, 보유 중인 비활성 아이템 반환과 활성 여부 확인.
+- 같은 조회 DbContext에서도 외부 변경 후 최신 수량 반환 및 변경 추적 없음 확인.
+- 빈 인벤토리와 없는 Player 구분.
+- 10,000종 전체 반환과 10,001종의 `InventoryTooLarge` 실패(부분 목록 없음) 확인.
+
+테스트는 별도의 Player와 비활성 ItemTemplate을 추가하고 기존 Catalog 정의는 변경하지 않는다.
+일반 사례의 데이터는 삭제하지 않는다. 대량 경계 사례는 테스트 전용 Transaction에서
+정의와 보유 데이터를 만들고 전체 롤백하므로 기존 데이터에는 영향을 주지 않는다.
+이번 기능에 새 Migration은 없다. 조회 목록은 한 SELECT의 결과로 고정하며,
+수령/사용 후 UI를 갱신할 때는 전체를 재조회해 교체하는 방향이다.
+10,000종은 기술적 응답 보호 상한이지 게임의 보유 한도가 아니다.
+HTTP/TCP와 Unity는 아직 이 전체 조회 서비스에 연결하지 않았다.
+
 ## 재화 상자 사용 서비스 검증
 
 `CurrencyBoxUseServiceIntegrationTests`는 적용된 `AddCurrencyBoxUseRecords` Migration과
