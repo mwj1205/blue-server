@@ -72,7 +72,28 @@ Inventory 테이블과 기존 Catalog 아이템 1001/3101/3102가 있는 로컬 
 이번 기능에 새 Migration은 없다. 조회 목록은 한 SELECT의 결과로 고정하며,
 수령/사용 후 UI를 갱신할 때는 전체를 재조회해 교체하는 방향이다.
 10,000종은 기술적 응답 보호 상한이지 게임의 보유 한도가 아니다.
-HTTP/TCP와 Unity는 아직 이 전체 조회 서비스에 연결하지 않았다.
+HTTP/TCP는 전체 조회 서비스에 연결되어 있다. Unity 연결은 아직 미구현이다.
+
+### TCP 인벤토리 전체 조회 검증
+
+`InventoryTcpIntegrationTests`는 실제 API의 회원가입·로그인으로 받은 JWT로 Game에 로그인한다.
+DB/API/Game 환경 변수를 준비한 뒤 다음 필터로 실행한다.
+
+```powershell
+dotnet test tests/blueServer.Game.IntegrationTests/blueServer.Game.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~InventoryTcpIntegrationTests"
+```
+
+- 미인증 조회 뒤 Ping 응답으로 조회 거절과 연결 유지를 확인한다.
+- 빈 목록과 311종의 두 프레임 응답을 수신하고 RequestId/순번/전체 개수/프레임 길이를 검사한다.
+- 4가지 ItemType, 비활성 표시, 수량0 및 다른 Player 아이템 제외를 확인한다.
+- DB에서 테스트 아이템 수량을 변경한 뒤 같은 RequestId로 재조회해 최신 값을 확인한다.
+  조회 RequestId는 응답 식별용이며 최초 결과를 재생하는 지급 멱등성 키가 아니다.
+- 테스트 Player·ItemTemplate·PlayerItem을 남겨둔다. 기존 데이터는 수정하지 않는다.
+  수량 변경은 테스트 전용 데이터 준비이며 실제 아이템 소비 기능 검증은 아니다.
+
+응답 파서는 길이4096/전체10000종/최대33프레임을 제한하는 테스트 전용 구현이다.
+Unity 재조립기나 범용 전송 계층을 구현한 것은 아니다. 요청을 두 번 Write하지만 실제 TCP
+세그먼트 경계는 보장하지 않는다. 전송 중 종료·응답 유실·느린 수신자 장애 주입은 검증하지 않는다.
 
 ## 재화 상자 사용 서비스 검증
 
